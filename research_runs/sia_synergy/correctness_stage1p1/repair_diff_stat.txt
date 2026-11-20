@@ -1,0 +1,5 @@
+ sia-simulator/joint_prototype/joint_integration.py |  15 +-
+ sia-simulator/joint_prototype/joint_scheduler.py   |  62 +++++-
+ sia-simulator/joint_prototype/synergy_adapter.py   |   3 +
+ sia-simulator/tests/test_stage1p1_correctness.py   | 211 +++++++++++++++++++++
+ 4 files changed, 281 insertions(+), 10 deletions(-)

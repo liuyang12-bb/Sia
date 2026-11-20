@@ -1,0 +1,70 @@
+{
+  "source": "https://www.cs.newpaltz.edu/~lik/publications/Kaimin-Wu-FGCS-2027.pdf",
+  "doi": "10.1016/j.future.2026.108820",
+  "pdf_sha256": "6544EDF5EEE3C3B46DB0CC83FDF10CB02567E5B299AC2941D4F8E373EFF94146",
+  "pdf_bytes": 2858851,
+  "evidence": "Section4.1, PDF pages6-7, Table3; Section4.9 PDF page12",
+  "verified_scale": [
+    {
+      "trace": "Helios",
+      "jobs": 10993,
+      "variants": [
+        {
+          "nodes": 67,
+          "gpus_per_node": 16,
+          "cpu_per_node": 48,
+          "ram_gb_per_node": 1000,
+          "total_gpus": 1072
+        },
+        {
+          "nodes": 134,
+          "gpus_per_node": 8,
+          "cpu_per_node": 96,
+          "ram_gb_per_node": 500,
+          "total_gpus": 1072
+        }
+      ]
+    },
+    {
+      "trace": "Philly",
+      "jobs": 24983,
+      "variants": [
+        {
+          "nodes": 32,
+          "gpus_per_node": 16,
+          "cpu_per_node": 48,
+          "ram_gb_per_node": 1000,
+          "total_gpus": 512
+        },
+        {
+          "nodes": 64,
+          "gpus_per_node": 8,
+          "cpu_per_node": 96,
+          "ram_gb_per_node": 500,
+          "total_gpus": 512
+        }
+      ]
+    }
+  ],
+  "sensitive_job_percentages": [
+    20,
+    50,
+    80
+  ],
+  "workload_scenarios": 12,
+  "robustness": {
+    "workload": "P_MIX2",
+    "runs": 10
+  },
+  "user_target": "Match job-count and total-GPU scale; retain our heterogeneous GPU and meanJCT research definition, not add deadlines",
+  "supersedes_plan": "cc_paper_sameversion_20261102_run2/preregistration.json remains preserved;47-cell80-job plan must not be launched as final matched-scale batch",
+  "run_state": "NOT_STARTED",
+  "necessary_preconditions": [
+    "Disk gate>=5GiB (latest4.25GiB)",
+    "Actual source support and correctness for >80 active jobs and many nodes; no truncation",
+    "GPU-profile and R0 domain compatibility without fabricated16GPU profiles",
+    "Raw source trace extraction and sensitivity mapping frozen before outcomes",
+    "Empirical solver/memory/storage feasibility; no speculative wallclock estimate"
+  ],
+  "does_not_establish": "Equal simulated scale does not imply equal runtime cost; SensaScale uses homogeneous fixedGPU demand while ours searches elastic heterogeneous configurations."
+}

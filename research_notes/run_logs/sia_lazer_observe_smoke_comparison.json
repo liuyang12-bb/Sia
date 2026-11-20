@@ -1,0 +1,25 @@
+{
+  "audit_off": {
+    "rounds": 149,
+    "sha256": "FE5B7EF8D5C9D8A759B017F0EE9866D14415DB14B91E8A12572F23E0813D4B9A",
+    "matches_historical_sia_smoke_byte_for_byte": true,
+    "exit_code": 0,
+    "elapsed_seconds": 79.5892966
+  },
+  "audit_on": {
+    "rounds": 149,
+    "sha256": "230F2AF59EC473C7E0D0D20954639F8EC48B13425D2482E01CFBBB9C9A3E919C",
+    "exit_code": 0,
+    "elapsed_seconds": 77.5946143,
+    "audit_rounds": 149,
+    "audit_job_snapshots": 2359,
+    "rescale_events": 70,
+    "migrate_events": 63,
+    "final_used_gpu_seconds": 205710,
+    "final_wasted_gpu_seconds": 27030
+  },
+  "comparison": {
+    "objects_identical_after_removing_preemption_audit": true,
+    "compared_rounds": 149
+  }
+}

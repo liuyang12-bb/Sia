@@ -1,0 +1,43 @@
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Unique configs:
+Configs: {0: ('aws', 1, 1), 1: ('aws', 1, 2), 2: ('aws', 1, 4), 3: ('aws', 1, 8), 4: ('dgx-ext', 1, 1), 5: ('dgx-ext', 1, 2), 6: ('dgx-ext', 1, 4), 7: ('dgx-ext', 1, 8)}
+Cluster total gpus: {'aws': 2, 'dgx-ext': 2}
+Simulated cluster config: 
+nnodes: {'aws': 1, 'dgx-ext': 1}, ngpus_per_node:{'aws': 2, 'dgx-ext': 2}
+Initialized job state for 2 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): []
+Seeding profiles for job: cifar10-0
+Seeding profiles for job: deepspeech2-8
+Realloc factor: cifar10-0 --> 0.6666666666666666, age: 60.0, restart penalty: 30, lost seconds: 0, num restarts: 0
+Realloc factor: deepspeech2-8 --> 0.7058823529411765, age: 60.0, restart penalty: 25, lost seconds: 0, num restarts: 0
+Preserving allocations for jobs blocked on checkpoint-restore: {'rigid': [], 'adaptive': []}
+Solver took: 8.47ms = 1.00ms (setup) + 7.47ms (solve)
+Optimization metrics: optimal objective value = 2.0000, effective ngpus = 2.0
+Policy optimization took 44.66ms, reallocating+migrating jobs took 2.01ms
+Realloc factor: cifar10-0 --> 0.8, age: 120.0, restart penalty: 30, lost seconds: 0, num restarts: 0
+Realloc factor: deepspeech2-8 --> 0.8275862068965517, age: 120.0, restart penalty: 25, lost seconds: 0, num restarts: 0
+Preserving allocations for jobs blocked on checkpoint-restore: {'rigid': [], 'adaptive': []}
+Solver took: 9.01ms = 1.00ms (setup) + 8.01ms (solve)
+Optimization metrics: optimal objective value = 1.5300, effective ngpus = 4.912885904312134
+Policy optimization took 62.67ms, reallocating+migrating jobs took 2.34ms
+Realloc factor: cifar10-0 --> 0.7142857142857143, age: 180.0, restart penalty: 30, lost seconds: 30, num restarts: 1
+Realloc factor: deepspeech2-8 --> 0.7560975609756098, age: 180.0, restart penalty: 25, lost seconds: 25, num restarts: 1
+Preserving allocations for jobs blocked on checkpoint-restore: {'rigid': [], 'adaptive': []}
+Solver took: 8.21ms = 1.10ms (setup) + 7.11ms (solve)
+Optimization metrics: optimal objective value = 1.3800, effective ngpus = 5.048351526260376
+Policy optimization took 62.40ms, reallocating+migrating jobs took 0.00ms
+Realloc factor: cifar10-0 --> 0.7777777777777778, age: 240.0, restart penalty: 30, lost seconds: 30, num restarts: 1
+Realloc factor: deepspeech2-8 --> 0.8113207547169812, age: 240.0, restart penalty: 25, lost seconds: 25, num restarts: 1
+Preserving allocations for jobs blocked on checkpoint-restore: {'rigid': [], 'adaptive': []}
+Solver took: 10.16ms = 1.09ms (setup) + 9.07ms (solve)
+Optimization metrics: optimal objective value = 1.2500, effective ngpus = 7.829009771347046
+Policy optimization took 65.90ms, reallocating+migrating jobs took 0.00ms
+Realloc factor: cifar10-0 --> 0.8181818181818182, age: 300.0, restart penalty: 30, lost seconds: 30, num restarts: 1
+Realloc factor: deepspeech2-8 --> 0.8461538461538461, age: 300.0, restart penalty: 25, lost seconds: 25, num restarts: 1
+Preserving allocations for jobs blocked on checkpoint-restore: {'rigid': [], 'adaptive': []}
+Solver took: 8.44ms = 0.00ms (setup) + 8.44ms (solve)
+Optimization metrics: optimal objective value = 1.1900, effective ngpus = 10.667820692062378
+Policy optimization took 62.06ms, reallocating+migrating jobs took 0.00ms
+PROBE_JSON=[{"allocations": {"cifar10-0": ["aws", [0]], "deepspeech2-8": ["aws", [0]]}, "jobs": {"cifar10-0": {"accum_steps": 0, "atomic_bsz": 128, "checkpoint": 50, "completion": null, "epoch": 0, "progress": 0.0, "restarts": 0}, "deepspeech2-8": {"accum_steps": 0, "atomic_bsz": 20, "checkpoint": 25, "completion": null, "epoch": 0, "progress": 0.0, "restarts": 0}}, "resources": {"cifar10-0": {"config": "aws:1:1", "cpu": 6.0, "placement": {"aws:0": 1}, "ram": 125.0, "rho": 1.0}, "deepspeech2-8": {"config": "aws:1:1", "cpu": 6.0, "placement": {"aws:0": 1}, "ram": 125.0, "rho": 1.0}}, "time": 60}, {"allocations": {"cifar10-0": ["dgx-ext", [0, 0]], "deepspeech2-8": ["aws", [0, 0]]}, "jobs": {"cifar10-0": {"accum_steps": 0, "atomic_bsz": 106, "checkpoint": 50, "completion": null, "epoch": 0, "progress": 53.877109390306906, "restarts": 1}, "deepspeech2-8": {"accum_steps": 0, "atomic_bsz": 10, "checkpoint": 25, "completion": null, "epoch": 0, "progress": 42.816325755919415, "restarts": 1}}, "resources": {"cifar10-0": {"config": "dgx-ext:1:2", "cpu": 6.0, "placement": {"dgx-ext:0": 2}, "ram": 125.0, "rho": 1.0}, "deepspeech2-8": {"config": "aws:1:2", "cpu": 6.0, "placement": {"aws:0": 2}, "ram": 125.0, "rho": 1.0}}, "time": 120}, {"allocations": {"cifar10-0": ["dgx-ext", [0, 0]], "deepspeech2-8": ["aws", [0, 0]]}, "jobs": {"cifar10-0": {"accum_steps": 0, "atomic_bsz": 121, "checkpoint": 0, "completion": null, "epoch": 0, "progress": 261.70989768448214, "restarts": 1}, "deepspeech2-8": {"accum_steps": 0, "atomic_bsz": 10, "checkpoint": 0, "completion": null, "epoch": 0, "progress": 98.61230977005961, "restarts": 1}}, "resources": {"cifar10-0": {"config": "dgx-ext:1:2", "cpu": 6.0, "placement": {"dgx-ext:0": 2}, "ram": 125.0, "rho": 1.0}, "deepspeech2-8": {"config": "aws:1:2", "cpu": 6.0, "placement": {"aws:0": 2}, "ram": 125.0, "rho": 1.0}}, "time": 180}, {"allocations": {"cifar10-0": ["dgx-ext", [0, 0]], "deepspeech2-8": ["aws", [0, 0]]}, "jobs": {"cifar10-0": {"accum_steps": 0, "atomic_bsz": 350, "checkpoint": 0, "completion": null, "epoch": 4, "progress": 1804.0022144431086, "restarts": 1}, "deepspeech2-8": {"accum_steps": 0, "atomic_bsz": 10, "checkpoint": 0, "completion": null, "epoch": 0, "progress": 194.26256808001423, "restarts": 1}}, "resources": {"cifar10-0": {"config": "dgx-ext:1:2", "cpu": 6.0, "placement": {"dgx-ext:0": 2}, "ram": 125.0, "rho": 1.0}, "deepspeech2-8": {"config": "aws:1:2", "cpu": 6.0, "placement": {"aws:0": 2}, "ram": 125.0, "rho": 1.0}}, "time": 240}, {"allocations": {"cifar10-0": ["dgx-ext", [0, 0]], "deepspeech2-8": ["aws", [0, 0]]}, "jobs": {"cifar10-0": {"accum_steps": 0, "atomic_bsz": 616, "checkpoint": 0, "completion": null, "epoch": 11, "progress": 4392.265203813964, "restarts": 1}, "deepspeech2-8": {"accum_steps": 0, "atomic_bsz": 10, "checkpoint": 0, "completion": null, "epoch": 0, "progress": 289.91282638996887, "restarts": 1}}, "resources": {"cifar10-0": {"config": "dgx-ext:1:2", "cpu": 6.0, "placement": {"dgx-ext:0": 2}, "ram": 125.0, "rho": 1.0}, "deepspeech2-8": {"config": "aws:1:2", "cpu": 6.0, "placement": {"aws:0": 2}, "ram": 125.0, "rho": 1.0}}, "time": 300}]

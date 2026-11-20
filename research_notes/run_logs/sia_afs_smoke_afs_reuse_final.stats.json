@@ -1,0 +1,95 @@
+{
+  "afs_state": {
+    "events_with_unmapped_jobs": 0,
+    "reason_counts": {
+      "checkpoint_change": 3,
+      "churn+throughput_report+checkpoint_change": 33,
+      "initial": 1,
+      "no_event": 302,
+      "throughput_report": 23,
+      "throughput_report+checkpoint_change": 14
+    },
+    "records": 376,
+    "stage_counts": {
+      "efficiency": 376
+    }
+  },
+  "average_jct_seconds": 2442.35,
+  "average_jct_seconds_per_app": {
+    "cifar10": 1150.7333333333333,
+    "deepspeech2": 2520.0,
+    "yolov3": 21506.0
+  },
+  "average_restarts_per_app": {
+    "cifar10": 7.133333333333334,
+    "deepspeech2": 9.5,
+    "yolov3": 12
+  },
+  "average_restarts_per_job": 7.85,
+  "capacity_violation_count": 0,
+  "capacity_violations": [],
+  "completed_jobs": 20,
+  "completion_fraction": 1.0,
+  "contention_max": 13,
+  "contention_mean": 2.1253263707571803,
+  "gpu_hours_by_type": {
+    "aws": 22.083333333333282,
+    "dgx-ext": 18.483333333333317,
+    "rtx": 43.60000000000061
+  },
+  "gpu_hours_mean_per_job": 4.208333333333361,
+  "gpu_type_share_fraction": {
+    "aws": 0.26237623762376006,
+    "dgx-ext": 0.219603960396038,
+    "rtx": 0.5180198019802019
+  },
+  "jobs": 20,
+  "makespan_seconds": 22553.0,
+  "maximum_allocated_gpus": {
+    "aws": 24,
+    "dgx-ext": 16,
+    "rtx": 24
+  },
+  "p95_jct_seconds_official_index": 21506.0,
+  "p99_jct_seconds_official_index": 21506.0,
+  "queue_max": 0,
+  "queue_mean": 0,
+  "queue_median": 0,
+  "records": 383,
+  "scheduling_time": {
+    "afs_mapping_rounds": 74,
+    "afs_mapping_time_mean_ms": 47.04917567567568,
+    "afs_mapping_time_p99_ms": 128.641,
+    "afs_mapping_time_total_seconds": 3.481638999999999,
+    "policy_rounds_measured": 376,
+    "policy_time_mean_ms": 22.622260638297874,
+    "policy_time_p99_ms": 191.61,
+    "policy_time_total_seconds": 8.505969999999998,
+    "solver_rounds_measured": 0,
+    "solver_time_mean_ms": null,
+    "solver_time_p99_ms": null,
+    "solver_time_total_seconds": 0.0
+  },
+  "task_jct_seconds": {
+    "cifar10-0": 744.0,
+    "cifar10-1": 445.0,
+    "cifar10-10": 2066.0,
+    "cifar10-11": 1410.0,
+    "cifar10-13": 1179.0,
+    "cifar10-14": 1408.0,
+    "cifar10-15": 855.0,
+    "cifar10-17": 1962.0,
+    "cifar10-18": 1233.0,
+    "cifar10-19": 1229.0,
+    "cifar10-2": 1093.0,
+    "cifar10-3": 1308.0,
+    "cifar10-4": 786.0,
+    "cifar10-5": 845.0,
+    "cifar10-6": 698.0,
+    "deepspeech2-12": 3151.0,
+    "deepspeech2-16": 2200.0,
+    "deepspeech2-8": 2184.0,
+    "deepspeech2-9": 2545.0,
+    "yolov3-7": 21506.0
+  }
+}

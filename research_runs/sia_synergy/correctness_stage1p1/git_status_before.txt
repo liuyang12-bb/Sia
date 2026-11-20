@@ -1,0 +1,17 @@
+## exp/b3-correctness-stage1
+?? sia-simulator/__pycache__/
+?? sia-simulator/joint_prototype/__pycache__/
+?? sia-simulator/policies/__pycache__/__init__.cpython-310.pyc
+?? sia-simulator/policies/__pycache__/allox.cpython-310.pyc
+?? sia-simulator/policies/__pycache__/fifo.cpython-310.pyc
+?? sia-simulator/policies/__pycache__/finish_time_fairness.cpython-310.pyc
+?? sia-simulator/policies/__pycache__/gandiva.cpython-310.pyc
+?? sia-simulator/policies/__pycache__/isolated.cpython-310.pyc
+?? sia-simulator/policies/__pycache__/max_min_fairness.cpython-310.pyc
+?? sia-simulator/policies/__pycache__/max_min_fairness_water_filling.cpython-310.pyc
+?? sia-simulator/policies/__pycache__/max_sum_throughput.cpython-310.pyc
+?? sia-simulator/policies/__pycache__/min_jct.cpython-310.pyc
+?? sia-simulator/policies/__pycache__/min_total_duration.cpython-310.pyc
+?? sia-simulator/policies/__pycache__/policy.cpython-310.pyc
+?? sia-simulator/policies/__pycache__/proportional.cpython-310.pyc
+?? sia-simulator/tests/__pycache__/

@@ -1,0 +1,30 @@
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Unique configs:
+Configs: {0: ('aws', 1, 1), 1: ('aws', 1, 2), 2: ('aws', 1, 4), 3: ('dgx-ext', 1, 1), 4: ('dgx-ext', 1, 2), 5: ('dgx-ext', 1, 4), 6: ('dgx-ext', 1, 8), 7: ('rtx', 1, 1), 8: ('rtx', 1, 2), 9: ('rtx', 1, 4), 10: ('rtx', 1, 8)}
+Cluster total gpus: {'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Simulated cluster config: 
+nnodes: {'aws': 1, 'dgx-ext': 1, 'rtx': 1}, ngpus_per_node:{'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Initialized job state for 1 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): []
+Seeding profiles for job: cifar10-regression
+Job Step time: 0.0ms
+Realloc factor: cifar10-regression --> 0.589041095890411, age: 43, restart penalty: 30, lost seconds: 0, num restarts: 0
+Preserving allocations for jobs blocked on checkpoint-restore: {'rigid': [], 'adaptive': []}
+Solver took: 9.29ms = 0.00ms (setup) + 9.29ms (solve)
+Optimization metrics: optimal objective value = 1.0000, effective ngpus = 1.0
+Policy optimization took 10.29ms, reallocating+migrating jobs took 1.00ms
+Job Step time: 168.61748695373535ms
+Realloc factor: cifar10-regression --> 0.7744360902255639, age: 103, restart penalty: 30, lost seconds: 0, num restarts: 0
+Preserving allocations for jobs blocked on checkpoint-restore: {'rigid': [], 'adaptive': []}
+Solver took: 9.00ms = 0.00ms (setup) + 9.00ms (solve)
+Optimization metrics: optimal objective value = 0.5600, effective ngpus = 4.17629861831665
+Policy optimization took 12.25ms, reallocating+migrating jobs took 1.01ms
+Job Step time: 166.7463779449463ms
+Realloc factor: cifar10-regression --> 0.689119170984456, age: 163, restart penalty: 30, lost seconds: 30, num restarts: 1
+Preserving allocations for jobs blocked on checkpoint-restore: {'rigid': [], 'adaptive': []}
+Solver took: 9.39ms = 1.00ms (setup) + 8.39ms (solve)
+Optimization metrics: optimal objective value = 0.4700, effective ngpus = 4.512020587921143
+Policy optimization took 10.43ms, reallocating+migrating jobs took 0.00ms
+PROBE_JSON=[{"allocations": {"cifar10-regression": ["rtx", [0]]}, "completion": null, "epoch": 0, "execution_time": 0, "progress": 0.0, "rescale_time": 50, "restarts": 0, "start_time": null, "time": 60, "used": 0, "wasted": 0}, {"allocations": {"cifar10-regression": ["dgx-ext", [0, 0, 0, 0, 0, 0, 0, 0]]}, "completion": null, "epoch": 0, "execution_time": 10, "progress": 74.76830279421979, "rescale_time": 50, "restarts": 1, "start_time": null, "time": 120, "used": 10, "wasted": 50}, {"allocations": {"cifar10-regression": ["dgx-ext", [0, 0, 0, 0, 0, 0, 0, 0]]}, "completion": null, "epoch": 0, "execution_time": 20, "progress": 326.6118891125565, "rescale_time": 0, "restarts": 1, "start_time": null, "time": 180, "used": 90, "wasted": 450}]

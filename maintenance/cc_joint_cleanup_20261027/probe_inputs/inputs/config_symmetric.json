@@ -1,0 +1,94 @@
+{
+  "cluster": {
+    "nnodes": {
+      "aws": 1,
+      "dgx-ext": 1
+    },
+    "ngpus_per_node": {
+      "aws": 2,
+      "dgx-ext": 2
+    },
+    "max_physical_nodes": {
+      "aws": 1,
+      "dgx-ext": 1
+    },
+    "capacity_scenarios": {
+      "main": {
+        "aws": {
+          "cpu_cores": 12.0,
+          "ram_gb": 250.0
+        },
+        "dgx-ext": {
+          "cpu_cores": 12.0,
+          "ram_gb": 250.0
+        }
+      }
+    }
+  },
+  "response": {
+    "mapping_mode": "pre_registered_application_to_template_map",
+    "application_template_rule": {
+      "cifar10": "alexnet_1.py",
+      "deepspeech2": "deepspeech_1.py",
+      "imagenet": "res50_1.py",
+      "bert": "bert_1.py",
+      "yolov3": "mobilenet_1.py"
+    },
+    "mapping_warning": "Every application-to-template association is a deterministic synthetic cross-hardware transfer. Matrix cells are official Synergy data, but no mapping is a Saturn CPU/RAM measurement.",
+    "normalization_mode": "fixed_reference",
+    "fixed_reference": {
+      "cpu_per_gpu": 3.0,
+      "ram_gb_per_gpu": 62.5
+    },
+    "minimum_legal_profile_point": {
+      "cpu_per_gpu": 1.0,
+      "ram_gb_per_gpu": 20.83
+    },
+    "aux_cpu_points": [
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      6.0,
+      9.0,
+      12.0,
+      24.0
+    ],
+    "aux_ram_points": [
+      20.83,
+      62.5,
+      125.0,
+      187.5,
+      250.0
+    ],
+    "response_settings": {
+      "neutral": {
+        "exponent": 0.0
+      },
+      "medium": {
+        "exponent": 0.5
+      }
+    },
+    "transfer_warning": "Matrix cells are official Synergy data; mapping, normalization, phi scaling, interpolation, and multiplication with Sia Goodput are synthetic."
+  },
+  "simulation": {
+    "interval_seconds": 60,
+    "max_rounds": 6000,
+    "seed_profiles_num_nodes": 1,
+    "seed_profiles_num_replicas": 8,
+    "p_fairness": -0.5,
+    "lambda_a": 0.01,
+    "lambda_n": 1.1,
+    "project_throughputs": false,
+    "share_max_replicas": false,
+    "disable_batch_size_tuning": false,
+    "minimum_available_memory_gib": 2.0
+  },
+  "resource_model_type": "synthetic_cross_hardware_transfer",
+  "warning": "SYNTHETIC CROSS-HARDWARE TRANSFER — NOT REAL SATURN PERFORMANCE",
+  "seed_profiles": [
+    1,
+    8
+  ],
+  "reference_config_hash": "667D7717CF8FF09EEE6A82C9979180615B58B92670BF91A5D4E5728F4218DE03"
+}

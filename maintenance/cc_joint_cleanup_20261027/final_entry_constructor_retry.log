@@ -1,0 +1,73 @@
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Unique configs:
+Configs: {0: ('aws', 1, 1), 1: ('aws', 1, 2), 2: ('aws', 1, 4), 3: ('aws', 1, 8), 4: ('dgx-ext', 1, 1), 5: ('dgx-ext', 1, 2), 6: ('dgx-ext', 1, 4), 7: ('dgx-ext', 1, 8)}
+Cluster total gpus: {'aws': 2, 'dgx-ext': 2}
+Simulated cluster config: 
+nnodes: {'aws': 1, 'dgx-ext': 1}, ngpus_per_node:{'aws': 2, 'dgx-ext': 2}
+Initialized job state for 20 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): []
+Seeding profiles for job: cifar10-0
+Seeding profiles for job: deepspeech2-8
+Seeding profiles for job: cifar10-1
+Seeding profiles for job: deepspeech2-9
+Seeding profiles for job: cifar10-2
+Seeding profiles for job: cifar10-3
+Seeding profiles for job: cifar10-4
+Seeding profiles for job: cifar10-5
+Seeding profiles for job: cifar10-6
+Seeding profiles for job: cifar10-10
+Seeding profiles for job: cifar10-11
+Seeding profiles for job: cifar10-13
+Seeding profiles for job: cifar10-14
+Seeding profiles for job: cifar10-15
+Seeding profiles for job: cifar10-17
+Seeding profiles for job: cifar10-18
+Seeding profiles for job: cifar10-19
+Seeding profiles for job: cifar10-20
+Seeding profiles for job: cifar10-22
+Seeding profiles for job: cifar10-24
+{
+  "valid": true,
+  "training_run": false,
+  "method": "JOINT_CC",
+  "response": "medium",
+  "jobs": 20,
+  "gpu_configs": [
+    [
+      "aws",
+      1,
+      1
+    ],
+    [
+      "aws",
+      1,
+      2
+    ],
+    [
+      "dgx-ext",
+      1,
+      1
+    ],
+    [
+      "dgx-ext",
+      1,
+      2
+    ]
+  ],
+  "capacities": {
+    "aws": {
+      "cpu_cores": 12.0,
+      "ram_gb": 250.0
+    },
+    "dgx-ext": {
+      "cpu_cores": 12.0,
+      "ram_gb": 250.0
+    }
+  },
+  "simulated_seconds": 0,
+  "all_job_progress_zero": true,
+  "all_job_completion_none": true,
+  "original_source_fingerprint": "21CA3574775F3A10030473BD22183802CC5DED06D2ED57EDE35F3D1A332F5A57"
+}

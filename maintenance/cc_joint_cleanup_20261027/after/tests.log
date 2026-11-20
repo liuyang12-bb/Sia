@@ -1,0 +1,1561 @@
+test_actual_delay_source_cifar_is_50_not_fairness_proxy_30 (test_adaptive_integration.AdaptiveIntegration) ... ok
+test_real_unseeded_bert_checkpoint_training_next_decision (test_adaptive_integration.AdaptiveIntegration) ... ok
+test_audit_failure_preserves_all_service_and_budget_state (test_adaptive_service.AdaptiveServiceTests) ... ok
+test_bert_two_120_second_charges_allowed_third_rejected (test_adaptive_service.AdaptiveServiceTests) ... ok
+test_cifar_actual_50_not_fairness_proxy_30_budget_boundary (test_adaptive_service.AdaptiveServiceTests) ... ok
+test_expiry_same_existing_gpu_costs_zero_and_repeats_service (test_adaptive_service.AdaptiveServiceTests) ... ok
+test_fifo_large_gang_drains_and_all_jobs_receive_repeated_service (test_adaptive_service.AdaptiveServiceTests) ... ok
+test_flat_peer_quota_release_enables_sensitive_peer_without_delay (test_adaptive_service.AdaptiveServiceTests) ... ok
+test_negative_utility_still_serves_true_fifo (test_adaptive_service.AdaptiveServiceTests) ... ok
+test_no_productive_training_rejects_gpu_switch (test_adaptive_service.AdaptiveServiceTests) ... ok
+test_no_remaining_service_payback_rejects_slight_speed_gain (test_adaptive_service.AdaptiveServiceTests) ... ok
+test_profiled_adaptation_breaks_legacy_geometry_freeze (test_adaptive_service.AdaptiveServiceTests) ... ok
+test_real_checkpoint_preserves_complete_allocation (test_adaptive_service.AdaptiveServiceTests) ... ok
+test_solver_failure_preserves_all_service_and_budget_state (test_adaptive_service.AdaptiveServiceTests) ... ok
+test_unprofiled_target_rejected (test_adaptive_service.AdaptiveServiceTests) ... ok
+test_every_successful_selection_passes_capacity_audit (test_b3_failure_handling.B3FailureHandlingTests) ... ok
+test_invalid_previous_allocation_refuses_fallback (test_b3_failure_handling.B3FailureHandlingTests) ... ok
+test_milp_without_x_has_solver_diagnostics (test_b3_failure_handling.B3FailureHandlingTests) ... ok
+test_no_columns_has_explicit_failure_audit (test_b3_failure_handling.B3FailureHandlingTests) ... ok
+test_normal_b3_produces_valid_allocation (test_b3_failure_handling.B3FailureHandlingTests) ... ok
+test_one_job_without_columns_does_not_block_feasible_peer (test_b3_failure_handling.B3FailureHandlingTests) ... ok
+test_safe_previous_allocation_fallback (test_b3_failure_handling.B3FailureHandlingTests) ... ok
+test_unallocated_scaling_flag_does_not_create_phantom_lock (test_b3_failure_handling.B3FailureHandlingTests) ... ok
+test_b3_prop_can_choose_across_gpu_candidates (test_b3_prop_ablation.B3ProportionalAblationTests) ... ok
+test_censored_never_started_job_is_serializable (test_b3_prop_ablation.B3ProportionalAblationTests) ... ok
+test_checkpoint_lock_constrains_config_and_placement (test_b3_prop_ablation.B3ProportionalAblationTests) ... ok
+test_columns_use_only_deterministic_proportional_resources (test_b3_prop_ablation.B3ProportionalAblationTests) ... ok
+test_auxiliary_decrease_is_candidate_not_a_per_job_veto (test_bundle_adaptation.BundleTests) ... ok
+test_checkpoint_lock_still_blocks_bundle_exchange (test_bundle_adaptation.BundleTests) ... ok
+test_coordinated_gpu_exchange_may_reduce_one_peer_rate (test_bundle_adaptation.BundleTests) ... ok
+test_delay_budget_cannot_be_bypassed_by_global_gain (test_bundle_adaptation.BundleTests) ... ok
+test_empty_arrived_set_is_audited_idle (test_bundle_adaptation.BundleTests) ... ok
+test_exact_primary_tie_prefers_no_actual_restart (test_bundle_adaptation.BundleTests) ... ok
+test_negative_utility_does_not_restore_empty_absorption (test_bundle_adaptation.BundleTests) ... ok
+test_solver_failure_rolls_back_queue_and_budget (test_bundle_adaptation.BundleTests) ... ok
+test_unknown_profile_and_no_training_remain_excluded (test_bundle_adaptation.BundleTests) ... ok
+test_real_unseeded_checkpoint_to_training_and_next_decision (test_bundle_integration.BundleIntegration) ... ok
+test_invalid_optimal_vector_retries_identical_model_without_presolve (test_bundle_solver_numerics.SolverNumericsTests) ... ok
+test_second_invalid_vector_stops_and_rolls_back (test_bundle_solver_numerics.SolverNumericsTests) ... ok
+test_full_requested_checkpoint_cannot_hide_rounding_progress (test_checkpoint_rounding_audit.CheckpointRoundingTests) ... ok
+test_official_step_matches_quantized_completion_after_checkpoint (test_checkpoint_rounding_audit.CheckpointRoundingTests) ... ok
+test_quantization_residual_must_stay_within_half_second_rate (test_checkpoint_rounding_audit.CheckpointRoundingTests) ... ok
+test_segment_cannot_advance_inside_checkpoint (test_checkpoint_rounding_audit.CheckpointRoundingTests) ... ok
+test_crossing_300_productive_seconds_does_not_force_requeue (test_completion_continuity.CompletionContinuityTests) ... ok
+test_invalid_priority_inputs_are_rejected (test_completion_continuity.CompletionContinuityTests) ... ok
+test_joint_and_prop_share_objective_liveness_and_response (test_completion_continuity.CompletionContinuityTests) ... ok
+test_no_event_round_cannot_change_incumbent_gpu_geometry (test_completion_continuity.CompletionContinuityTests) ... ok
+test_proportional_ablation_cannot_choose_free_aux_quotas (test_completion_continuity.CompletionContinuityTests) ... ok
+test_real_checkpoint_preserves_full_gpu_and_aux_allocation (test_completion_continuity.CompletionContinuityTests) ... ok
+test_real_unseeded_bert_full_scheduling_execution_chain (test_completion_continuity.CompletionContinuityTests) ... ok
+test_remaining_work_does_not_cancel_completion_priority (test_completion_continuity.CompletionContinuityTests) ... ok
+test_solver_failure_leaves_allocation_resources_and_service_unchanged (test_completion_continuity.CompletionContinuityTests) ... ok
+test_startup_cost_can_reverse_nominal_speed_ranking (test_completion_continuity.CompletionContinuityTests) ... ok
+test_unseeded_unknown_eta_bootstraps_without_fabricated_rate (test_completion_continuity.CompletionContinuityTests) ... ok
+test_auxiliary_exchange_can_slow_donor_without_geometry_event (test_completion_continuity_states.CompletionContinuityStateTests) ... ok
+test_checkpoint_candidate_contraction_does_not_rediscover_old_model (test_completion_continuity_states.CompletionContinuityStateTests) ... ok
+test_gang_waits_beyond_quantum_then_starts_after_incumbent_completion (test_completion_continuity_states.CompletionContinuityStateTests) ... ok
+test_invalid_successful_solver_vector_is_not_committed (test_completion_continuity_states.CompletionContinuityStateTests) ... ok
+test_known_model_event_permits_legal_gpu_resize (test_completion_continuity_states.CompletionContinuityStateTests) ... ok
+test_lifetime_budget_is_not_reset_after_300_productive_seconds (test_completion_continuity_states.CompletionContinuityStateTests) ... ok
+test_missing_solo_candidate_is_explicit_failure_without_state_commit (test_completion_continuity_states.CompletionContinuityStateTests) ... ok
+test_missing_solver_solution_is_not_committed (test_completion_continuity_states.CompletionContinuityStateTests) ... ok
+test_no_event_excludes_otherwise_beneficial_gpu_resize (test_completion_continuity_states.CompletionContinuityStateTests) ... ok
+test_zero_productive_service_exceeding_watchdog_stops_atomically (test_completion_continuity_states.CompletionContinuityStateTests) ... ok
+test_non_near_binary_nonfinite_and_bounds_rejected (test_completion_solver_canonicalization.CompletionNumericsTests) ... ok
+test_recorded_660_column_model_rounds_to_all_exact_constraints (test_completion_solver_canonicalization.CompletionNumericsTests) ... ok
+test_rounding_cannot_hide_resource_or_primary_band_violation (test_completion_solver_canonicalization.CompletionNumericsTests) ... ok
+test_aux_adapter_calls_official_sia_and_freezes_complete_gpu_intent (test_completion_time.CompletionTimeTests) ... ok
+test_cold_candidates_are_proportional_and_zero_scored (test_completion_time.CompletionTimeTests) ... ok
+test_completion_cost_has_seconds_and_applies_rho_once (test_completion_time.CompletionTimeTests) ... ok
+test_invalid_nonfinite_and_nonpositive_rates_are_rejected (test_completion_time.CompletionTimeTests) ... ok
+test_joint_and_prop_share_objective_contract_and_liveness (test_completion_time.CompletionTimeTests) ... ok
+test_predictor_uses_observed_model_with_prospective_actual_batch (test_completion_time.CompletionTimeTests) ... ok
+test_proportional_ablation_is_a_real_quota_contract (test_completion_time.CompletionTimeTests) ... ok
+test_real_checkpoint_preserves_full_gpu_and_aux_geometry (test_completion_time.CompletionTimeTests) ... ok
+test_real_observed_candidates_include_distinct_gpu_and_aux_choices (test_completion_time.CompletionTimeTests) ... ok
+test_real_unseeded_bert_full_optimize_policy_chain (test_completion_time.CompletionTimeTests) ... ok
+test_receiver_speed_gain_cannot_hide_large_donor_completion_loss (test_completion_time.CompletionTimeTests) ... ok
+test_same_warmed_state_prop_and_joint_use_identical_wait_reference (test_completion_time.CompletionTimeTests) ... ok
+test_solver_failure_does_not_partially_commit_resources_or_service (test_completion_time.CompletionTimeTests) ... ok
+test_startup_loss_can_reverse_nominal_speedup (test_completion_time.CompletionTimeTests) ... ok
+test_unprofiled_prediction_is_explicit_unknown_not_raw_one (test_completion_time.CompletionTimeTests) ... ok
+test_both_flags_off_match_actual_g_decisions_progress_restarts (test_exchange_integration.ExchangeIntegration) ... ok
+test_unseeded_full_schedule_and_primary_scores_no_proxy_double_charge (test_exchange_integration.ExchangeIntegration) ... ok
+test_capacity_audit_still_rejects_overallocation (test_exchange_netprogress.ExchangeNetTests) ... ok
+test_cpu_exchange_enters_candidates_and_improves_existing_fairness (test_exchange_netprogress.ExchangeNetTests) ... ok
+test_exact_locks_remain_mandatory_with_exchange (test_exchange_netprogress.ExchangeNetTests) ... ok
+test_historical_mode_retains_floor (test_exchange_netprogress.ExchangeNetTests) ... ok
+test_invalid_delay_rejected (test_exchange_netprogress.ExchangeNetTests) ... ok
+test_ram_exchange_enters_candidates (test_exchange_netprogress.ExchangeNetTests) ... ok
+test_real_delay_can_reverse_greedy_speed_ranking (test_exchange_netprogress.ExchangeNetTests) ... ok
+test_startup_included_for_new_job_and_not_multiplied_by_rho (test_exchange_netprogress.ExchangeNetTests) ... ok
+test_checkpoint_observation_is_before_new_decision (test_full160.Full160Tests) ... ok
+test_full160_queue_no_truncation_and_old_guards_preserved (test_full160.Full160Tests) ... ok
+test_main_medium_proportional_identity_and_all_capacity_floors (test_full160.Full160Tests) ... ok
+test_metrics_actual_short_chain_all_methods_and_responses (test_full160.Full160Tests) ... Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Unique configs:
+Configs: {0: ('aws', 1, 1), 1: ('aws', 1, 2), 2: ('aws', 1, 4), 3: ('dgx-ext', 1, 1), 4: ('dgx-ext', 1, 2), 5: ('dgx-ext', 1, 4), 6: ('dgx-ext', 1, 8), 7: ('rtx', 1, 1), 8: ('rtx', 1, 2), 9: ('rtx', 1, 4), 10: ('rtx', 1, 8)}
+Cluster total gpus: {'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Simulated cluster config: 
+nnodes: {'aws': 1, 'dgx-ext': 1, 'rtx': 1}, ngpus_per_node:{'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Initialized job state for 1 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): []
+Policy optimization took 43.90ms, reallocating+migrating jobs took 1.00ms
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Unique configs:
+Configs: {0: ('aws', 1, 1), 1: ('aws', 1, 2), 2: ('aws', 1, 4), 3: ('dgx-ext', 1, 1), 4: ('dgx-ext', 1, 2), 5: ('dgx-ext', 1, 4), 6: ('dgx-ext', 1, 8), 7: ('rtx', 1, 1), 8: ('rtx', 1, 2), 9: ('rtx', 1, 4), 10: ('rtx', 1, 8)}
+Cluster total gpus: {'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Simulated cluster config: 
+nnodes: {'aws': 1, 'dgx-ext': 1, 'rtx': 1}, ngpus_per_node:{'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Initialized job state for 1 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): []
+Policy optimization took 41.94ms, reallocating+migrating jobs took 1.01ms
+Policy optimization took 4.96ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 39.51ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 44.85ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 44.38ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 44.51ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 47.04ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 48.19ms, reallocating+migrating jobs took 2.00ms
+Policy optimization took 4.16ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 44.69ms, reallocating+migrating jobs took 0.00ms
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Project speedups active
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Unique configs:
+Configs: {0: ('aws', 1, 1), 1: ('aws', 1, 2), 2: ('aws', 1, 4), 3: ('dgx-ext', 1, 1), 4: ('dgx-ext', 1, 2), 5: ('dgx-ext', 1, 4), 6: ('dgx-ext', 1, 8), 7: ('rtx', 1, 1), 8: ('rtx', 1, 2), 9: ('rtx', 1, 4), 10: ('rtx', 1, 8)}
+Cluster total gpus: {'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Simulated cluster config: 
+nnodes: {'aws': 1, 'dgx-ext': 1, 'rtx': 1}, ngpus_per_node:{'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Initialized job state for 1 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): []
+Policy optimization took 43.45ms, reallocating+migrating jobs took 1.00ms
+Policy optimization took 6.00ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 41.44ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 46.74ms, reallocating+migrating jobs took 2.00ms
+Policy optimization took 7.34ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 51.54ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 49.58ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 48.40ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 50.58ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 55.85ms, reallocating+migrating jobs took 2.09ms
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Unique configs:
+Configs: {0: ('aws', 1, 1), 1: ('aws', 1, 2), 2: ('aws', 1, 4), 3: ('dgx-ext', 1, 1), 4: ('dgx-ext', 1, 2), 5: ('dgx-ext', 1, 4), 6: ('dgx-ext', 1, 8), 7: ('rtx', 1, 1), 8: ('rtx', 1, 2), 9: ('rtx', 1, 4), 10: ('rtx', 1, 8)}
+Cluster total gpus: {'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Simulated cluster config: 
+nnodes: {'aws': 1, 'dgx-ext': 1, 'rtx': 1}, ngpus_per_node:{'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Initialized job state for 1 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): []
+Realloc factor: bert-mid --> 0.26380368098159507, age: 43, restart penalty: 120, lost seconds: 0, num restarts: 0
+Preserving allocations for jobs blocked on checkpoint-restore: {'rigid': [], 'adaptive': []}
+Solver took: 9.02ms = 1.00ms (setup) + 8.02ms (solve)
+Optimization metrics: optimal objective value = 1.0000, effective ngpus = 1.0
+Policy optimization took 9.02ms, reallocating+migrating jobs took 1.51ms
+Realloc factor: bert-mid --> 0.4618834080717489, age: 103, restart penalty: 120, lost seconds: 0, num restarts: 0
+Preserving allocations for jobs blocked on checkpoint-restore: {'rigid': [], 'adaptive': ['bert-mid']}
+Solver took: 7.88ms = 0.00ms (setup) + 7.88ms (solve)
+Optimization metrics: optimal objective value = 1.0000, effective ngpus = 1.0
+Policy optimization took 9.60ms, reallocating+migrating jobs took 0.00ms
+Realloc factor: bert-mid --> 0.5759717314487632, age: 163, restart penalty: 120, lost seconds: 0, num restarts: 0
+Preserving allocations for jobs blocked on checkpoint-restore: {'rigid': [], 'adaptive': []}
+Solver took: 8.02ms = 1.06ms (setup) + 6.97ms (solve)
+Optimization metrics: optimal objective value = 1.0000, effective ngpus = 1.0
+Policy optimization took 8.56ms, reallocating+migrating jobs took 0.00ms
+Realloc factor: bert-mid --> 0.6501457725947521, age: 223, restart penalty: 120, lost seconds: 0, num restarts: 0
+Preserving allocations for jobs blocked on checkpoint-restore: {'rigid': [], 'adaptive': []}
+Solver took: 8.04ms = 1.01ms (setup) + 7.03ms (solve)
+Optimization metrics: optimal objective value = 0.8900, effective ngpus = 1.9463045597076416
+Policy optimization took 9.74ms, reallocating+migrating jobs took 0.00ms
+Realloc factor: bert-mid --> 0.4044665012406948, age: 283, restart penalty: 120, lost seconds: 120, num restarts: 1
+Preserving allocations for jobs blocked on checkpoint-restore: {'rigid': [], 'adaptive': ['bert-mid']}
+Solver took: 8.92ms = 1.01ms (setup) + 7.91ms (solve)
+Optimization metrics: optimal objective value = 0.7200, effective ngpus = 1.9463045597076416
+Policy optimization took 9.62ms, reallocating+migrating jobs took 0.00ms
+Realloc factor: bert-mid --> 0.4816414686825054, age: 343, restart penalty: 120, lost seconds: 120, num restarts: 1
+Preserving allocations for jobs blocked on checkpoint-restore: {'rigid': [], 'adaptive': []}
+Solver took: 7.04ms = 0.00ms (setup) + 7.04ms (solve)
+Optimization metrics: optimal objective value = 0.7200, effective ngpus = 1.9463045597076416
+Policy optimization took 9.47ms, reallocating+migrating jobs took 0.00ms
+Realloc factor: bert-mid --> 0.5411089866156787, age: 403, restart penalty: 120, lost seconds: 120, num restarts: 1
+Preserving allocations for jobs blocked on checkpoint-restore: {'rigid': [], 'adaptive': []}
+Solver took: 8.51ms = 0.00ms (setup) + 8.51ms (solve)
+Optimization metrics: optimal objective value = 0.7300, effective ngpus = 3.4516773223876953
+Policy optimization took 10.51ms, reallocating+migrating jobs took 1.00ms
+Realloc factor: bert-mid --> 0.38250428816466553, age: 463, restart penalty: 120, lost seconds: 240, num restarts: 2
+Preserving allocations for jobs blocked on checkpoint-restore: {'rigid': [], 'adaptive': ['bert-mid']}
+Solver took: 8.74ms = 1.41ms (setup) + 7.33ms (solve)
+Optimization metrics: optimal objective value = 0.5400, effective ngpus = 3.4516773223876953
+Policy optimization took 10.77ms, reallocating+migrating jobs took 0.00ms
+Realloc factor: bert-mid --> 0.4401244167962675, age: 523, restart penalty: 120, lost seconds: 240, num restarts: 2
+Preserving allocations for jobs blocked on checkpoint-restore: {'rigid': [], 'adaptive': []}
+Solver took: 8.01ms = 0.00ms (setup) + 8.01ms (solve)
+Optimization metrics: optimal objective value = 0.5400, effective ngpus = 3.4516773223876953
+Policy optimization took 9.92ms, reallocating+migrating jobs took 0.00ms
+Realloc factor: bert-mid --> 0.4879089615931721, age: 583, restart penalty: 120, lost seconds: 240, num restarts: 2
+Preserving allocations for jobs blocked on checkpoint-restore: {'rigid': [], 'adaptive': []}
+Solver took: 7.72ms = 0.71ms (setup) + 7.01ms (solve)
+Optimization metrics: optimal objective value = 0.5400, effective ngpus = 3.409630298614502
+Policy optimization took 9.72ms, reallocating+migrating jobs took 0.00ms
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Unique configs:
+Configs: {0: ('aws', 1, 1), 1: ('aws', 1, 2), 2: ('aws', 1, 4), 3: ('dgx-ext', 1, 1), 4: ('dgx-ext', 1, 2), 5: ('dgx-ext', 1, 4), 6: ('dgx-ext', 1, 8), 7: ('rtx', 1, 1), 8: ('rtx', 1, 2), 9: ('rtx', 1, 4), 10: ('rtx', 1, 8)}
+Cluster total gpus: {'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Simulated cluster config: 
+nnodes: {'aws': 1, 'dgx-ext': 1, 'rtx': 1}, ngpus_per_node:{'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Initialized job state for 1 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): []
+Seeding profiles for job: bert-mid
+Realloc factor: bert-mid --> 0.26380368098159507, age: 43, restart penalty: 120, lost seconds: 0, num restarts: 0
+Preserving allocations for jobs blocked on checkpoint-restore: {'rigid': [], 'adaptive': []}
+Solver took: 8.12ms = 0.88ms (setup) + 7.24ms (solve)
+Optimization metrics: optimal objective value = 1.0000, effective ngpus = 1.0
+Policy optimization took 9.12ms, reallocating+migrating jobs took 1.00ms
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Unique configs:
+Configs: {0: ('aws', 1, 1), 1: ('aws', 1, 2), 2: ('aws', 1, 4), 3: ('dgx-ext', 1, 1), 4: ('dgx-ext', 1, 2), 5: ('dgx-ext', 1, 4), 6: ('dgx-ext', 1, 8), 7: ('rtx', 1, 1), 8: ('rtx', 1, 2), 9: ('rtx', 1, 4), 10: ('rtx', 1, 8)}
+Cluster total gpus: {'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Simulated cluster config: 
+nnodes: {'aws': 1, 'dgx-ext': 1, 'rtx': 1}, ngpus_per_node:{'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Initialized job state for 1 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): []
+Seeding profiles for job: bert-mid
+Realloc factor: bert-mid --> 0.26380368098159507, age: 43, restart penalty: 120, lost seconds: 0, num restarts: 0
+Preserving allocations for jobs blocked on checkpoint-restore: {'rigid': [], 'adaptive': []}
+Solver took: 8.10ms = 0.00ms (setup) + 8.10ms (solve)
+Optimization metrics: optimal objective value = 1.0000, effective ngpus = 1.0
+Policy optimization took 11.10ms, reallocating+migrating jobs took 1.00ms
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Unique configs:
+Configs: {0: ('aws', 1, 1), 1: ('aws', 1, 2), 2: ('aws', 1, 4), 3: ('dgx-ext', 1, 1), 4: ('dgx-ext', 1, 2), 5: ('dgx-ext', 1, 4), 6: ('dgx-ext', 1, 8), 7: ('rtx', 1, 1), 8: ('rtx', 1, 2), 9: ('rtx', 1, 4), 10: ('rtx', 1, 8)}
+Cluster total gpus: {'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Simulated cluster config: 
+nnodes: {'aws': 1, 'dgx-ext': 1, 'rtx': 1}, ngpus_per_node:{'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Initialized job state for 1 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): []
+Seeding profiles for job: bert-mid
+Realloc factor: bert-mid --> 0.26380368098159507, age: 43, restart penalty: 120, lost seconds: 0, num restarts: 0
+Preserving allocations for jobs blocked on checkpoint-restore: {'rigid': [], 'adaptive': []}
+Solver took: 8.08ms = 0.53ms (setup) + 7.55ms (solve)
+Optimization metrics: optimal objective value = 1.0000, effective ngpus = 1.0
+Policy optimization took 8.62ms, reallocating+migrating jobs took 1.01ms
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Unique configs:
+Configs: {0: ('aws', 1, 1), 1: ('aws', 1, 2), 2: ('aws', 1, 4), 3: ('dgx-ext', 1, 1), 4: ('dgx-ext', 1, 2), 5: ('dgx-ext', 1, 4), 6: ('dgx-ext', 1, 8), 7: ('rtx', 1, 1), 8: ('rtx', 1, 2), 9: ('rtx', 1, 4), 10: ('rtx', 1, 8)}
+Cluster total gpus: {'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Simulated cluster config: 
+nnodes: {'aws': 1, 'dgx-ext': 1, 'rtx': 1}, ngpus_per_node:{'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Initialized job state for 1 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): []
+Seeding profiles for job: bert-mid
+Realloc factor: bert-mid --> 0.26380368098159507, age: 43, restart penalty: 120, lost seconds: 0, num restarts: 0
+Preserving allocations for jobs blocked on checkpoint-restore: {'rigid': [], 'adaptive': []}
+Solver took: 8.35ms = 1.00ms (setup) + 7.35ms (solve)
+Optimization metrics: optimal objective value = 1.0000, effective ngpus = 1.0
+Policy optimization took 9.20ms, reallocating+migrating jobs took 1.08ms
+Realloc factor: bert-mid --> 0.4618834080717489, age: 103, restart penalty: 120, lost seconds: 0, num restarts: 0
+Preserving allocations for jobs blocked on checkpoint-restore: {'rigid': [], 'adaptive': ['bert-mid']}
+Solver took: 9.00ms = 1.00ms (setup) + 8.00ms (solve)
+Optimization metrics: optimal objective value = 1.0000, effective ngpus = 1.0
+Policy optimization took 10.00ms, reallocating+migrating jobs took 0.00ms
+Realloc factor: bert-mid --> 0.5759717314487632, age: 163, restart penalty: 120, lost seconds: 0, num restarts: 0
+Preserving allocations for jobs blocked on checkpoint-restore: {'rigid': [], 'adaptive': []}
+Solver took: 8.64ms = 1.13ms (setup) + 7.51ms (solve)
+Optimization metrics: optimal objective value = 1.0000, effective ngpus = 1.0
+Policy optimization took 8.64ms, reallocating+migrating jobs took 0.00ms
+Realloc factor: bert-mid --> 0.6501457725947521, age: 223, restart penalty: 120, lost seconds: 0, num restarts: 0
+Preserving allocations for jobs blocked on checkpoint-restore: {'rigid': [], 'adaptive': []}
+Solver took: 10.00ms = 1.00ms (setup) + 9.00ms (solve)
+Optimization metrics: optimal objective value = 0.1800, effective ngpus = 44.98950958251953
+Policy optimization took 13.01ms, reallocating+migrating jobs took 1.01ms
+Realloc factor: bert-mid --> 0.4044665012406948, age: 283, restart penalty: 120, lost seconds: 120, num restarts: 1
+Preserving allocations for jobs blocked on checkpoint-restore: {'rigid': [], 'adaptive': ['bert-mid']}
+Solver took: 8.80ms = 1.00ms (setup) + 7.80ms (solve)
+Optimization metrics: optimal objective value = 0.1500, effective ngpus = 44.98950958251953
+Policy optimization took 11.80ms, reallocating+migrating jobs took 0.00ms
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Unique configs:
+Configs: {0: ('aws', 1, 1), 1: ('aws', 1, 2), 2: ('aws', 1, 4), 3: ('dgx-ext', 1, 1), 4: ('dgx-ext', 1, 2), 5: ('dgx-ext', 1, 4), 6: ('dgx-ext', 1, 8), 7: ('rtx', 1, 1), 8: ('rtx', 1, 2), 9: ('rtx', 1, 4), 10: ('rtx', 1, 8)}
+Cluster total gpus: {'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Simulated cluster config: 
+nnodes: {'aws': 1, 'dgx-ext': 1, 'rtx': 1}, ngpus_per_node:{'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Initialized job state for 1 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): []
+Seeding profiles for job: bert-mid
+Realloc factor: bert-mid --> 0.26380368098159507, age: 43, restart penalty: 120, lost seconds: 0, num restarts: 0
+Preserving allocations for jobs blocked on checkpoint-restore: {'rigid': [], 'adaptive': []}
+Solver took: 8.24ms = 1.00ms (setup) + 7.24ms (solve)
+Optimization metrics: optimal objective value = 1.0000, effective ngpus = 1.0
+Policy optimization took 9.25ms, reallocating+migrating jobs took 1.00ms
+Realloc factor: bert-mid --> 0.4618834080717489, age: 103, restart penalty: 120, lost seconds: 0, num restarts: 0
+Preserving allocations for jobs blocked on checkpoint-restore: {'rigid': [], 'adaptive': ['bert-mid']}
+Solver took: 9.29ms = 1.00ms (setup) + 8.29ms (solve)
+Optimization metrics: optimal objective value = 1.0000, effective ngpus = 1.0
+Policy optimization took 10.30ms, reallocating+migrating jobs took 0.00ms
+Realloc factor: bert-mid --> 0.5759717314487632, age: 163, restart penalty: 120, lost seconds: 0, num restarts: 0
+Preserving allocations for jobs blocked on checkpoint-restore: {'rigid': [], 'adaptive': []}
+Solver took: 8.30ms = 1.00ms (setup) + 7.31ms (solve)
+Optimization metrics: optimal objective value = 1.0000, effective ngpus = 1.0
+ok
+test_real160_active_job_infos_no_filter (test_full160.Full160Tests) ... ok
+test_same_seed_and_execution_inputs_all_methods (test_full160.Full160Tests) ... ok
+test_sia_p_calls_actual_official_optimize_without_l2 (test_full160.Full160Tests) ... ok
+test_tune_failure_atomic_proportional_fallback_no_gpu_changes (test_full160.Full160Tests) ... ok
+test_tune_real_unseeded_chain_gpu_intent_and_locks (test_full160.Full160Tests) ... Policy optimization took 9.32ms, reallocating+migrating jobs took 0.00ms
+Realloc factor: bert-mid --> 0.6501457725947521, age: 223, restart penalty: 120, lost seconds: 0, num restarts: 0
+Preserving allocations for jobs blocked on checkpoint-restore: {'rigid': [], 'adaptive': []}
+Solver took: 10.19ms = 1.07ms (setup) + 9.12ms (solve)
+Optimization metrics: optimal objective value = 0.1800, effective ngpus = 44.98950958251953
+Policy optimization took 11.98ms, reallocating+migrating jobs took 2.10ms
+Realloc factor: bert-mid --> 0.4044665012406948, age: 283, restart penalty: 120, lost seconds: 120, num restarts: 1
+Preserving allocations for jobs blocked on checkpoint-restore: {'rigid': [], 'adaptive': ['bert-mid']}
+Solver took: 8.21ms = 0.50ms (setup) + 7.70ms (solve)
+Optimization metrics: optimal objective value = 0.1500, effective ngpus = 44.98950958251953
+Policy optimization took 11.88ms, reallocating+migrating jobs took 0.00ms
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Unique configs:
+Configs: {0: ('aws', 1, 1), 1: ('aws', 1, 2), 2: ('aws', 1, 4), 3: ('dgx-ext', 1, 1), 4: ('dgx-ext', 1, 2), 5: ('dgx-ext', 1, 4), 6: ('dgx-ext', 1, 8), 7: ('rtx', 1, 1), 8: ('rtx', 1, 2), 9: ('rtx', 1, 4), 10: ('rtx', 1, 8)}
+Cluster total gpus: {'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Simulated cluster config: 
+nnodes: {'aws': 1, 'dgx-ext': 1, 'rtx': 1}, ngpus_per_node:{'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Initialized job state for 1 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): []
+Seeding profiles for job: bert-mid
+Realloc factor: bert-mid --> 0.26380368098159507, age: 43, restart penalty: 120, lost seconds: 0, num restarts: 0
+Preserving allocations for jobs blocked on checkpoint-restore: {'rigid': [], 'adaptive': []}
+Solver took: 9.77ms = 1.00ms (setup) + 8.77ms (solve)
+Optimization metrics: optimal objective value = 1.0000, effective ngpus = 1.0
+Policy optimization took 12.27ms, reallocating+migrating jobs took 0.00ms
+Realloc factor: bert-mid --> 0.4618834080717489, age: 103, restart penalty: 120, lost seconds: 0, num restarts: 0
+Preserving allocations for jobs blocked on checkpoint-restore: {'rigid': [], 'adaptive': ['bert-mid']}
+Solver took: 9.64ms = 1.02ms (setup) + 8.63ms (solve)
+Optimization metrics: optimal objective value = 1.0000, effective ngpus = 1.0
+Policy optimization took 10.64ms, reallocating+migrating jobs took 0.00ms
+Realloc factor: bert-mid --> 0.5759717314487632, age: 163, restart penalty: 120, lost seconds: 0, num restarts: 0
+Preserving allocations for jobs blocked on checkpoint-restore: {'rigid': [], 'adaptive': []}
+Solver took: 8.41ms = 0.00ms (setup) + 8.41ms (solve)
+Optimization metrics: optimal objective value = 1.0000, effective ngpus = 1.0
+Policy optimization took 10.41ms, reallocating+migrating jobs took 0.00ms
+Realloc factor: bert-mid --> 0.6501457725947521, age: 223, restart penalty: 120, lost seconds: 0, num restarts: 0
+Preserving allocations for jobs blocked on checkpoint-restore: {'rigid': [], 'adaptive': []}
+Solver took: 10.36ms = 1.00ms (setup) + 9.36ms (solve)
+Optimization metrics: optimal objective value = 0.1800, effective ngpus = 44.98950958251953
+Policy optimization took 13.37ms, reallocating+migrating jobs took 1.00ms
+Realloc factor: bert-mid --> 0.4044665012406948, age: 283, restart penalty: 120, lost seconds: 120, num restarts: 1
+Preserving allocations for jobs blocked on checkpoint-restore: {'rigid': [], 'adaptive': ['bert-mid']}
+Solver took: 7.09ms = 0.66ms (setup) + 6.43ms (solve)
+Optimization metrics: optimal objective value = 0.1500, effective ngpus = 44.98950958251953
+Policy optimization took 12.33ms, reallocating+migrating jobs took 0.00ms
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Unique configs:
+Configs: {0: ('aws', 1, 1), 1: ('aws', 1, 2), 2: ('aws', 1, 4), 3: ('dgx-ext', 1, 1), 4: ('dgx-ext', 1, 2), 5: ('dgx-ext', 1, 4), 6: ('dgx-ext', 1, 8), 7: ('rtx', 1, 1), 8: ('rtx', 1, 2), 9: ('rtx', 1, 4), 10: ('rtx', 1, 8)}
+Cluster total gpus: {'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Simulated cluster config: 
+nnodes: {'aws': 1, 'dgx-ext': 1, 'rtx': 1}, ngpus_per_node:{'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Initialized job state for 1 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): []
+Seeding profiles for job: bert-mid
+Realloc factor: bert-mid --> 0.26380368098159507, age: 43, restart penalty: 120, lost seconds: 0, num restarts: 0
+Preserving allocations for jobs blocked on checkpoint-restore: {'rigid': [], 'adaptive': []}
+Solver took: 8.95ms = 1.00ms (setup) + 7.95ms (solve)
+Optimization metrics: optimal objective value = 1.0000, effective ngpus = 1.0
+Policy optimization took 10.95ms, reallocating+migrating jobs took 1.00ms
+Realloc factor: bert-mid --> 0.4618834080717489, age: 103, restart penalty: 120, lost seconds: 0, num restarts: 0
+Preserving allocations for jobs blocked on checkpoint-restore: {'rigid': [], 'adaptive': ['bert-mid']}
+Solver took: 8.07ms = 1.00ms (setup) + 7.07ms (solve)
+Optimization metrics: optimal objective value = 1.0000, effective ngpus = 1.0
+Policy optimization took 11.08ms, reallocating+migrating jobs took 0.00ms
+Realloc factor: bert-mid --> 0.5759717314487632, age: 163, restart penalty: 120, lost seconds: 0, num restarts: 0
+Preserving allocations for jobs blocked on checkpoint-restore: {'rigid': [], 'adaptive': []}
+Solver took: 8.50ms = 1.00ms (setup) + 7.50ms (solve)
+Optimization metrics: optimal objective value = 1.0000, effective ngpus = 1.0
+Policy optimization took 9.84ms, reallocating+migrating jobs took 0.00ms
+Realloc factor: bert-mid --> 0.6501457725947521, age: 223, restart penalty: 120, lost seconds: 0, num restarts: 0
+Preserving allocations for jobs blocked on checkpoint-restore: {'rigid': [], 'adaptive': []}
+Solver took: 9.44ms = 0.00ms (setup) + 9.44ms (solve)
+Optimization metrics: optimal objective value = 0.1800, effective ngpus = 44.98950958251953
+Policy optimization took 13.44ms, reallocating+migrating jobs took 1.00ms
+Realloc factor: bert-mid --> 0.4044665012406948, age: 283, restart penalty: 120, lost seconds: 120, num restarts: 1
+Preserving allocations for jobs blocked on checkpoint-restore: {'rigid': [], 'adaptive': ['bert-mid']}
+Solver took: 7.95ms = 1.00ms (setup) + 6.95ms (solve)
+Optimization metrics: optimal objective value = 0.1500, effective ngpus = 44.98950958251953
+Policy optimization took 11.95ms, reallocating+migrating jobs took 0.00ms
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Unique configs:
+Configs: {0: ('aws', 1, 1), 1: ('aws', 1, 2), 2: ('aws', 1, 4), 3: ('dgx-ext', 1, 1), 4: ('dgx-ext', 1, 2), 5: ('dgx-ext', 1, 4), 6: ('dgx-ext', 1, 8), 7: ('rtx', 1, 1), 8: ('rtx', 1, 2), 9: ('rtx', 1, 4), 10: ('rtx', 1, 8)}
+Cluster total gpus: {'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Simulated cluster config: 
+nnodes: {'aws': 1, 'dgx-ext': 1, 'rtx': 1}, ngpus_per_node:{'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Initialized job state for 1 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): []
+Seeding profiles for job: bert-mid
+Policy optimization took 6.22ms, reallocating+migrating jobs took 1.01ms
+Policy optimization took 3.00ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 3.00ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 4.27ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 4.82ms, reallocating+migrating jobs took 0.00ms
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Unique configs:
+Configs: {0: ('aws', 1, 1), 1: ('aws', 1, 2), 2: ('aws', 1, 4), 3: ('dgx-ext', 1, 1), 4: ('dgx-ext', 1, 2), 5: ('dgx-ext', 1, 4), 6: ('dgx-ext', 1, 8), 7: ('rtx', 1, 1), 8: ('rtx', 1, 2), 9: ('rtx', 1, 4), 10: ('rtx', 1, 8)}
+Cluster total gpus: {'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Simulated cluster config: 
+nnodes: {'aws': 1, 'dgx-ext': 1, 'rtx': 1}, ngpus_per_node:{'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Initialized job state for 1 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): []ok
+test_direct_and_projected_goodput_sources_remain_distinct (test_joint_integration.JointIntegrationTests) ... ok
+test_multiplier_does_not_advance_checkpoint_delay (test_joint_integration.JointIntegrationTests) ... ok
+test_multiplier_is_applied_once_to_training_progress (test_joint_integration.JointIntegrationTests) ... ok
+test_neutral_oracle_is_exactly_one (test_joint_integration.JointIntegrationTests) ... ok
+test_unallocated_job_waits_without_progress (test_joint_integration.JointIntegrationTests) ... ok
+test_b3_solver_failure_preserves_valid_previous_state (test_joint_integration_coverage.JointIntegrationCoverageTests) ... ok
+test_b4_forced_drop_uses_full_atomic_fallback (test_joint_integration_coverage.JointIntegrationCoverageTests) ... ok
+test_b4_repairs_placement_on_integrated_path (test_joint_integration_coverage.JointIntegrationCoverageTests) ... ok
+test_checkpoint_lock_preserves_config_and_nodes_end_to_end (test_joint_integration_coverage.JointIntegrationCoverageTests) ... 
+Seeding profiles for job: bert-mid
+Policy optimization took 6.00ms, reallocating+migrating jobs took 0.78ms
+Policy optimization took 3.01ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 3.51ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 4.35ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 4.83ms, reallocating+migrating jobs took 0.00ms
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Unique configs:
+Configs: {0: ('aws', 1, 1), 1: ('aws', 1, 2), 2: ('aws', 1, 4), 3: ('dgx-ext', 1, 1), 4: ('dgx-ext', 1, 2), 5: ('dgx-ext', 1, 4), 6: ('dgx-ext', 1, 8), 7: ('rtx', 1, 1), 8: ('rtx', 1, 2), 9: ('rtx', 1, 4), 10: ('rtx', 1, 8)}
+Cluster total gpus: {'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Simulated cluster config: 
+nnodes: {'aws': 1, 'dgx-ext': 1, 'rtx': 1}, ngpus_per_node:{'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Initialized job state for 1 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): []
+Seeding profiles for job: bert-mid
+Policy optimization took 16.45ms, reallocating+migrating jobs took 1.00ms
+Policy optimization took 3.59ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 13.37ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 26.87ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 28.11ms, reallocating+migrating jobs took 0.00ms
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Unique configs:
+Configs: {0: ('aws', 1, 1), 1: ('aws', 1, 2), 2: ('aws', 1, 4), 3: ('dgx-ext', 1, 1), 4: ('dgx-ext', 1, 2), 5: ('dgx-ext', 1, 4), 6: ('dgx-ext', 1, 8), 7: ('rtx', 1, 1), 8: ('rtx', 1, 2), 9: ('rtx', 1, 4), 10: ('rtx', 1, 8)}
+Cluster total gpus: {'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Simulated cluster config: 
+nnodes: {'aws': 1, 'dgx-ext': 1, 'rtx': 1}, ngpus_per_node:{'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Initialized job state for 1 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): []
+Seeding profiles for job: bert-mid
+Policy optimization took 18.27ms, reallocating+migrating jobs took 1.01ms
+Policy optimization took 3.99ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 13.99ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 26.47ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 28.17ms, reallocating+migrating jobs took 0.00ms
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Unique configs:
+Configs: {0: ('aws', 1, 1), 1: ('aws', 1, 2), 2: ('aws', 1, 4), 3: ('dgx-ext', 1, 1), 4: ('dgx-ext', 1, 2), 5: ('dgx-ext', 1, 4), 6: ('dgx-ext', 1, 8), 7: ('rtx', 1, 1), 8: ('rtx', 1, 2), 9: ('rtx', 1, 4), 10: ('rtx', 1, 8)}
+Cluster total gpus: {'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Simulated cluster config: 
+nnodes: {'aws': 1, 'dgx-ext': 1, 'rtx': 1}, ngpus_per_node:{'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Initialized job state for 160 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): []
+Policy optimization took 1558.30ms, reallocating+migrating jobs took 9.80ms
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Unique configs:
+Configs: {0: ('aws', 1, 1), 1: ('aws', 1, 2), 2: ('aws', 1, 4), 3: ('dgx-ext', 1, 1), 4: ('dgx-ext', 1, 2), 5: ('dgx-ext', 1, 4), 6: ('dgx-ext', 1, 8), 7: ('rtx', 1, 1), 8: ('rtx', 1, 2), 9: ('rtx', 1, 4), 10: ('rtx', 1, 8)}
+Cluster total gpus: {'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Simulated cluster config: 
+nnodes: {'aws': 1, 'dgx-ext': 1, 'rtx': 1}, ngpus_per_node:{'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Initialized job state for 1 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): []
+Seeding profiles for job: bert-mid
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Unique configs:
+Configs: {0: ('aws', 1, 1), 1: ('aws', 1, 2), 2: ('aws', 1, 4), 3: ('dgx-ext', 1, 1), 4: ('dgx-ext', 1, 2), 5: ('dgx-ext', 1, 4), 6: ('dgx-ext', 1, 8), 7: ('rtx', 1, 1), 8: ('rtx', 1, 2), 9: ('rtx', 1, 4), 10: ('rtx', 1, 8)}
+Cluster total gpus: {'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Simulated cluster config: 
+nnodes: {'aws': 1, 'dgx-ext': 1, 'rtx': 1}, ngpus_per_node:{'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Initialized job state for 1 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): []
+Seeding profiles for job: bert-mid
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Unique configs:
+Configs: {0: ('aws', 1, 1), 1: ('aws', 1, 2), 2: ('aws', 1, 4), 3: ('dgx-ext', 1, 1), 4: ('dgx-ext', 1, 2), 5: ('dgx-ext', 1, 4), 6: ('dgx-ext', 1, 8), 7: ('rtx', 1, 1), 8: ('rtx', 1, 2), 9: ('rtx', 1, 4), 10: ('rtx', 1, 8)}
+Cluster total gpus: {'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Simulated cluster config: 
+nnodes: {'aws': 1, 'dgx-ext': 1, 'rtx': 1}, ngpus_per_node:{'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Initialized job state for 1 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): []
+Seeding profiles for job: bert-mid
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Unique configs:
+Configs: {0: ('aws', 1, 1), 1: ('aws', 1, 2), 2: ('aws', 1, 4), 3: ('dgx-ext', 1, 1), 4: ('dgx-ext', 1, 2), 5: ('dgx-ext', 1, 4), 6: ('dgx-ext', 1, 8), 7: ('rtx', 1, 1), 8: ('rtx', 1, 2), 9: ('rtx', 1, 4), 10: ('rtx', 1, 8)}
+Cluster total gpus: {'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Simulated cluster config: 
+nnodes: {'aws': 1, 'dgx-ext': 1, 'rtx': 1}, ngpus_per_node:{'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Initialized job state for 1 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): []
+Seeding profiles for job: bert-mid
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Unique configs:
+Configs: {0: ('aws', 1, 1), 1: ('aws', 1, 2), 2: ('aws', 1, 4), 3: ('dgx-ext', 1, 1), 4: ('dgx-ext', 1, 2), 5: ('dgx-ext', 1, 4), 6: ('dgx-ext', 1, 8), 7: ('rtx', 1, 1), 8: ('rtx', 1, 2), 9: ('rtx', 1, 4), 10: ('rtx', 1, 8)}
+Cluster total gpus: {'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Simulated cluster config: 
+nnodes: {'aws': 1, 'dgx-ext': 1, 'rtx': 1}, ngpus_per_node:{'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Initialized job state for 1 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): []
+Seeding profiles for job: bert-mid
+Realloc factor: bert-mid --> 0.26380368098159507, age: 43, restart penalty: 120, lost seconds: 0, num restarts: 0
+Preserving allocations for jobs blocked on checkpoint-restore: {'rigid': [], 'adaptive': []}
+Solver took: 9.77ms = 1.01ms (setup) + 8.77ms (solve)
+Optimization metrics: optimal objective value = 1.0000, effective ngpus = 1.0
+Policy optimization took 10.82ms, reallocating+migrating jobs took 1.18ms
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Unique configs:
+Configs: {0: ('aws', 1, 1), 1: ('aws', 1, 2), 2: ('aws', 1, 4), 3: ('dgx-ext', 1, 1), 4: ('dgx-ext', 1, 2), 5: ('dgx-ext', 1, 4), 6: ('dgx-ext', 1, 8), 7: ('rtx', 1, 1), 8: ('rtx', 1, 2), 9: ('rtx', 1, 4), 10: ('rtx', 1, 8)}
+Cluster total gpus: {'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Simulated cluster config: 
+nnodes: {'aws': 1, 'dgx-ext': 1, 'rtx': 1}, ngpus_per_node:{'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Initialized job state for 1 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): []
+Seeding profiles for job: bert-mid
+Realloc factor: bert-mid --> 0.26380368098159507, age: 43, restart penalty: 120, lost seconds: 0, num restarts: 0
+Preserving allocations for jobs blocked on checkpoint-restore: {'rigid': [], 'adaptive': []}
+Solver took: 9.00ms = 1.00ms (setup) + 8.00ms (solve)
+Optimization metrics: optimal objective value = 1.0000, effective ngpus = 1.0
+Policy optimization took 10.00ms, reallocating+migrating jobs took 1.00ms
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Unique configs:
+ok
+test_multinode_rigid_uses_complete_nodes (test_joint_integration_coverage.JointIntegrationCoverageTests) ... ok
+test_pmp_scale_units_are_legal_on_actual_jobinfo_path (test_joint_integration_coverage.JointIntegrationCoverageTests) ... D:\科研启航\Sia\.venv-sia-baseline\lib\site-packages\autograd\tracer.py:93: RuntimeWarning: invalid value encountered in log
+  return f_raw(*args, **kwargs)
+ok
+test_projected_profile_reaches_integrated_decision (test_joint_integration_coverage.JointIntegrationCoverageTests) ... ok
+test_rigid_job_holds_exact_gpu_count_and_progresses (test_joint_integration_coverage.JointIntegrationCoverageTests) ... ok
+test_all_three_policies_match_independent_exhaustive_solver (test_joint_prototype.JointPrototypeTests) ... ok
+test_arithmetic_profile_literals_are_supported (test_joint_prototype.JointPrototypeTests) ... ok
+test_b4_never_changes_b1_gpu_config (test_joint_prototype.JointPrototypeTests) ... ok
+test_capacity_relative_proportional_point_is_one (test_joint_prototype.JointPrototypeTests) ... ok
+test_checkpoint_lock_limits_config_and_nodes (test_joint_prototype.JointPrototypeTests) ... ok
+test_fixed_reference_baseline_and_slowdown (test_joint_prototype.JointPrototypeTests) ... ok
+test_illegal_config_is_rejected (test_joint_prototype.JointPrototypeTests) ... ok
+test_job_input_contains_no_future_information (test_joint_prototype.JointPrototypeTests) ... ok
+test_mapping_modes_are_deterministic_and_explicit (test_joint_prototype.JointPrototypeTests) ... ok
+test_multinode_patterns_require_consistent_full_nodes (test_joint_prototype.JointPrototypeTests) ... ok
+test_official_matrix_is_loaded_with_provenance (test_joint_prototype.JointPrototypeTests) ... ok
+test_scenario_a_joint_changes_gpu_type (test_joint_prototype.JointPrototypeTests) ... ok
+test_scenario_b_joint_scales_down_gpu_count (test_joint_prototype.JointPrototypeTests) ... ok
+test_scenario_c_b4_repairs_placement_and_matches_b3 (test_joint_prototype.JointPrototypeTests) ... ok
+test_preregistration_changes_only_observation_window (test_medium_followup.MediumFollowupTests) ... ok
+test_structural_diff_rejects_hidden_changes (test_medium_followup.MediumFollowupTests) ... ok
+test_existing_medium_definition_is_unique (test_medium_response.MediumResponseTests) ... ok
+test_medium_uses_sqrt_of_raw_ratio_and_fixed_reference_is_one (test_medium_response.MediumResponseTests) ... ok
+test_templates_have_distinct_medium_responses (test_medium_response.MediumResponseTests) ... ok
+test_multi_node_extension_is_not_silently_assumed (test_physical_domain.PhysicalDomainTests) ... ok
+test_small_node_has_no_impossible_configs (test_physical_domain.PhysicalDomainTests) ... ok
+test_supported_eight_gpu_domain_is_preserved (test_physical_domain.PhysicalDomainTests) ... ok
+test_drain_issues_no_new_optional_service_and_reaches_gang (test_protected_admission.ProtectedAdmissionTests) ... ok
+test_head_without_solo_candidate_is_explicit_failure (test_protected_admission.ProtectedAdmissionTests) ... ok
+test_locked_optional_peer_is_still_exactly_protected (test_protected_admission.ProtectedAdmissionTests) ... ok
+test_negative_head_is_served_but_negative_optional_peer_waits (test_protected_admission.ProtectedAdmissionTests) ... ok
+test_negative_optional_job_eventually_becomes_required_and_repeats (test_protected_admission.ProtectedAdmissionTests) ... ok
+test_optional_set_can_replace_fifo_greedy_packing (test_protected_admission.ProtectedAdmissionTests) ... ok
+test_solver_failure_does_not_commit_queue_or_service (test_protected_admission.ProtectedAdmissionTests) ... ok
+test_both_flags_off_match_actual_g_decisions_progress_restarts (test_exchange_integration.ExchangeIntegration) ... ok
+test_unseeded_full_schedule_and_primary_scores_no_proxy_double_charge (test_exchange_integration.ExchangeIntegration) ... ok
+test_unseeded_checkpoint_training_and_real_next_decisions (test_protected_integration.ProtectedIntegration) ... ok
+test_eight_fifo_repeated_service (test_scaled_adaptive.ScaleTests) ... ok
+test_no_silent_truncation (test_scaled_adaptive.ScaleTests) ... ok
+test_twenty_fifo_repeated_service (test_scaled_adaptive.ScaleTests) ... ok
+test_both_flags_off_match_actual_g_decisions_progress_restarts (test_exchange_integration.ExchangeIntegration) ... ok
+test_unseeded_full_schedule_and_primary_scores_no_proxy_double_charge (test_exchange_integration.ExchangeIntegration) ... ok
+test_expired_commitment_scores_as_new_quantum (test_service_horizon.ServiceHorizonTests) ... ok
+test_full_chain_uses_remaining_service_and_preserves_locks (test_service_horizon.ServiceHorizonTests) ... ok
+test_fixed_set_forces_negative_utility_and_gpu (test_small_mechanism.SmallTests) ... ok
+test_missing_intent_rejected (test_small_mechanism.SmallTests) ... ok
+test_no_free_admission (test_small_mechanism.SmallTests) ... ok
+test_solver_failure_explicit (test_small_mechanism.SmallTests) ... ok
+test_all_empty_absorbing_state_is_still_unresolved (test_stage1_correctness.Stage1CorrectnessTests) ... ok
+test_all_modes_keep_full_lock_and_b1_secondary_admission (test_stage1_correctness.Stage1CorrectnessTests) ... Configs: {0: ('aws', 1, 1), 1: ('aws', 1, 2), 2: ('aws', 1, 4), 3: ('dgx-ext', 1, 1), 4: ('dgx-ext', 1, 2), 5: ('dgx-ext', 1, 4), 6: ('dgx-ext', 1, 8), 7: ('rtx', 1, 1), 8: ('rtx', 1, 2), 9: ('rtx', 1, 4), 10: ('rtx', 1, 8)}
+Cluster total gpus: {'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Simulated cluster config: 
+nnodes: {'aws': 1, 'dgx-ext': 1, 'rtx': 1}, ngpus_per_node:{'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Initialized job state for 1 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): []
+Realloc factor: bert-mid --> 0.26380368098159507, age: 43, restart penalty: 120, lost seconds: 0, num restarts: 0
+Preserving allocations for jobs blocked on checkpoint-restore: {'rigid': [], 'adaptive': []}
+Solver took: 9.27ms = 1.24ms (setup) + 8.03ms (solve)
+Optimization metrics: optimal objective value = 1.0000, effective ngpus = 1.0
+Policy optimization took 15.43ms, reallocating+migrating jobs took 1.01ms
+Realloc factor: bert-mid --> 0.4618834080717489, age: 103, restart penalty: 120, lost seconds: 0, num restarts: 0
+Preserving allocations for jobs blocked on checkpoint-restore: {'rigid': [], 'adaptive': ['bert-mid']}
+Solver took: 9.10ms = 0.79ms (setup) + 8.31ms (solve)
+Optimization metrics: optimal objective value = 1.0000, effective ngpus = 1.0
+Policy optimization took 10.75ms, reallocating+migrating jobs took 0.00ms
+Realloc factor: bert-mid --> 0.5759717314487632, age: 163, restart penalty: 120, lost seconds: 0, num restarts: 0
+Preserving allocations for jobs blocked on checkpoint-restore: {'rigid': [], 'adaptive': []}
+Solver took: 8.41ms = 0.92ms (setup) + 7.49ms (solve)
+Optimization metrics: optimal objective value = 1.0000, effective ngpus = 1.0
+Policy optimization took 10.99ms, reallocating+migrating jobs took 0.00ms
+Realloc factor: bert-mid --> 0.6501457725947521, age: 223, restart penalty: 120, lost seconds: 0, num restarts: 0
+Preserving allocations for jobs blocked on checkpoint-restore: {'rigid': [], 'adaptive': []}
+Solver took: 8.51ms = 0.00ms (setup) + 8.51ms (solve)
+Optimization metrics: optimal objective value = 0.8900, effective ngpus = 1.9463045597076416
+Policy optimization took 11.01ms, reallocating+migrating jobs took 1.57ms
+Realloc factor: bert-mid --> 0.4044665012406948, age: 283, restart penalty: 120, lost seconds: 120, num restarts: 1
+Preserving allocations for jobs blocked on checkpoint-restore: {'rigid': [], 'adaptive': ['bert-mid']}
+Solver took: 9.15ms = 1.07ms (setup) + 8.07ms (solve)
+Optimization metrics: optimal objective value = 0.7200, effective ngpus = 1.9463045597076416
+Policy optimization took 11.47ms, reallocating+migrating jobs took 0.00ms
+Realloc factor: bert-mid --> 0.4816414686825054, age: 343, restart penalty: 120, lost seconds: 120, num restarts: 1
+Preserving allocations for jobs blocked on checkpoint-restore: {'rigid': [], 'adaptive': []}
+Solver took: 8.01ms = 0.00ms (setup) + 8.01ms (solve)
+Optimization metrics: optimal objective value = 0.7200, effective ngpus = 1.9463045597076416
+Policy optimization took 11.01ms, reallocating+migrating jobs took 0.00ms
+Realloc factor: bert-mid --> 0.5411089866156787, age: 403, restart penalty: 120, lost seconds: 120, num restarts: 1
+Preserving allocations for jobs blocked on checkpoint-restore: {'rigid': [], 'adaptive': []}
+Solver took: 9.20ms = 1.00ms (setup) + 8.21ms (solve)
+Optimization metrics: optimal objective value = 0.7300, effective ngpus = 3.4516773223876953
+Policy optimization took 12.21ms, reallocating+migrating jobs took 1.00ms
+Realloc factor: bert-mid --> 0.38250428816466553, age: 463, restart penalty: 120, lost seconds: 240, num restarts: 2
+Preserving allocations for jobs blocked on checkpoint-restore: {'rigid': [], 'adaptive': ['bert-mid']}
+Solver took: 9.37ms = 1.00ms (setup) + 8.38ms (solve)
+Optimization metrics: optimal objective value = 0.5400, effective ngpus = 3.4516773223876953
+Policy optimization took 11.10ms, reallocating+migrating jobs took 0.00ms
+Realloc factor: bert-mid --> 0.4401244167962675, age: 523, restart penalty: 120, lost seconds: 240, num restarts: 2
+Preserving allocations for jobs blocked on checkpoint-restore: {'rigid': [], 'adaptive': []}
+Solver took: 9.47ms = 1.56ms (setup) + 7.91ms (solve)
+Optimization metrics: optimal objective value = 0.5400, effective ngpus = 3.4516773223876953
+Policy optimization took 11.48ms, reallocating+migrating jobs took 0.00ms
+Realloc factor: bert-mid --> 0.4879089615931721, age: 583, restart penalty: 120, lost seconds: 240, num restarts: 2
+Preserving allocations for jobs blocked on checkpoint-restore: {'rigid': [], 'adaptive': []}
+Solver took: 9.00ms = 0.00ms (setup) + 9.00ms (solve)
+Optimization metrics: optimal objective value = 0.5400, effective ngpus = 3.409630298614502
+Policy optimization took 12.14ms, reallocating+migrating jobs took 0.00ms
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Project speedups active
+Unique configs:
+Configs: {0: ('aws', 1, 1), 1: ('aws', 1, 2), 2: ('aws', 1, 4), 3: ('rtx', 1, 1), 4: ('rtx', 1, 2), 5: ('rtx', 1, 4), 6: ('rtx', 1, 8)}
+Cluster total gpus: {'aws': 4, 'rtx': 8}
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Project speedups active
+Unique configs:
+Configs: {0: ('aws', 1, 1), 1: ('aws', 1, 2), 2: ('aws', 1, 4), 3: ('dgx-ext', 1, 1), 4: ('dgx-ext', 1, 2), 5: ('dgx-ext', 1, 4), 6: ('dgx-ext', 1, 8), 7: ('rtx', 1, 1), 8: ('rtx', 1, 2), 9: ('rtx', 1, 4), 10: ('rtx', 1, 8)}
+Cluster total gpus: {'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Simulated cluster config: 
+nnodes: {'aws': 1, 'dgx-ext': 1, 'rtx': 1}, ngpus_per_node:{'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Initialized job state for 1 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): []
+Seeding profiles for job: cifar10-solverfail
+Policy optimization took 8.41ms, reallocating+migrating jobs took 1.00ms
+Policy optimization took 1.00ms, reallocating+migrating jobs took 0.00ms
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Project speedups active
+Unique configs:
+Configs: {0: ('aws', 1, 1), 1: ('aws', 1, 2), 2: ('aws', 1, 4), 3: ('dgx-ext', 1, 1), 4: ('dgx-ext', 1, 2), 5: ('dgx-ext', 1, 4), 6: ('dgx-ext', 1, 8), 7: ('rtx', 1, 1), 8: ('rtx', 1, 2), 9: ('rtx', 1, 4), 10: ('rtx', 1, 8)}
+Cluster total gpus: {'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Simulated cluster config: 
+nnodes: {'aws': 1, 'dgx-ext': 1, 'rtx': 1}, ngpus_per_node:{'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Initialized job state for 2 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): []
+Seeding profiles for job: cifar10-fallback
+Seeding profiles for job: bert-fallback
+Realloc factor: cifar10-fallback --> 0.6666666666666666, age: 60, restart penalty: 30, lost seconds: 0, num restarts: 0
+Realloc factor: bert-fallback --> 0.3333333333333333, age: 60, restart penalty: 120, lost seconds: 0, num restarts: 0
+Preserving allocations for jobs blocked on checkpoint-restore: {'rigid': [], 'adaptive': []}
+Solver took: 8.73ms = 1.00ms (setup) + 7.72ms (solve)
+Optimization metrics: optimal objective value = 2.0000, effective ngpus = 2.0
+Policy optimization took 19.19ms, reallocating+migrating jobs took 1.00ms
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Project speedups active
+Unique configs:
+Configs: {0: ('rtx', 1, 1), 1: ('rtx', 1, 2), 2: ('rtx', 1, 4), 3: ('rtx', 1, 8), 4: ('rtx', 2, 16)}
+Cluster total gpus: {'rtx': 16}
+Simulated cluster config: 
+nnodes: {'rtx': 2}, ngpus_per_node:{'rtx': 8}
+Initialized job state for 1 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): []
+Seeding profiles for job: cifar10-repair
+Realloc factor: cifar10-repair --> 0.6666666666666666, age: 60, restart penalty: 30, lost seconds: 0, num restarts: 0
+Preserving allocations for jobs blocked on checkpoint-restore: {'rigid': [], 'adaptive': []}
+Solver took: 10.21ms = 1.00ms (setup) + 9.21ms (solve)
+Optimization metrics: optimal objective value = 1.0000, effective ngpus = 1.0
+Policy optimization took 18.71ms, reallocating+migrating jobs took 2.00ms
+ok
+test_b5_fifo_through_cluster_with_real_arrivals_and_source_order (test_stage1_correctness.Stage1CorrectnessTests) ... ok
+test_direct_raw_execution_rate_not_reconstructed (test_stage1_correctness.Stage1CorrectnessTests) ... ok
+test_epoch_rounding_bound_is_explicit_not_hidden_in_raw (test_stage1_correctness.Stage1CorrectnessTests) ... ok
+test_fallback_rebuilds_current_config_query_not_old_rho (test_stage1_correctness.Stage1CorrectnessTests) ... ok
+test_fifo_real_arrival_then_source_row_not_job_id (test_stage1_correctness.Stage1CorrectnessTests) ... ok
+test_independent_multiplier_checkpoint_epoch_completion_boundaries (test_stage1_correctness.Stage1CorrectnessTests) ... ok
+test_infeasible_lock_stops_without_committing (test_stage1_correctness.Stage1CorrectnessTests) ... ok
+test_locked_peer_cannot_be_downgraded_or_moved (test_stage1_correctness.Stage1CorrectnessTests) ... ok
+test_mid_interval_arrival_and_first_times (test_stage1_correctness.Stage1CorrectnessTests) ... ok
+test_negative_utility_lock_must_be_selected_and_keep_all_quotas (test_stage1_correctness.Stage1CorrectnessTests) ... ok
+test_precommit_rejects_forged_success_with_dropped_lock (test_stage1_correctness.Stage1CorrectnessTests) ... ok
+test_resource_hours_stop_at_within_interval_completion (test_stage1_correctness.Stage1CorrectnessTests) ... ok
+test_b3_prop_rejects_cross_policy_nonproportional_and_old_lock (test_stage1p1_correctness.Stage1p1CorrectnessTests) ... ok
+test_b4_infeasible_proportional_intent_refuses_fallback_without_crash (test_stage1p1_correctness.Stage1p1CorrectnessTests) ... ok
+test_locked_unlocked_solver_failure_valid_quota_requalifies (test_stage1p1_correctness.Stage1p1CorrectnessTests) ... ok
+test_real_cluster_unlock_failure_requalifies_b3_and_prop (test_stage1p1_correctness.Stage1p1CorrectnessTests) ... ok
+test_refresh_unknown_tag_rejected_and_prop_valid_unlock_allowed (test_stage1p1_correctness.Stage1p1CorrectnessTests) ... ok
+test_still_locked_non_grid_quota_fully_protected (test_stage1p1_correctness.Stage1p1CorrectnessTests) ... ok
+test_unknown_and_forged_locked_kinds_rejected (test_stage1p1_correctness.Stage1p1CorrectnessTests) ... ok
+test_unlocked_below_progress_floor_fallback_rejected (test_stage1p1_correctness.Stage1p1CorrectnessTests) ... ok
+test_unlocked_outside_grid_fallback_rejected (test_stage1p1_correctness.Stage1p1CorrectnessTests) ... ok
+test_unseeded_bert_mid_full_optimize_policy_chain (test_stage1p1_correctness.Stage1p1CorrectnessTests) ... Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Project speedups active
+Unique configs:
+Configs: {0: ('aws', 1, 1), 1: ('aws', 1, 2), 2: ('aws', 1, 4), 3: ('dgx-ext', 1, 1), 4: ('dgx-ext', 1, 2), 5: ('dgx-ext', 1, 4), 6: ('dgx-ext', 1, 8), 7: ('rtx', 1, 1), 8: ('rtx', 1, 2), 9: ('rtx', 1, 4), 10: ('rtx', 1, 8)}
+Cluster total gpus: {'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Simulated cluster config: 
+nnodes: {'aws': 1, 'dgx-ext': 1, 'rtx': 1}, ngpus_per_node:{'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Initialized job state for 1 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): []
+Seeding profiles for job: bert-lock
+Policy optimization took 8.47ms, reallocating+migrating jobs took 1.05ms
+Policy optimization took 1.00ms, reallocating+migrating jobs took 0.00ms
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Project speedups active
+Unique configs:
+Configs: {0: ('rtx', 1, 1), 1: ('rtx', 1, 2), 2: ('rtx', 1, 4), 3: ('rtx', 1, 8), 4: ('rtx', 2, 16)}
+Cluster total gpus: {'rtx': 16}
+Simulated cluster config: 
+nnodes: {'rtx': 2}, ngpus_per_node:{'rtx': 8}
+Disabled bsz tuning for job: cifar10-multinode
+Initialized job state for 1 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): ['cifar10-multinode']
+Seeding profiles for job: cifar10-multinode
+Initialized cluster throughputs for job: cifar10-multinode = {'rtx': 8823.181459827802}
+Rigid job: cifar10-multinode, throughput ratios: {'rtx': 8823.181459827802}
+Policy optimization took 7.81ms, reallocating+migrating jobs took 1.00ms
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Project speedups active
+Unique configs:
+Configs: {0: ('dgx-ext', 1, 1), 1: ('dgx-ext', 1, 2), 2: ('dgx-ext', 1, 4), 3: ('dgx-ext', 1, 8), 4: ('dgx-ext', 2, 16), 5: ('rtx', 1, 1), 6: ('rtx', 1, 2), 7: ('rtx', 1, 4), 8: ('rtx', 1, 8), 9: ('rtx', 2, 16)}
+Cluster total gpus: {'dgx-ext': 16, 'rtx': 16}
+Simulated cluster config: 
+nnodes: {'dgx-ext': 2, 'rtx': 2}, ngpus_per_node:{'dgx-ext': 8, 'rtx': 8}
+Initialized job state for 1 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): ['gpt_pmp-scale']
+Fixed bsz, GPU count (rigid): []
+Seeding profiles for job: gpt_pmp-scale
+Policy optimization took 9.87ms, reallocating+migrating jobs took 0.00ms
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Project speedups active
+Unique configs:
+Configs: {0: ('aws', 1, 1), 1: ('aws', 1, 2), 2: ('aws', 1, 4), 3: ('rtx', 1, 1), 4: ('rtx', 1, 2), 5: ('rtx', 1, 4), 6: ('rtx', 1, 8)}
+Cluster total gpus: {'aws': 4, 'rtx': 8}
+Simulated cluster config: 
+nnodes: {'aws': 1, 'rtx': 1}, ngpus_per_node:{'aws': 4, 'rtx': 8}
+Initialized job state for 1 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): []
+Seeding profiles for job: cifar10-projected
+Policy optimization took 13.99ms, reallocating+migrating jobs took 1.00ms
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Project speedups active
+Unique configs:
+Configs: {0: ('aws', 1, 1), 1: ('aws', 1, 2), 2: ('aws', 1, 4), 3: ('dgx-ext', 1, 1), 4: ('dgx-ext', 1, 2), 5: ('dgx-ext', 1, 4), 6: ('dgx-ext', 1, 8), 7: ('rtx', 1, 1), 8: ('rtx', 1, 2), 9: ('rtx', 1, 4), 10: ('rtx', 1, 8)}
+Cluster total gpus: {'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Simulated cluster config: 
+nnodes: {'aws': 1, 'dgx-ext': 1, 'rtx': 1}, ngpus_per_node:{'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Disabled bsz tuning for job: cifar10-rigid
+Initialized job state for 1 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): ['cifar10-rigid']
+Seeding profiles for job: cifar10-rigid
+Initialized cluster throughputs for job: cifar10-rigid = {'aws': 2591.5087910697252, 'dgx-ext': 7964.968155166016, 'rtx': 3036.231659304279}
+Rigid job: cifar10-rigid, throughput ratios: {'aws': 2591.5087910697252, 'dgx-ext': 7964.968155166016, 'rtx': 3036.231659304279}
+Policy optimization took 5.45ms, reallocating+migrating jobs took 1.42ms
+Using cached cluster throughputs for job: cifar10-rigid = {'aws': 2591.5087910697252, 'dgx-ext': 7964.968155166016, 'rtx': 3036.231659304279}
+Rigid job: cifar10-rigid, throughput ratios: {'aws': 2591.5087910697252, 'dgx-ext': 7964.968155166016, 'rtx': 3036.231659304279}
+Policy optimization took 5.56ms, reallocating+migrating jobs took 0.00ms
+Using cached cluster throughputs for job: cifar10-rigid = {'aws': 2591.5087910697252, 'dgx-ext': 7964.968155166016, 'rtx': 3036.231659304279}
+Rigid job: cifar10-rigid, throughput ratios: {'aws': 2591.5087910697252, 'dgx-ext': 7964.968155166016, 'rtx': 3036.231659304279}
+Policy optimization took 5.18ms, reallocating+migrating jobs took 0.00ms
+Using cached cluster throughputs for job: cifar10-rigid = {'aws': 2591.5087910697252, 'dgx-ext': 7964.968155166016, 'rtx': 3036.231659304279}
+Rigid job: cifar10-rigid, throughput ratios: {'aws': 2591.5087910697252, 'dgx-ext': 7964.968155166016, 'rtx': 3036.231659304279}
+Policy optimization took 5.01ms, reallocating+migrating jobs took 0.00ms
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Project speedups active
+Unique configs:
+Configs: {0: ('aws', 1, 1), 1: ('aws', 1, 2), 2: ('aws', 1, 4)}
+Cluster total gpus: {'aws': 4}
+Simulated cluster config: 
+nnodes: {'aws': 1}, ngpus_per_node:{'aws': 4}
+Initialized job state for 1 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): []
+Policy optimization took 3.00ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 0.00ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 0.00ms, reallocating+migrating jobs took 0.00ms
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Project speedups active
+Unique configs:
+Configs: {0: ('aws', 1, 1), 1: ('aws', 1, 2), 2: ('aws', 1, 4)}
+Cluster total gpus: {'aws': 4}
+Simulated cluster config: 
+nnodes: {'aws': 1}, ngpus_per_node:{'aws': 4}
+Initialized job state for 2 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): []
+Policy optimization took 3.00ms, reallocating+migrating jobs took 1.00ms
+Policy optimization took 0.97ms, reallocating+migrating jobs took 0.00ms
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Project speedups active
+Unique configs:
+Configs: {0: ('aws', 1, 1), 1: ('aws', 1, 2), 2: ('aws', 1, 4)}
+Cluster total gpus: {'aws': 4}
+Simulated cluster config: 
+nnodes: {'aws': 1}, ngpus_per_node:{'aws': 4}
+Initialized job state for 2 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): []
+Policy optimization took 4.00ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 3.00ms, reallocating+migrating jobs took 0.00ms
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Project speedups active
+Unique configs:
+Configs: {0: ('aws', 1, 1), 1: ('aws', 1, 2), 2: ('aws', 1, 4)}
+Cluster total gpus: {'aws': 4}
+Simulated cluster config: 
+nnodes: {'aws': 1}, ngpus_per_node:{'aws': 4}
+Initialized job state for 2 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): []
+Policy optimization took 3.87ms, reallocating+migrating jobs took 1.06ms
+Policy optimization took 1.56ms, reallocating+migrating jobs took 0.00ms
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Project speedups active
+Unique configs:
+Configs: {0: ('aws', 1, 1), 1: ('aws', 1, 2), 2: ('aws', 1, 4)}
+Cluster total gpus: {'aws': 4}
+Simulated cluster config: 
+nnodes: {'aws': 1}, ngpus_per_node:{'aws': 4}
+Initialized job state for 2 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): []
+Policy optimization took 3.48ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 3.30ms, reallocating+migrating jobs took 0.00ms
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Project speedups active
+Unique configs:
+Configs: {0: ('aws', 1, 1), 1: ('aws', 1, 2), 2: ('aws', 1, 4)}
+ok
+test_atomic_invalid_solution_refused (test_stage2b_neutral.Stage2BNeutralTests) ... ok
+test_checkpoint_and_service_separate_full_geometry (test_stage2b_neutral.Stage2BNeutralTests) ... ok
+test_delay_bound_and_fifo_wait_bound_independent_small_state_enumeration (test_stage2b_neutral.Stage2BNeutralTests) ... ok
+test_expired_fixed_proposal_is_recomputed_before_factor_filter (test_stage2b_neutral.Stage2BNeutralTests) ... ok
+test_four_cells_same_state_candidate_inclusions (test_stage2b_neutral.Stage2BNeutralTests) ... ok
+test_infeasible_commitment_stops_without_mutation (test_stage2b_neutral.Stage2BNeutralTests) ... ok
+test_large_gang_drains_without_backfill (test_stage2b_neutral.Stage2BNeutralTests) ... ok
+test_negative_columns_serve_real_fifo_not_job_id (test_stage2b_neutral.Stage2BNeutralTests) ... ok
+test_no_candidates_explicit_stop (test_stage2b_neutral.Stage2BNeutralTests) ... ok
+test_non_neutral_and_formal_scope_rejected (test_stage2b_neutral.Stage2BNeutralTests) ... ok
+test_repeat_service_requeues_after_productive_not_delay (test_stage2b_neutral.Stage2BNeutralTests) ... ok
+test_solver_failure_during_service_preserves_entire_committed_state (test_stage2b_neutral.Stage2BNeutralTests) ... ok
+test_solver_failure_no_partial_transaction (test_stage2b_neutral.Stage2BNeutralTests) ... ok
+test_three_real_jobs_repeated_neutral_service_30_round_cap (test_stage2b_neutral.Stage2BNeutralTests) ... Cluster total gpus: {'aws': 4}
+Simulated cluster config: 
+nnodes: {'aws': 1}, ngpus_per_node:{'aws': 4}
+Initialized job state for 2 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): []
+Policy optimization took 3.00ms, reallocating+migrating jobs took 1.01ms
+Policy optimization took 2.00ms, reallocating+migrating jobs took 0.00ms
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Project speedups active
+Unique configs:
+Configs: {0: ('aws', 1, 1), 1: ('aws', 1, 2), 2: ('aws', 1, 4)}
+Cluster total gpus: {'aws': 4}
+Simulated cluster config: 
+nnodes: {'aws': 1}, ngpus_per_node:{'aws': 4}
+Initialized job state for 2 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): []
+Policy optimization took 4.00ms, reallocating+migrating jobs took 1.00ms
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Project speedups active
+Unique configs:
+Configs: {0: ('aws', 1, 1), 1: ('aws', 1, 2), 2: ('aws', 1, 4)}
+Cluster total gpus: {'aws': 4}
+Simulated cluster config: 
+nnodes: {'aws': 1}, ngpus_per_node:{'aws': 4}
+Initialized job state for 2 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): []
+Policy optimization took 4.01ms, reallocating+migrating jobs took 1.00ms
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Project speedups active
+Unique configs:
+Configs: {0: ('aws', 1, 1), 1: ('aws', 1, 2), 2: ('aws', 1, 4), 3: ('dgx-ext', 1, 1), 4: ('dgx-ext', 1, 2), 5: ('dgx-ext', 1, 4), 6: ('dgx-ext', 1, 8), 7: ('rtx', 1, 1), 8: ('rtx', 1, 2), 9: ('rtx', 1, 4), 10: ('rtx', 1, 8)}
+Cluster total gpus: {'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Simulated cluster config: 
+nnodes: {'aws': 1, 'dgx-ext': 1, 'rtx': 1}, ngpus_per_node:{'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Initialized job state for 1 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): []
+Policy optimization took 8.92ms, reallocating+migrating jobs took 1.20ms
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Project speedups active
+Unique configs:
+Configs: {0: ('aws', 1, 1), 1: ('aws', 1, 2), 2: ('aws', 1, 4), 3: ('dgx-ext', 1, 1), 4: ('dgx-ext', 1, 2), 5: ('dgx-ext', 1, 4), 6: ('dgx-ext', 1, 8), 7: ('rtx', 1, 1), 8: ('rtx', 1, 2), 9: ('rtx', 1, 4), 10: ('rtx', 1, 8)}
+Cluster total gpus: {'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Simulated cluster config: 
+nnodes: {'aws': 1, 'dgx-ext': 1, 'rtx': 1}, ngpus_per_node:{'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Initialized job state for 1 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): []
+Realloc factor: bert-mid --> 0.26380368098159507, age: 43, restart penalty: 120, lost seconds: 0, num restarts: 0
+Preserving allocations for jobs blocked on checkpoint-restore: {'rigid': [], 'adaptive': []}
+Solver took: 9.56ms = 1.00ms (setup) + 8.55ms (solve)
+Optimization metrics: optimal objective value = 1.0000, effective ngpus = 1.0
+Policy optimization took 12.56ms, reallocating+migrating jobs took 1.08ms
+Realloc factor: bert-mid --> 0.4618834080717489, age: 103, restart penalty: 120, lost seconds: 0, num restarts: 0
+Preserving allocations for jobs blocked on checkpoint-restore: {'rigid': [], 'adaptive': ['bert-mid']}
+Solver took: 10.00ms = 1.51ms (setup) + 8.49ms (solve)
+Optimization metrics: optimal objective value = 1.0000, effective ngpus = 1.0
+Policy optimization took 11.10ms, reallocating+migrating jobs took 0.00ms
+Realloc factor: bert-mid --> 0.5759717314487632, age: 163, restart penalty: 120, lost seconds: 0, num restarts: 0
+Preserving allocations for jobs blocked on checkpoint-restore: {'rigid': [], 'adaptive': []}
+Solver took: 8.01ms = 1.01ms (setup) + 7.00ms (solve)
+Optimization metrics: optimal objective value = 1.0000, effective ngpus = 1.0
+Policy optimization took 8.01ms, reallocating+migrating jobs took 0.00ms
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Project speedups active
+Unique configs:
+Configs: {0: ('aws', 1, 1), 1: ('aws', 1, 2), 2: ('aws', 1, 4), 3: ('dgx-ext', 1, 1), 4: ('dgx-ext', 1, 2), 5: ('dgx-ext', 1, 4), 6: ('dgx-ext', 1, 8), 7: ('rtx', 1, 1), 8: ('rtx', 1, 2), 9: ('rtx', 1, 4), 10: ('rtx', 1, 8)}
+Cluster total gpus: {'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Simulated cluster config: 
+nnodes: {'aws': 1, 'dgx-ext': 1, 'rtx': 1}, ngpus_per_node:{'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Initialized job state for 1 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): []
+Policy optimization took 10.34ms, reallocating+migrating jobs took 0.99ms
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Project speedups active
+Unique configs:
+Configs: {0: ('aws', 1, 1), 1: ('aws', 1, 2), 2: ('aws', 1, 4), 3: ('dgx-ext', 1, 1), 4: ('dgx-ext', 1, 2), 5: ('dgx-ext', 1, 4), 6: ('dgx-ext', 1, 8), 7: ('rtx', 1, 1), 8: ('rtx', 1, 2), 9: ('rtx', 1, 4), 10: ('rtx', 1, 8)}
+Cluster total gpus: {'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Simulated cluster config: 
+nnodes: {'aws': 1, 'dgx-ext': 1, 'rtx': 1}, ngpus_per_node:{'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Initialized job state for 1 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): []
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Project speedups active
+Unique configs:
+Configs: {0: ('aws', 1, 1), 1: ('aws', 1, 2), 2: ('aws', 1, 4), 3: ('dgx-ext', 1, 1), 4: ('dgx-ext', 1, 2), 5: ('dgx-ext', 1, 4), 6: ('dgx-ext', 1, 8), 7: ('rtx', 1, 1), 8: ('rtx', 1, 2), 9: ('rtx', 1, 4), 10: ('rtx', 1, 8)}
+Cluster total gpus: {'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Simulated cluster config: 
+nnodes: {'aws': 1, 'dgx-ext': 1, 'rtx': 1}, ngpus_per_node:{'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Initialized job state for 1 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): []
+Policy optimization took 10.37ms, reallocating+migrating jobs took 1.00ms
+Policy optimization took 1.00ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 7.00ms, reallocating+migrating jobs took 0.00ms
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Project speedups active
+Unique configs:
+Configs: {0: ('aws', 1, 1), 1: ('aws', 1, 2), 2: ('aws', 1, 4), 3: ('dgx-ext', 1, 1), 4: ('dgx-ext', 1, 2), 5: ('dgx-ext', 1, 4), 6: ('dgx-ext', 1, 8), 7: ('rtx', 1, 1), 8: ('rtx', 1, 2), 9: ('rtx', 1, 4), 10: ('rtx', 1, 8)}
+Cluster total gpus: {'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Simulated cluster config: 
+nnodes: {'aws': 1, 'dgx-ext': 1, 'rtx': 1}, ngpus_per_node:{'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Initialized job state for 1 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): []
+Policy optimization took 4.51ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 2.00ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 1.00ms, reallocating+migrating jobs took 0.00ms
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Project speedups active
+Unique configs:
+Configs: {0: ('aws', 1, 1), 1: ('aws', 1, 2), 2: ('aws', 1, 4), 3: ('dgx-ext', 1, 1), 4: ('dgx-ext', 1, 2), 5: ('dgx-ext', 1, 4), 6: ('dgx-ext', 1, 8), 7: ('rtx', 1, 1), 8: ('rtx', 1, 2), 9: ('rtx', 1, 4), 10: ('rtx', 1, 8)}
+Cluster total gpus: {'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Simulated cluster config: 
+nnodes: {'aws': 1, 'dgx-ext': 1, 'rtx': 1}, ngpus_per_node:{'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Initialized job state for 1 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): []
+Realloc factor: bert-mid --> 0.26380368098159507, age: 43, restart penalty: 120, lost seconds: 0, num restarts: 0
+Preserving allocations for jobs blocked on checkpoint-restore: {'rigid': [], 'adaptive': []}
+Solver took: 9.15ms = 1.00ms (setup) + 8.14ms (solve)
+Optimization metrics: optimal objective value = 1.0000, effective ngpus = 1.0
+Policy optimization took 13.14ms, reallocating+migrating jobs took 1.00ms
+ok
+test_unseeded_bert_real_chain_no_seed_or_optimize_mock (test_stage2b_neutral.Stage2BNeutralTests) ... Realloc factor: bert-mid --> 0.4618834080717489, age: 103, restart penalty: 120, lost seconds: 0, num restarts: 0
+Preserving allocations for jobs blocked on checkpoint-restore: {'rigid': [], 'adaptive': ['bert-mid']}
+Solver took: 9.32ms = 1.25ms (setup) + 8.08ms (solve)
+Optimization metrics: optimal objective value = 1.0000, effective ngpus = 1.0
+Policy optimization took 10.32ms, reallocating+migrating jobs took 0.00ms
+Realloc factor: bert-mid --> 0.5759717314487632, age: 163, restart penalty: 120, lost seconds: 0, num restarts: 0
+Preserving allocations for jobs blocked on checkpoint-restore: {'rigid': [], 'adaptive': []}
+Solver took: 7.93ms = 1.00ms (setup) + 6.93ms (solve)
+Optimization metrics: optimal objective value = 1.0000, effective ngpus = 1.0
+Policy optimization took 7.93ms, reallocating+migrating jobs took 0.00ms
+Realloc factor: bert-mid --> 0.5774647887323944, age: 164, restart penalty: 120, lost seconds: 0, num restarts: 0
+Preserving allocations for jobs blocked on checkpoint-restore: {'rigid': [], 'adaptive': []}
+Solver took: 8.01ms = 0.00ms (setup) + 8.01ms (solve)
+Optimization metrics: optimal objective value = 0.2900, effective ngpus = 20.990745544433594
+Policy optimization took 12.01ms, reallocating+migrating jobs took 0.94ms
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Project speedups active
+Unique configs:
+Configs: {0: ('aws', 1, 1), 1: ('aws', 1, 2), 2: ('aws', 1, 4), 3: ('dgx-ext', 1, 1), 4: ('dgx-ext', 1, 2), 5: ('dgx-ext', 1, 4), 6: ('dgx-ext', 1, 8), 7: ('rtx', 1, 1), 8: ('rtx', 1, 2), 9: ('rtx', 1, 4), 10: ('rtx', 1, 8)}
+Cluster total gpus: {'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Simulated cluster config: 
+nnodes: {'aws': 1, 'dgx-ext': 1, 'rtx': 1}, ngpus_per_node:{'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Initialized job state for 1 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): []
+Policy optimization took 7.12ms, reallocating+migrating jobs took 0.00ms
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Project speedups active
+Unique configs:
+Configs: {0: ('aws', 1, 1), 1: ('aws', 1, 2), 2: ('aws', 1, 4), 3: ('dgx-ext', 1, 1), 4: ('dgx-ext', 1, 2), 5: ('dgx-ext', 1, 4), 6: ('dgx-ext', 1, 8), 7: ('rtx', 1, 1), 8: ('rtx', 1, 2), 9: ('rtx', 1, 4), 10: ('rtx', 1, 8)}
+Cluster total gpus: {'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Simulated cluster config: 
+nnodes: {'aws': 1, 'dgx-ext': 1, 'rtx': 1}, ngpus_per_node:{'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Initialized job state for 1 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): []
+Policy optimization took 12.80ms, reallocating+migrating jobs took 1.36ms
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Project speedups active
+Unique configs:
+Configs: {0: ('aws', 1, 1), 1: ('aws', 1, 2), 2: ('aws', 1, 4), 3: ('dgx-ext', 1, 1), 4: ('dgx-ext', 1, 2), 5: ('dgx-ext', 1, 4), 6: ('dgx-ext', 1, 8), 7: ('rtx', 1, 1), 8: ('rtx', 1, 2), 9: ('rtx', 1, 4), 10: ('rtx', 1, 8)}
+Cluster total gpus: {'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Simulated cluster config: 
+nnodes: {'aws': 1, 'dgx-ext': 1, 'rtx': 1}, ngpus_per_node:{'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Initialized job state for 1 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): []
+Policy optimization took 6.46ms, reallocating+migrating jobs took 1.00ms
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Project speedups active
+Unique configs:
+Configs: {0: ('aws', 1, 1), 1: ('aws', 1, 2), 2: ('aws', 1, 4), 3: ('dgx-ext', 1, 1), 4: ('dgx-ext', 1, 2), 5: ('dgx-ext', 1, 4), 6: ('dgx-ext', 1, 8), 7: ('rtx', 1, 1), 8: ('rtx', 1, 2), 9: ('rtx', 1, 4), 10: ('rtx', 1, 8)}
+Cluster total gpus: {'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Simulated cluster config: 
+nnodes: {'aws': 1, 'dgx-ext': 1, 'rtx': 1}, ngpus_per_node:{'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Initialized job state for 1 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): []
+Policy optimization took 13.44ms, reallocating+migrating jobs took 1.00ms
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Project speedups active
+Unique configs:
+Configs: {0: ('aws', 1, 1), 1: ('aws', 1, 2), 2: ('aws', 1, 4), 3: ('dgx-ext', 1, 1), 4: ('dgx-ext', 1, 2), 5: ('dgx-ext', 1, 4), 6: ('dgx-ext', 1, 8), 7: ('rtx', 1, 1), 8: ('rtx', 1, 2), 9: ('rtx', 1, 4), 10: ('rtx', 1, 8)}
+Cluster total gpus: {'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Simulated cluster config: 
+nnodes: {'aws': 1, 'dgx-ext': 1, 'rtx': 1}, ngpus_per_node:{'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Initialized job state for 3 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): []
+Policy optimization took 7.72ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 4.85ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 4.16ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 6.39ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 6.00ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 5.99ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 6.27ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 8.00ms, reallocating+migrating jobs took 1.00ms
+Policy optimization took 7.24ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 7.29ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 8.89ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 8.70ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 8.91ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 8.42ms, reallocating+migrating jobs took 0.00ms
+SUSPEND: job: bert-0
+Policy optimization took 9.00ms, reallocating+migrating jobs took 1.00ms
+Policy optimization took 9.80ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 9.33ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 9.16ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 10.29ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 9.00ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 9.35ms, reallocating+migrating jobs took 0.00ms
+SUSPEND: job: bert-1
+SUSPEND: job: bert-2
+Policy optimization took 8.92ms, reallocating+migrating jobs took 1.23ms
+Policy optimization took 8.00ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 7.09ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 8.37ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 8.22ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 8.72ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 8.35ms, reallocating+migrating jobs took 0.00ms
+SUSPEND: job: bert-0
+Policy optimization took 9.28ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 8.00ms, reallocating+migrating jobs took 0.00ms
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Project speedups active
+Unique configs:
+Configs: {0: ('aws', 1, 1), 1: ('aws', 1, 2), 2: ('aws', 1, 4), 3: ('dgx-ext', 1, 1), 4: ('dgx-ext', 1, 2), 5: ('dgx-ext', 1, 4), 6: ('dgx-ext', 1, 8), 7: ('rtx', 1, 1), 8: ('rtx', 1, 2), 9: ('rtx', 1, 4), 10: ('rtx', 1, 8)}
+Cluster total gpus: {'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Simulated cluster config: 
+nnodes: {'aws': 1, 'dgx-ext': 1, 'rtx': 1}, ngpus_per_node:{'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Initialized job state for 3 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): []
+Policy optimization took 10.83ms, reallocating+migrating jobs took 0.74ms
+Policy optimization took 6.03ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 7.87ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 6.94ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 12.46ms, reallocating+migrating jobs took 0.00ms
+ok
+test_zero_execution_rate_explicit_stop (test_stage2b_neutral.Stage2BNeutralTests) ... ok
+test_zero_rate_stops_real_optimize_hook_before_allocation (test_stage2b_neutral.Stage2BNeutralTests) ... ok
+test_all_five_apps_real_unseeded_medium_10_rounds (test_stage2c_r0.Stage2CR0Tests) ... Policy optimization took 8.92ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 8.97ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 12.17ms, reallocating+migrating jobs took 1.01ms
+Policy optimization took 9.29ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 10.66ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 12.81ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 12.83ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 12.96ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 13.49ms, reallocating+migrating jobs took 0.00ms
+SUSPEND: job: bert-0
+Policy optimization took 13.62ms, reallocating+migrating jobs took 1.86ms
+Policy optimization took 9.48ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 13.06ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 13.83ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 14.27ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 13.57ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 13.97ms, reallocating+migrating jobs took 0.00ms
+SUSPEND: job: bert-1
+SUSPEND: job: bert-2
+Policy optimization took 12.71ms, reallocating+migrating jobs took 1.00ms
+Policy optimization took 10.35ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 11.76ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 10.29ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 13.15ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 10.58ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 11.19ms, reallocating+migrating jobs took 0.00ms
+SUSPEND: job: bert-0
+Policy optimization took 11.98ms, reallocating+migrating jobs took 1.00ms
+Policy optimization took 10.72ms, reallocating+migrating jobs took 0.00ms
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Project speedups active
+Unique configs:
+Configs: {0: ('aws', 1, 1), 1: ('aws', 1, 2), 2: ('aws', 1, 4), 3: ('dgx-ext', 1, 1), 4: ('dgx-ext', 1, 2), 5: ('dgx-ext', 1, 4), 6: ('dgx-ext', 1, 8), 7: ('rtx', 1, 1), 8: ('rtx', 1, 2), 9: ('rtx', 1, 4), 10: ('rtx', 1, 8)}
+Cluster total gpus: {'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Simulated cluster config: 
+nnodes: {'aws': 1, 'dgx-ext': 1, 'rtx': 1}, ngpus_per_node:{'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Initialized job state for 3 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): []
+Policy optimization took 12.99ms, reallocating+migrating jobs took 1.58ms
+Policy optimization took 7.52ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 7.14ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 10.36ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 10.28ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 10.97ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 11.05ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 14.24ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 9.44ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 10.00ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 10.44ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 10.34ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 13.52ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 11.10ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 10.44ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 11.00ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 11.09ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 14.29ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 9.36ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 10.00ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 11.12ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 11.37ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 14.56ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 10.74ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 10.99ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 11.21ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 9.93ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 16.57ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 10.08ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 7.01ms, reallocating+migrating jobs took 0.00ms
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Project speedups active
+Unique configs:
+Configs: {0: ('aws', 1, 1), 1: ('aws', 1, 2), 2: ('aws', 1, 4), 3: ('dgx-ext', 1, 1), 4: ('dgx-ext', 1, 2), 5: ('dgx-ext', 1, 4), 6: ('dgx-ext', 1, 8), 7: ('rtx', 1, 1), 8: ('rtx', 1, 2), 9: ('rtx', 1, 4), 10: ('rtx', 1, 8)}
+Cluster total gpus: {'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Simulated cluster config: 
+nnodes: {'aws': 1, 'dgx-ext': 1, 'rtx': 1}, ngpus_per_node:{'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Initialized job state for 3 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): []
+Policy optimization took 12.47ms, reallocating+migrating jobs took 5.78ms
+Policy optimization took 8.24ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 11.21ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 15.00ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 15.00ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 15.11ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 15.29ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 19.28ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 17.11ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 14.93ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 15.65ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 15.47ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 18.26ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 14.09ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 14.25ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 15.34ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 16.07ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 18.55ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 14.88ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 15.01ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 14.44ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 14.85ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 19.61ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 14.79ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 15.38ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 15.11ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 15.39ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 19.31ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 17.15ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 12.22ms, reallocating+migrating jobs took 0.00ms
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Project speedups active
+Unique configs:
+Configs: {0: ('aws', 1, 1), 1: ('aws', 1, 2), 2: ('aws', 1, 4), 3: ('dgx-ext', 1, 1), 4: ('dgx-ext', 1, 2), 5: ('dgx-ext', 1, 4), 6: ('dgx-ext', 1, 8), 7: ('rtx', 1, 1), 8: ('rtx', 1, 2), 9: ('rtx', 1, 4), 10: ('rtx', 1, 8)}
+Cluster total gpus: {'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+ok
+test_medium_same_state_four_cell_inclusion_and_shared_contract (test_stage2c_r0.Stage2CR0Tests) ... ok
+test_medium_solver_failure_preserves_service_transaction (test_stage2c_r0.Stage2CR0Tests) ... ok
+test_missing_registry_entry_not_default_one (test_stage2c_r0.Stage2CR0Tests) ... ok
+test_new_scope_does_not_change_old_neutral_scope (test_stage2c_r0.Stage2CR0Tests) ... ok
+test_registry_full_domain_reference_identity_and_fixed_phi (test_stage2c_r0.Stage2CR0Tests) ... ok
+test_neutral_execution_has_exactly_one_multiplier (test_synergy_adapter.SynergyAdapterTests) ... ok
+test_profile_grid_minimum_makes_oversized_gpu_config_wait (test_synergy_adapter.SynergyAdapterTests) ... ok
+test_tune_atomically_downgrades_peer_to_fair_share (test_synergy_adapter.SynergyAdapterTests) ... ok
+test_free_core_is_literal_legacy_optimize_and_no_l2 (test_version_bridge.VersionBridgeTests) ... ok
+test_negative_true_lock_is_mandatory_full_geometry (test_version_bridge.VersionBridgeTests) ... ok
+test_negative_utility_remains_empty_not_hidden_liveness_fix (test_version_bridge.VersionBridgeTests) ... ok
+test_real_unseeded_bert_lock_productivity_next_decision (test_version_bridge.VersionBridgeTests) ... ok
+test_unlocked_configuration_is_free_to_change (test_version_bridge.VersionBridgeTests) ... ok
+
+----------------------------------------------------------------------
+Ran 212 tests in 52.342s
+
+OK
+Simulated cluster config: 
+nnodes: {'aws': 1, 'dgx-ext': 1, 'rtx': 1}, ngpus_per_node:{'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Initialized job state for 1 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): []
+Policy optimization took 6.78ms, reallocating+migrating jobs took 1.11ms
+Policy optimization took 3.31ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 3.20ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 5.00ms, reallocating+migrating jobs took 0.00ms
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Project speedups active
+Unique configs:
+Configs: {0: ('aws', 1, 1), 1: ('aws', 1, 2), 2: ('aws', 1, 4), 3: ('dgx-ext', 1, 1), 4: ('dgx-ext', 1, 2), 5: ('dgx-ext', 1, 4), 6: ('dgx-ext', 1, 8), 7: ('rtx', 1, 1), 8: ('rtx', 1, 2), 9: ('rtx', 1, 4), 10: ('rtx', 1, 8)}
+Cluster total gpus: {'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Simulated cluster config: 
+nnodes: {'aws': 1, 'dgx-ext': 1, 'rtx': 1}, ngpus_per_node:{'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Initialized job state for 1 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): []
+Policy optimization took 15.05ms, reallocating+migrating jobs took 2.00ms
+Policy optimization took 3.00ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 9.00ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 16.96ms, reallocating+migrating jobs took 0.00ms
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Project speedups active
+Unique configs:
+Configs: {0: ('aws', 1, 1), 1: ('aws', 1, 2), 2: ('aws', 1, 4), 3: ('dgx-ext', 1, 1), 4: ('dgx-ext', 1, 2), 5: ('dgx-ext', 1, 4), 6: ('dgx-ext', 1, 8), 7: ('rtx', 1, 1), 8: ('rtx', 1, 2), 9: ('rtx', 1, 4), 10: ('rtx', 1, 8)}
+Cluster total gpus: {'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Simulated cluster config: 
+nnodes: {'aws': 1, 'dgx-ext': 1, 'rtx': 1}, ngpus_per_node:{'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Initialized job state for 1 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): []
+Policy optimization took 7.42ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 4.03ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 3.00ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 5.68ms, reallocating+migrating jobs took 0.00ms
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Project speedups active
+Unique configs:
+Configs: {0: ('aws', 1, 1), 1: ('aws', 1, 2), 2: ('aws', 1, 4), 3: ('dgx-ext', 1, 1), 4: ('dgx-ext', 1, 2), 5: ('dgx-ext', 1, 4), 6: ('dgx-ext', 1, 8), 7: ('rtx', 1, 1), 8: ('rtx', 1, 2), 9: ('rtx', 1, 4), 10: ('rtx', 1, 8)}
+Cluster total gpus: {'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Simulated cluster config: 
+nnodes: {'aws': 1, 'dgx-ext': 1, 'rtx': 1}, ngpus_per_node:{'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Initialized job state for 1 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): []
+Policy optimization took 17.55ms, reallocating+migrating jobs took 1.00ms
+Policy optimization took 3.00ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 11.43ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 17.70ms, reallocating+migrating jobs took 0.00ms
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Project speedups active
+Unique configs:
+Configs: {0: ('aws', 1, 1), 1: ('aws', 1, 2), 2: ('aws', 1, 4), 3: ('dgx-ext', 1, 1), 4: ('dgx-ext', 1, 2), 5: ('dgx-ext', 1, 4), 6: ('dgx-ext', 1, 8), 7: ('rtx', 1, 1), 8: ('rtx', 1, 2), 9: ('rtx', 1, 4), 10: ('rtx', 1, 8)}
+Cluster total gpus: {'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Simulated cluster config: 
+nnodes: {'aws': 1, 'dgx-ext': 1, 'rtx': 1}, ngpus_per_node:{'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Initialized job state for 1 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): []
+Policy optimization took 15.45ms, reallocating+migrating jobs took 1.00ms
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Unique configs:
+Configs: {0: ('aws', 1, 1), 1: ('aws', 1, 2), 2: ('aws', 1, 4), 3: ('dgx-ext', 1, 1), 4: ('dgx-ext', 1, 2), 5: ('dgx-ext', 1, 4), 6: ('dgx-ext', 1, 8), 7: ('rtx', 1, 1), 8: ('rtx', 1, 2), 9: ('rtx', 1, 4), 10: ('rtx', 1, 8)}
+Cluster total gpus: {'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Simulated cluster config: 
+nnodes: {'aws': 1, 'dgx-ext': 1, 'rtx': 1}, ngpus_per_node:{'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Initialized job state for 1 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): []
+Policy optimization took 13.51ms, reallocating+migrating jobs took 1.46ms
+Policy optimization took 3.71ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 8.89ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 11.16ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 10.36ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 10.94ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 11.06ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 12.95ms, reallocating+migrating jobs took 1.00ms
+Policy optimization took 4.00ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 10.31ms, reallocating+migrating jobs took 0.00ms
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Unique configs:
+Configs: {0: ('aws', 1, 1), 1: ('aws', 1, 2), 2: ('aws', 1, 4), 3: ('dgx-ext', 1, 1), 4: ('dgx-ext', 1, 2), 5: ('dgx-ext', 1, 4), 6: ('dgx-ext', 1, 8), 7: ('rtx', 1, 1), 8: ('rtx', 1, 2), 9: ('rtx', 1, 4), 10: ('rtx', 1, 8)}
+Cluster total gpus: {'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Simulated cluster config: 
+nnodes: {'aws': 1, 'dgx-ext': 1, 'rtx': 1}, ngpus_per_node:{'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Initialized job state for 1 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): []
+Policy optimization took 12.55ms, reallocating+migrating jobs took 1.00ms
+Policy optimization took 11.42ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 12.16ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 11.25ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 10.93ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 10.56ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 13.26ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 10.97ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 12.02ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 12.48ms, reallocating+migrating jobs took 0.00ms
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Unique configs:
+Configs: {0: ('aws', 1, 1), 1: ('aws', 1, 2), 2: ('aws', 1, 4), 3: ('dgx-ext', 1, 1), 4: ('dgx-ext', 1, 2), 5: ('dgx-ext', 1, 4), 6: ('dgx-ext', 1, 8), 7: ('rtx', 1, 1), 8: ('rtx', 1, 2), 9: ('rtx', 1, 4), 10: ('rtx', 1, 8)}
+Cluster total gpus: {'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Simulated cluster config: 
+nnodes: {'aws': 1, 'dgx-ext': 1, 'rtx': 1}, ngpus_per_node:{'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Initialized job state for 1 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): []
+Policy optimization took 12.28ms, reallocating+migrating jobs took 1.00ms
+Policy optimization took 12.04ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 10.90ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 11.85ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 10.78ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 11.21ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 14.83ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 10.73ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 11.04ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 11.37ms, reallocating+migrating jobs took 0.00ms
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Unique configs:
+Configs: {0: ('aws', 1, 1), 1: ('aws', 1, 2), 2: ('aws', 1, 4), 3: ('dgx-ext', 1, 1), 4: ('dgx-ext', 1, 2), 5: ('dgx-ext', 1, 4), 6: ('dgx-ext', 1, 8), 7: ('rtx', 1, 1), 8: ('rtx', 1, 2), 9: ('rtx', 1, 4), 10: ('rtx', 1, 8)}
+Cluster total gpus: {'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Simulated cluster config: 
+nnodes: {'aws': 1, 'dgx-ext': 1, 'rtx': 1}, ngpus_per_node:{'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Initialized job state for 1 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): []
+Policy optimization took 11.71ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 3.00ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 3.13ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 3.80ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 3.09ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 11.93ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 11.04ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 11.38ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 10.99ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 11.35ms, reallocating+migrating jobs took 0.00ms
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Unique configs:
+Configs: {0: ('aws', 1, 1), 1: ('aws', 1, 2), 2: ('aws', 1, 4), 3: ('dgx-ext', 1, 1), 4: ('dgx-ext', 1, 2), 5: ('dgx-ext', 1, 4), 6: ('dgx-ext', 1, 8), 7: ('rtx', 1, 1), 8: ('rtx', 1, 2), 9: ('rtx', 1, 4), 10: ('rtx', 1, 8)}
+Cluster total gpus: {'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Simulated cluster config: 
+nnodes: {'aws': 1, 'dgx-ext': 1, 'rtx': 1}, ngpus_per_node:{'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Initialized job state for 1 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): []
+Policy optimization took 13.56ms, reallocating+migrating jobs took 1.00ms
+Policy optimization took 4.51ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 10.94ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 11.00ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 11.93ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 11.85ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 10.63ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 14.46ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 10.70ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 11.39ms, reallocating+migrating jobs took 0.00ms
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Unique configs:
+Configs: {0: ('aws', 1, 1), 1: ('aws', 1, 2), 2: ('aws', 1, 4), 3: ('dgx-ext', 1, 1), 4: ('dgx-ext', 1, 2), 5: ('dgx-ext', 1, 4), 6: ('dgx-ext', 1, 8), 7: ('rtx', 1, 1), 8: ('rtx', 1, 2), 9: ('rtx', 1, 4), 10: ('rtx', 1, 8)}
+Cluster total gpus: {'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Simulated cluster config: 
+nnodes: {'aws': 1, 'dgx-ext': 1, 'rtx': 1}, ngpus_per_node:{'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Initialized job state for 1 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): []
+Policy optimization took 4.46ms, reallocating+migrating jobs took 1.07ms
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Unique configs:
+Configs: {0: ('aws', 1, 1), 1: ('aws', 1, 2), 2: ('aws', 1, 4), 3: ('dgx-ext', 1, 1), 4: ('dgx-ext', 1, 2), 5: ('dgx-ext', 1, 4), 6: ('dgx-ext', 1, 8), 7: ('rtx', 1, 1), 8: ('rtx', 1, 2), 9: ('rtx', 1, 4), 10: ('rtx', 1, 8)}
+Cluster total gpus: {'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Simulated cluster config: 
+nnodes: {'aws': 1, 'dgx-ext': 1, 'rtx': 1}, ngpus_per_node:{'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Initialized job state for 1 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): []
+Policy optimization took 10.23ms, reallocating+migrating jobs took 1.00ms
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Unique configs:
+Configs: {0: ('aws', 1, 1), 1: ('aws', 1, 2), 2: ('aws', 1, 4), 3: ('dgx-ext', 1, 1), 4: ('dgx-ext', 1, 2), 5: ('dgx-ext', 1, 4), 6: ('dgx-ext', 1, 8), 7: ('rtx', 1, 1), 8: ('rtx', 1, 2), 9: ('rtx', 1, 4), 10: ('rtx', 1, 8)}
+Cluster total gpus: {'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Simulated cluster config: 
+nnodes: {'aws': 1, 'dgx-ext': 1, 'rtx': 1}, ngpus_per_node:{'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Initialized job state for 1 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): []
+Policy optimization took 4.00ms, reallocating+migrating jobs took 1.01ms
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Unique configs:
+Configs: {0: ('aws', 1, 1), 1: ('aws', 1, 2), 2: ('aws', 1, 4), 3: ('dgx-ext', 1, 1), 4: ('dgx-ext', 1, 2), 5: ('dgx-ext', 1, 4), 6: ('dgx-ext', 1, 8), 7: ('rtx', 1, 1), 8: ('rtx', 1, 2), 9: ('rtx', 1, 4), 10: ('rtx', 1, 8)}
+Cluster total gpus: {'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Simulated cluster config: 
+nnodes: {'aws': 1, 'dgx-ext': 1, 'rtx': 1}, ngpus_per_node:{'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Initialized job state for 1 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): []
+Policy optimization took 12.02ms, reallocating+migrating jobs took 1.00ms
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Unique configs:
+Configs: {0: ('aws', 1, 1), 1: ('aws', 1, 2), 2: ('aws', 1, 4), 3: ('dgx-ext', 1, 1), 4: ('dgx-ext', 1, 2), 5: ('dgx-ext', 1, 4), 6: ('dgx-ext', 1, 8), 7: ('rtx', 1, 1), 8: ('rtx', 1, 2), 9: ('rtx', 1, 4), 10: ('rtx', 1, 8)}
+Cluster total gpus: {'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Simulated cluster config: 
+nnodes: {'aws': 1, 'dgx-ext': 1, 'rtx': 1}, ngpus_per_node:{'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Initialized job state for 1 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): []
+Policy optimization took 12.30ms, reallocating+migrating jobs took 1.00ms
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Unique configs:
+Configs: {0: ('aws', 1, 1), 1: ('aws', 1, 2), 2: ('aws', 1, 4), 3: ('dgx-ext', 1, 1), 4: ('dgx-ext', 1, 2), 5: ('dgx-ext', 1, 4), 6: ('dgx-ext', 1, 8), 7: ('rtx', 1, 1), 8: ('rtx', 1, 2), 9: ('rtx', 1, 4), 10: ('rtx', 1, 8)}
+Cluster total gpus: {'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Simulated cluster config: 
+nnodes: {'aws': 1, 'dgx-ext': 1, 'rtx': 1}, ngpus_per_node:{'aws': 4, 'dgx-ext': 8, 'rtx': 8}
+Initialized job state for 1 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): []
+Policy optimization took 35.06ms, reallocating+migrating jobs took 1.22ms
+Policy optimization took 3.01ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 36.00ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 42.46ms, reallocating+migrating jobs took 2.00ms
+Policy optimization took 3.00ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 42.01ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 44.65ms, reallocating+migrating jobs took 1.00ms
+Policy optimization took 3.00ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 44.34ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 45.38ms, reallocating+migrating jobs took 0.00ms

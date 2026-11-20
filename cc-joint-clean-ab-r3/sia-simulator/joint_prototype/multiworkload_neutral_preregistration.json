@@ -1,0 +1,28 @@
+{
+  "experiment_id": "b3_multiworkload_neutral_v1",
+  "scope": "MULTI_WORKLOAD_20_JOB_NEUTRAL_SYNTHETIC_COMPARISON",
+  "disclaimer": "SYNTHETIC CROSS-HARDWARE TRANSFER — NOT REAL SATURN PERFORMANCE",
+  "base_config": "joint_prototype/cpu_contention_20job_config.json",
+  "source_traces": [
+    "workloads/saturn/workload-1.csv",
+    "workloads/saturn/workload-5.csv",
+    "workloads/saturn/workload-10.csv"
+  ],
+  "required_trace_rows": 160,
+  "stable_sort": ["time", "original_row_index"],
+  "cohorts": {
+    "early": {"start_position_one_based": 1, "end_position_one_based": 20},
+    "middle": {"start_position_one_based": 71, "end_position_one_based": 90},
+    "late": {"start_position_one_based": 141, "end_position_one_based": 160}
+  },
+  "arrival_normalization": "subtract the selected cohort minimum arrival time; preserve all relative gaps",
+  "capacity": "cpu_constrained",
+  "response": "neutral",
+  "policies": ["b1", "sy", "b4", "b5", "b3"],
+  "minimum_available_memory_gib": 2.0,
+  "policy_execution_order": "trace order, then early/middle/late, then B1/SY/B4/B5/B3; strictly sequential",
+  "synergy_gpu_type_rule": "demand <= 6: rtx; demand == 8: dgx-ext; demand >= 10: even numeric job ID aws, odd numeric job ID dgx-ext",
+  "template_mapping_rule": "use the frozen application_template_rule from the base config",
+  "parameter_policy": "No workload, capacity, response, mapping, objective, solver parameter, or policy change after any new policy result is observed.",
+  "deferred": ["non-neutral responses", "parameter search", "160-job simulation"]
+}

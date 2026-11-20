@@ -1,0 +1,16 @@
+{
+  "label": "official",
+  "command": [
+    "D:\\科研启航\\Sia\\.venv-sia-baseline\\Scripts\\python.exe",
+    "-X",
+    "utf8",
+    "-B",
+    "D:\\科研启航\\Sia\\cc-joint\\sia-simulator\\check_stage1_legacy_regression.py",
+    "--probe",
+    "D:\\科研启航\\Sia\\official-artifacts\\sia-simulator"
+  ],
+  "cwd": "D:\\科研启航\\Sia",
+  "exit_code": 0,
+  "seconds": 4.956217050552368,
+  "log_sha256": "9F2BF378F27600C10BB13DADE187F56C87B0CA9BCEF7FB86C83F5D73CF4C7858"
+}

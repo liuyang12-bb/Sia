@@ -1,0 +1,140 @@
+diff --git a/sia-simulator/joint_prototype/joint_integration.py b/sia-simulator/joint_prototype/joint_integration.py
+index 303d100..e4c79f5 100644
+--- a/sia-simulator/joint_prototype/joint_integration.py
++++ b/sia-simulator/joint_prototype/joint_integration.py
+@@ -36,14 +36,14 @@ def _config_id(cluster: str, num_nodes: int, num_gpus: int) -> str:
+ 
+ 
+ class JointSiaPolicy(SiaPolicy):
+-    """Sia-compatible policy implementing B1, B4, or B3.
++    """Sia-compatible policy implementing B1, B4, B3-PROP, or B3.
+ 
+     B1/B4/B5 first execute ``SiaPolicy.optimize``.  SY uses a fixed,
+     pre-registered GPU mapping.  B3 does not call Sia's optimizer; it reuses
+     Sia's candidate and Goodput paths before one joint MIP.
+     """
+ 
+-    MODES = {"b1", "b4", "b3", "sy", "b5"}
++    MODES = {"b1", "b4", "b3_prop", "b3", "sy", "b5"}
+ 
+     def __init__(
+         self,
+@@ -362,7 +362,12 @@ class JointSiaPolicy(SiaPolicy):
+         return max(1.0 + used, 0.0) / (1.0 + used + wasted + penalty)
+ 
+     def _b3_result(self, jobs, specs, scheduler) -> PolicyResult:
+-        columns = scheduler.build_joint_columns()
++        proportional_only = self.mode == "b3_prop"
++        columns = (
++            scheduler.build_proportional_columns()
++            if proportional_only
++            else scheduler.build_joint_columns()
++        )
+         spec_map = {job.job_id: job for job in specs}
+         transformed = []
+         lambda_n = self.lambda_n if self.lambda_n else -1.0
+@@ -376,7 +381,12 @@ class JointSiaPolicy(SiaPolicy):
+             powered = min(powered, sim_config.sia_goodput_clip_val)
+             utility = sign * (powered - lambda_n)
+             transformed.append(replace(column, scheduling_utility=float(utility)))
+-        return scheduler.solve("B3_SIA_GOODPUT_JOINT_MIP", transformed, ("gpu", "cpu", "ram"))
++        policy_name = (
++            "B3_PROP_SIA_GOODPUT_PROPORTIONAL_AUX_MIP"
++            if proportional_only
++            else "B3_SIA_GOODPUT_JOINT_MIP"
++        )
++        return scheduler.solve(policy_name, transformed, ("gpu", "cpu", "ram"))
+ 
+     def _b3_failure_fallback(self, failed, specs, scheduler) -> PolicyResult | None:
+         """Preserve only a complete, currently legal previous allocation."""
+diff --git a/sia-simulator/joint_prototype/joint_scheduler.py b/sia-simulator/joint_prototype/joint_scheduler.py
+index d7b227f..e233042 100644
+--- a/sia-simulator/joint_prototype/joint_scheduler.py
++++ b/sia-simulator/joint_prototype/joint_scheduler.py
+@@ -297,6 +297,70 @@ class JointScheduler:
+                         )
+         return self._pareto_prune(columns)
+ 
++    def build_proportional_columns(self) -> List[JointColumn]:
++        """Enumerate GPU/placement choices at one deterministic auxiliary point.
++
++        Each legal GPU configuration and placement receives exactly the same
++        proportional execution rule used by the unified B1 path: the node's
++        CPU/GPU and RAM/GPU ratios, raised only to the registered minimum
++        profile-grid point.  No auxiliary-resource candidate grid is exposed
++        to the optimizer.  Checkpoint locks constrain both configuration and
++        placement exactly as in ``build_joint_columns``.
++        """
++        columns: List[JointColumn] = []
++        for job in self.jobs:
++            lock_active = (
++                job.checkpoint_locked
++                and job.current_config_id is not None
++                and bool(job.current_nodes)
++            )
++            for config in job.configs:
++                if not config.legal:
++                    continue
++                if lock_active and config.config_id != job.current_config_id:
++                    continue
++                for placement in enumerate_placements(config, self.nodes):
++                    if lock_active and tuple(sorted(placement.node_ids)) != tuple(sorted(job.current_nodes)):
++                        continue
++                    proportional = _proportional_point(placement, self.node_map)
++                    execution_point = self.allocation_floor(proportional)
++                    usage = self._node_usage(
++                        placement, execution_point[0], execution_point[1]
++                    )
++                    if not self._fits_column(usage):
++                        continue
++                    query = self.oracle.query(
++                        job,
++                        config,
++                        execution_point[0],
++                        execution_point[1],
++                        proportional,
++                    )
++                    placement_key = "+".join(
++                        f"{node_id}:{gpus}" for node_id, gpus in placement.node_gpus
++                    )
++                    columns.append(
++                        JointColumn(
++                            column_id=(
++                                f"{job.job_id}|{config.config_id}|B3_PROP|{placement_key}"
++                            ),
++                            job_id=job.job_id,
++                            config=config,
++                            placement=placement,
++                            query=query,
++                            node_usage=usage,
++                            scheduling_utility=config.sia_goodput + self.allocation_bonus,
++                            proportional_cpu_per_gpu=execution_point[0],
++                            proportional_ram_per_gpu=execution_point[1],
++                            preserves_sia_config=config.config_id == job.current_config_id,
++                            preserves_node_ids=(
++                                tuple(sorted(placement.node_ids))
++                                == tuple(sorted(job.current_nodes))
++                            ),
++                        )
++                    )
++        return sorted(columns, key=lambda column: column.column_id)
++
+     @staticmethod
+     def _pareto_prune(columns: Sequence[JointColumn]) -> List[JointColumn]:
+         groups: Dict[Tuple[str, str, Tuple[Tuple[str, int], ...]], List[JointColumn]] = {}
+diff --git a/sia-simulator/run_cpu_bottleneck_smoke.py b/sia-simulator/run_cpu_bottleneck_smoke.py
+index 8603572..8a43d43 100644
+--- a/sia-simulator/run_cpu_bottleneck_smoke.py
++++ b/sia-simulator/run_cpu_bottleneck_smoke.py
+@@ -178,7 +178,10 @@ def summarize(cluster, wall_seconds: float, max_rounds: int, capacities):
+                 "completion_time": job.completion_time,
+                 "progress": float(job.progress),
+                 "epoch": int(job.epoch),
+-                "num_restarts": int(job.num_restarts),
++                # Jobs which never receive their first allocation retain the
++                # simulator's sentinel ``None``.  A censored run must still be
++                # serializable so the unfinished job is auditable.
++                "num_restarts": int(job.num_restarts or 0),
+                 "num_migrations": int(job.num_migrations or 0),
+                 "used_gpu_seconds": float(job.used_gpu_seconds),
+                 "wasted_gpu_seconds": float(job.wasted_gpu_seconds),

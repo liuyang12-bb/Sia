@@ -1,0 +1,396 @@
+{
+  "valid": true,
+  "unchanged_tests": 212,
+  "original_sia_bounded_exact": true,
+  "records": [
+    {
+      "label": "tests",
+      "command": [
+        "D:\\科研启航\\Sia\\.venv-sia-baseline\\Scripts\\python.exe",
+        "-X",
+        "utf8",
+        "-B",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_*.py",
+        "-v"
+      ],
+      "cwd": "D:\\科研启航\\Sia\\cc-joint\\sia-simulator",
+      "exit_code": 0,
+      "seconds": 57.166709184646606,
+      "log_sha256": "A624C7F87BC0282CE07ACAA6B4404CA4D6D4DB77A977E7AA2B9498FED8EFF1E2"
+    },
+    {
+      "label": "official",
+      "command": [
+        "D:\\科研启航\\Sia\\.venv-sia-baseline\\Scripts\\python.exe",
+        "-X",
+        "utf8",
+        "-B",
+        "D:\\科研启航\\Sia\\cc-joint\\sia-simulator\\check_stage1_legacy_regression.py",
+        "--probe",
+        "D:\\科研启航\\Sia\\official-artifacts\\sia-simulator"
+      ],
+      "cwd": "D:\\科研启航\\Sia",
+      "exit_code": 0,
+      "seconds": 5.076095104217529,
+      "log_sha256": "A25226B5079702EAE1B28ED93A778913AA1DD9C31B0D78E9DB575D7B3CA3E850"
+    },
+    {
+      "label": "clean_sia",
+      "command": [
+        "D:\\科研启航\\Sia\\.venv-sia-baseline\\Scripts\\python.exe",
+        "-X",
+        "utf8",
+        "-B",
+        "D:\\科研启航\\Sia\\cc-joint\\sia-simulator\\check_stage1_legacy_regression.py",
+        "--probe",
+        "D:\\科研启航\\Sia\\cc-joint\\sia-simulator"
+      ],
+      "cwd": "D:\\科研启航\\Sia",
+      "exit_code": 0,
+      "seconds": 4.959433078765869,
+      "log_sha256": "5CF345858D965DB84EE1A0078F8B5B547447E42B1A63572761AE3E5BF86A0EFE"
+    },
+    {
+      "label": "SIA_P_neutral_frozen",
+      "command": [
+        "D:\\科研启航\\Sia\\.venv-sia-baseline\\Scripts\\python.exe",
+        "-X",
+        "utf8",
+        "-B",
+        "D:\\科研启航\\Sia\\maintenance\\cc_joint_cleanup_20261027\\checks.py",
+        "probe",
+        "--variant",
+        "frozen",
+        "--method",
+        "SIA_P",
+        "--response",
+        "neutral"
+      ],
+      "cwd": "D:\\科研启航\\Sia\\cc-joint\\sia-simulator",
+      "exit_code": 0,
+      "seconds": 8.194501161575317,
+      "log_sha256": "550DA224F90FE0620D6560DEBDEE0F0ACAFFB51AE9B4FF3928CA4D931991EF9B"
+    },
+    {
+      "label": "SIA_P_neutral_clean",
+      "command": [
+        "D:\\科研启航\\Sia\\.venv-sia-baseline\\Scripts\\python.exe",
+        "-X",
+        "utf8",
+        "-B",
+        "D:\\科研启航\\Sia\\maintenance\\cc_joint_cleanup_20261027\\checks.py",
+        "probe",
+        "--variant",
+        "clean",
+        "--method",
+        "SIA_P",
+        "--response",
+        "neutral"
+      ],
+      "cwd": "D:\\科研启航\\Sia\\cc-joint\\sia-simulator",
+      "exit_code": 0,
+      "seconds": 8.139908790588379,
+      "log_sha256": "6633B7226CFC3041DFBB7D156B677EEF92981F151C693E5193DFDBCB8AE44E92"
+    },
+    {
+      "label": "SIA_P_medium_frozen",
+      "command": [
+        "D:\\科研启航\\Sia\\.venv-sia-baseline\\Scripts\\python.exe",
+        "-X",
+        "utf8",
+        "-B",
+        "D:\\科研启航\\Sia\\maintenance\\cc_joint_cleanup_20261027\\checks.py",
+        "probe",
+        "--variant",
+        "frozen",
+        "--method",
+        "SIA_P",
+        "--response",
+        "medium"
+      ],
+      "cwd": "D:\\科研启航\\Sia\\cc-joint\\sia-simulator",
+      "exit_code": 0,
+      "seconds": 9.831812381744385,
+      "log_sha256": "CD8A57707E2E93F85501CDC160ACEF4909961AA8D7884E2963ECE8989B53D617"
+    },
+    {
+      "label": "SIA_P_medium_clean",
+      "command": [
+        "D:\\科研启航\\Sia\\.venv-sia-baseline\\Scripts\\python.exe",
+        "-X",
+        "utf8",
+        "-B",
+        "D:\\科研启航\\Sia\\maintenance\\cc_joint_cleanup_20261027\\checks.py",
+        "probe",
+        "--variant",
+        "clean",
+        "--method",
+        "SIA_P",
+        "--response",
+        "medium"
+      ],
+      "cwd": "D:\\科研启航\\Sia\\cc-joint\\sia-simulator",
+      "exit_code": 0,
+      "seconds": 9.920411825180054,
+      "log_sha256": "867116844DE944971FC1D245FE9A7E593E4700AB79D0EAEED7DF6904C03B082D"
+    },
+    {
+      "label": "SIA_ECT_AUX_neutral_frozen",
+      "command": [
+        "D:\\科研启航\\Sia\\.venv-sia-baseline\\Scripts\\python.exe",
+        "-X",
+        "utf8",
+        "-B",
+        "D:\\科研启航\\Sia\\maintenance\\cc_joint_cleanup_20261027\\checks.py",
+        "probe",
+        "--variant",
+        "frozen",
+        "--method",
+        "SIA_ECT_AUX",
+        "--response",
+        "neutral"
+      ],
+      "cwd": "D:\\科研启航\\Sia\\cc-joint\\sia-simulator",
+      "exit_code": 0,
+      "seconds": 8.336491823196411,
+      "log_sha256": "26EF49F44AA31AC6F70C5FD2D8B120F779BBFE2D98621083674CE9B76C8D9A8E"
+    },
+    {
+      "label": "SIA_ECT_AUX_neutral_clean",
+      "command": [
+        "D:\\科研启航\\Sia\\.venv-sia-baseline\\Scripts\\python.exe",
+        "-X",
+        "utf8",
+        "-B",
+        "D:\\科研启航\\Sia\\maintenance\\cc_joint_cleanup_20261027\\checks.py",
+        "probe",
+        "--variant",
+        "clean",
+        "--method",
+        "SIA_ECT_AUX",
+        "--response",
+        "neutral"
+      ],
+      "cwd": "D:\\科研启航\\Sia\\cc-joint\\sia-simulator",
+      "exit_code": 0,
+      "seconds": 8.30721139907837,
+      "log_sha256": "86BF5541FA5D9D731A55B1247CFA3C555AF9402EC041237A4A7E81971F4AC377"
+    },
+    {
+      "label": "SIA_ECT_AUX_medium_frozen",
+      "command": [
+        "D:\\科研启航\\Sia\\.venv-sia-baseline\\Scripts\\python.exe",
+        "-X",
+        "utf8",
+        "-B",
+        "D:\\科研启航\\Sia\\maintenance\\cc_joint_cleanup_20261027\\checks.py",
+        "probe",
+        "--variant",
+        "frozen",
+        "--method",
+        "SIA_ECT_AUX",
+        "--response",
+        "medium"
+      ],
+      "cwd": "D:\\科研启航\\Sia\\cc-joint\\sia-simulator",
+      "exit_code": 0,
+      "seconds": 9.773736000061035,
+      "log_sha256": "D03C62786B367B29F809E7342084CC6B477D1862D178727EABE2230B973E1DDA"
+    },
+    {
+      "label": "SIA_ECT_AUX_medium_clean",
+      "command": [
+        "D:\\科研启航\\Sia\\.venv-sia-baseline\\Scripts\\python.exe",
+        "-X",
+        "utf8",
+        "-B",
+        "D:\\科研启航\\Sia\\maintenance\\cc_joint_cleanup_20261027\\checks.py",
+        "probe",
+        "--variant",
+        "clean",
+        "--method",
+        "SIA_ECT_AUX",
+        "--response",
+        "medium"
+      ],
+      "cwd": "D:\\科研启航\\Sia\\cc-joint\\sia-simulator",
+      "exit_code": 0,
+      "seconds": 9.506144285202026,
+      "log_sha256": "8472907AAA505AC0052D9754F25930580C7500B805529A8E2BB6025E320DF3C2"
+    },
+    {
+      "label": "JOINT_CC_P_neutral_frozen",
+      "command": [
+        "D:\\科研启航\\Sia\\.venv-sia-baseline\\Scripts\\python.exe",
+        "-X",
+        "utf8",
+        "-B",
+        "D:\\科研启航\\Sia\\maintenance\\cc_joint_cleanup_20261027\\checks.py",
+        "probe",
+        "--variant",
+        "frozen",
+        "--method",
+        "JOINT_CC_P",
+        "--response",
+        "neutral"
+      ],
+      "cwd": "D:\\科研启航\\Sia\\cc-joint\\sia-simulator",
+      "exit_code": 0,
+      "seconds": 8.199690818786621,
+      "log_sha256": "2141A21F1F6EAE3A2C48A404C825175A098122F9E9B8D91867CD39EA71C23DD7"
+    },
+    {
+      "label": "JOINT_CC_P_neutral_clean",
+      "command": [
+        "D:\\科研启航\\Sia\\.venv-sia-baseline\\Scripts\\python.exe",
+        "-X",
+        "utf8",
+        "-B",
+        "D:\\科研启航\\Sia\\maintenance\\cc_joint_cleanup_20261027\\checks.py",
+        "probe",
+        "--variant",
+        "clean",
+        "--method",
+        "JOINT_CC_P",
+        "--response",
+        "neutral"
+      ],
+      "cwd": "D:\\科研启航\\Sia\\cc-joint\\sia-simulator",
+      "exit_code": 0,
+      "seconds": 8.2086660861969,
+      "log_sha256": "D735621A9FBE76B4458207F22ED4B40C9C2C730BF4386D5283DA44C7697BB946"
+    },
+    {
+      "label": "JOINT_CC_P_medium_frozen",
+      "command": [
+        "D:\\科研启航\\Sia\\.venv-sia-baseline\\Scripts\\python.exe",
+        "-X",
+        "utf8",
+        "-B",
+        "D:\\科研启航\\Sia\\maintenance\\cc_joint_cleanup_20261027\\checks.py",
+        "probe",
+        "--variant",
+        "frozen",
+        "--method",
+        "JOINT_CC_P",
+        "--response",
+        "medium"
+      ],
+      "cwd": "D:\\科研启航\\Sia\\cc-joint\\sia-simulator",
+      "exit_code": 0,
+      "seconds": 9.596130847930908,
+      "log_sha256": "E734EE149F5278FE30A36CD5225DD70507427D4A590707518D37A3CCA6A42009"
+    },
+    {
+      "label": "JOINT_CC_P_medium_clean",
+      "command": [
+        "D:\\科研启航\\Sia\\.venv-sia-baseline\\Scripts\\python.exe",
+        "-X",
+        "utf8",
+        "-B",
+        "D:\\科研启航\\Sia\\maintenance\\cc_joint_cleanup_20261027\\checks.py",
+        "probe",
+        "--variant",
+        "clean",
+        "--method",
+        "JOINT_CC_P",
+        "--response",
+        "medium"
+      ],
+      "cwd": "D:\\科研启航\\Sia\\cc-joint\\sia-simulator",
+      "exit_code": 0,
+      "seconds": 9.528947114944458,
+      "log_sha256": "2CD7412F40BA768855AF531A37DEBE34204F3CFCB688980C7E6161397B7C61C6"
+    },
+    {
+      "label": "JOINT_CC_neutral_frozen",
+      "command": [
+        "D:\\科研启航\\Sia\\.venv-sia-baseline\\Scripts\\python.exe",
+        "-X",
+        "utf8",
+        "-B",
+        "D:\\科研启航\\Sia\\maintenance\\cc_joint_cleanup_20261027\\checks.py",
+        "probe",
+        "--variant",
+        "frozen",
+        "--method",
+        "JOINT_CC",
+        "--response",
+        "neutral"
+      ],
+      "cwd": "D:\\科研启航\\Sia\\cc-joint\\sia-simulator",
+      "exit_code": 0,
+      "seconds": 8.258957386016846,
+      "log_sha256": "96A62E6A9A0CBEF3449F984BFDABB70F5ACF2B7B1DDBD9D3D01A56B2971D22C1"
+    },
+    {
+      "label": "JOINT_CC_neutral_clean",
+      "command": [
+        "D:\\科研启航\\Sia\\.venv-sia-baseline\\Scripts\\python.exe",
+        "-X",
+        "utf8",
+        "-B",
+        "D:\\科研启航\\Sia\\maintenance\\cc_joint_cleanup_20261027\\checks.py",
+        "probe",
+        "--variant",
+        "clean",
+        "--method",
+        "JOINT_CC",
+        "--response",
+        "neutral"
+      ],
+      "cwd": "D:\\科研启航\\Sia\\cc-joint\\sia-simulator",
+      "exit_code": 0,
+      "seconds": 8.368257284164429,
+      "log_sha256": "36F9E2DC2419964A8BB7A7662A02C4845C76448A713C2FF4E754C7CCBD2D8A55"
+    },
+    {
+      "label": "JOINT_CC_medium_frozen",
+      "command": [
+        "D:\\科研启航\\Sia\\.venv-sia-baseline\\Scripts\\python.exe",
+        "-X",
+        "utf8",
+        "-B",
+        "D:\\科研启航\\Sia\\maintenance\\cc_joint_cleanup_20261027\\checks.py",
+        "probe",
+        "--variant",
+        "frozen",
+        "--method",
+        "JOINT_CC",
+        "--response",
+        "medium"
+      ],
+      "cwd": "D:\\科研启航\\Sia\\cc-joint\\sia-simulator",
+      "exit_code": 0,
+      "seconds": 7.429377794265747,
+      "log_sha256": "65799A3FF2422F66392AC059E1CFF3DE4C7B1CABEC66429067E0CF9CDD610B46"
+    },
+    {
+      "label": "JOINT_CC_medium_clean",
+      "command": [
+        "D:\\科研启航\\Sia\\.venv-sia-baseline\\Scripts\\python.exe",
+        "-X",
+        "utf8",
+        "-B",
+        "D:\\科研启航\\Sia\\maintenance\\cc_joint_cleanup_20261027\\checks.py",
+        "probe",
+        "--variant",
+        "clean",
+        "--method",
+        "JOINT_CC",
+        "--response",
+        "medium"
+      ],
+      "cwd": "D:\\科研启航\\Sia\\cc-joint\\sia-simulator",
+      "exit_code": 0,
+      "seconds": 7.417937994003296,
+      "log_sha256": "A9999C9A415A1FC488239EEA6BC200EC5A6A4F3149078F29D01D59097448403C"
+    }
+  ]
+}

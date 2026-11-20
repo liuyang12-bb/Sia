@@ -1,0 +1,10 @@
+The first finalize.py reached source comparison after successful constructor
+and restore dry-run checks, then exited1 at line36:
+KeyError: 'tests/test_protected_integration.py'
+
+The legacy404-file manifest uses Windows backslashes for nested keys, whereas
+the dependency inventory emits POSIX slashes. This is a key-normalization bug,
+not missing or different source bytes. verify_relocation.py and before/after212
+tests had already passed. final_report.py normalizes only the in-memory lookup
+keys, does not change the old manifest, and uses new *_retry.log files so the
+initial check evidence is not overwritten.

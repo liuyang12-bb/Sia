@@ -1,0 +1,47 @@
+{
+  "generated_at": "2026-10-23T11:34:00+08:00",
+  "original_sia_commit": "aaf7a0de7b6cb5eab06ea020467ede5d2fd18e70",
+  "tiresias_commit": "959f9b08f44fa1b4f2b3aed79b01e4d439264a94",
+  "artifacts": [
+    {
+      "path": "research_runs/sia_las_weighted/traces/workload-1-first20.csv",
+      "bytes": 727,
+      "sha256": "4F5A276525EBDA40A8243D92AF1A83C4323C859FEC65DE023E748BDFDBB2FE46"
+    },
+    {
+      "path": "research_runs/sia_las_weighted/smoke/sia/workload-1-first20.log",
+      "bytes": 758833,
+      "sha256": "FE5B7EF8D5C9D8A759B017F0EE9866D14415DB14B91E8A12572F23E0813D4B9A"
+    },
+    {
+      "path": "research_runs/sia_las_weighted/smoke/sia_las_factor1/workload-1-first20.log",
+      "bytes": 758833,
+      "sha256": "FE5B7EF8D5C9D8A759B017F0EE9866D14415DB14B91E8A12572F23E0813D4B9A"
+    },
+    {
+      "path": "research_runs/sia_las_weighted/smoke/sia_las_factor1_5/workload-1-first20.log",
+      "bytes": 828426,
+      "sha256": "03A98D28DC69578F1D0AE99C3E8C74061605D6E9506598BD3DA0D6598C74C215"
+    },
+    {
+      "path": "research_runs/sia_las_weighted/full/sia_las_factor1_5/workload-1.log",
+      "bytes": 28547455,
+      "sha256": "2577CF7E717ABCC4B0011F6BC34E3B0A73F8832A8354FF7DB6CABD161367AEB4"
+    },
+    {
+      "path": "research_runs/sia_las_weighted/full/sia_las_factor2_0/workload-1.log",
+      "bytes": 29279112,
+      "sha256": "559779D40365D502B359E25FE961D4365D5C65BEAAFFF6A497487B45DD05004C"
+    },
+    {
+      "path": "research_notes/run_logs/sia_las_weighted.patch",
+      "bytes": 16493,
+      "sha256": "CFF92C4338D72C4CC6656F5EDF966CA9343F1A587AE37EAD9DE132DC2091AB9F"
+    },
+    {
+      "path": "research_notes/SIA_LAS_EXPERIMENT_REPORT.md",
+      "bytes": 19614,
+      "sha256": "1A343305369ED94402AF003E2B38CC6ECFA2A37D4F17555E933634B5E8177D0F"
+    }
+  ]
+}

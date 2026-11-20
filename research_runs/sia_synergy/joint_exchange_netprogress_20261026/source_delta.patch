@@ -1,0 +1,243 @@
+--- /dev/null
++++ b/sia-simulator/joint_prototype/exchange_netprogress.py
+@@ -0,0 +1,97 @@
++"""Opt-in resource exchange and fixed-window net-progress scoring.
++
++Does not change L2 admission, service clocks, execution rho, or startup physics.
++Window scoring REPLACES the historic restart proxy, never stacks with it.
++Relaxing the per-round proportional progress guarantee is an explicit policy
++choice, not a claim of preserving Synergy's per-job non-degradation guarantee.
++"""
++import math
++from dataclasses import asdict, replace
++import simulator_config as sc
++from sia import ZERO_ALLOC_GAIN
++from .bundle_adaptation import BundleJoint, install as install_bundle
++from .full160 import FullCluster
++
++
++def fair_utility(rate, p=-.5, lambda_n=1.1):
++    if not math.isfinite(rate) or rate < 0 or p != -.5 or lambda_n != 1.1:
++        raise ValueError('INVALID_OR_UNREGISTERED_FAIRNESS_INPUT')
++    powered=min(round(max(rate,ZERO_ALLOC_GAIN)**p,2),sc.sia_goodput_clip_val)
++    return lambda_n-powered
++
++
++def window_utility(rate, delay, horizon=300., p=-.5, lambda_n=1.1):
++    if not math.isfinite(delay) or delay < 0 or horizon != 300.:
++        raise ValueError('INVALID_OR_UNREGISTERED_WINDOW')
++    return fair_utility(rate*max(horizon-delay,0.)/horizon,p,lambda_n)
++
++
++def configure_scheduler(scheduler, allow_exchange):
++    scheduler.enforce_floor=not allow_exchange
++    return scheduler
++
++
++class ExchangePolicy(BundleJoint):
++    def _scheduler(self,nodes,specs):
++        return configure_scheduler(super()._scheduler(nodes,specs),self.allow_exchange)
++
++    def factor_columns(self,jobs,specs,s):
++        original,proposals=super().factor_columns(jobs,specs,s)
++        by={j.job_id:j for j in specs}
++        scored=[];records=[]
++        for column in original:
++            job=by[column.job_id]
++            same=(job.current_config_id==column.config.config_id and
++                  job.current_placement==column.placement.node_gpus)
++            if job.job_id not in self.remaining_delay:
++                raise RuntimeError('MISSING_CURRENT_CHECKPOINT_DELAY:'+job.job_id)
++            remaining=float(self.remaining_delay[job.job_id])
++            if not math.isfinite(remaining) or remaining<0:
++                raise RuntimeError('INVALID_CURRENT_CHECKPOINT_DELAY:'+job.job_id)
++            # Same GPU geometry includes CPU/RAM-only changes: no added delay.
++            delay=remaining if same else self.liveness._delay(job.job_id,column)
++            rate=column.query.effective_goodput  # already contains rho exactly once
++            if not math.isfinite(rate) or rate<=0:
++                raise RuntimeError('NONPOSITIVE_CANDIDATE_RATE:'+job.job_id)
++            value=(window_utility(rate,delay,p=self.p_fairness,lambda_n=self.lambda_n)
++                   if self.net_progress else column.scheduling_utility)
++            scored.append(replace(column,scheduling_utility=value))
++            records.append(dict(job=job.job_id,column_id=column.column_id,
++                same_gpu_geometry=same,current_delay=remaining,candidate_delay=delay,
++                normalized_rate_before_delay=rate,net_normalized_rate=rate*max(300.-delay,0.)/300.,
++                previous_proxy_utility=column.scheduling_utility,utility=value))
++        self.exchange_columns=scored
++        self.exchange_scores=records
++        return scored,proposals
++
++    def optimize(self,*args):
++        result=super().optimize(*args)
++        self.last_decision['shared_contract'].update(
++            policy_version='JOINT_EXCHANGE_NETPROGRESS_V1',allow_exchange=self.allow_exchange,
++            enforce_proportional_progress_floor=not self.allow_exchange,
++            net_progress=self.net_progress,horizon_seconds=300.,
++            restart_scoring='ACTUAL_WINDOW_DELAY_ONLY' if self.net_progress else 'HISTORIC_PROXY',
++            admission_unchanged=True)
++        # EvidenceMixin's historical probe is diagnostic only. Replace its
++        # candidate list/contract with THIS policy's actual scored candidates.
++        self.last_decision['probe']['joint_columns']=[asdict(c) for c in self.exchange_columns]
++        self.last_decision['probe']['contract'].update(
++            progress_floor=not self.allow_exchange,net_progress=self.net_progress)
++        self.last_decision['net_progress_scores']=self.exchange_scores
++        return result
++
++
++class ExchangeCluster(FullCluster):
++    def optimize_policy(self):
++        self.policy.remaining_delay={j.name:float(j.rescale_time) for j in self.jobs}
++        return super().optimize_policy()
++
++
++def install(cluster,allow_exchange=True,net_progress=True):
++    install_bundle(cluster)
++    cluster.__class__=ExchangeCluster
++    cluster.policy.__class__=ExchangePolicy
++    cluster.policy.allow_exchange=bool(allow_exchange)
++    cluster.policy.net_progress=bool(net_progress)
++    cluster.policy.remaining_delay={}
++    return cluster
+--- /dev/null
++++ b/sia-simulator/tests/test_exchange_netprogress.py
+@@ -0,0 +1,92 @@
++"""Analytic response witnesses; these are declared synthetic, not measured."""
++import math
++import unittest
++from dataclasses import replace
++from pathlib import Path
++from test_adaptive_service import cfg, spec, current, admission
++from joint_prototype.joint_profile import JointProfileOracle, NodeSpec
++from joint_prototype.neutral_liveness import FactorScheduler, geometry
++from joint_prototype.bundle_adaptation import BundleAdmission
++from joint_prototype.small_mechanism import fixed_set_solve
++
++ROOT=Path(__file__).resolve().parents[3]
++try:
++    from joint_prototype.exchange_netprogress import fair_utility, window_utility, configure_scheduler
++except ModuleNotFoundError:
++    # Red phase: evaluate the previous algorithm, not a fake replacement.
++    def fair_utility(rate,p=-.5,lambda_n=1.1):return lambda_n-round(max(rate,1e-8)**p,2)
++    def window_utility(rate,delay,horizon=300,p=-.5,lambda_n=1.1):return fair_utility(rate,p,lambda_n)
++    def configure_scheduler(s,allow_exchange):return s
++
++class AnalyticOracle(JointProfileOracle):
++    def __init__(self,kind='cpu'):
++        super().__init__(ROOT/'research_sources/Synergy/simulator/models','fixed_reference',neutral_response=True)
++        self.kind=kind
++    def query(self,job,config,cpu,ram,prop):
++        q=super().query(job,config,cpu,ram,prop)
++        if self.kind=='cpu':
++            rate=({1:.4,2:.7,3:1.,4:1.5,6:1.5} if job.job_id=='receiver' else
++                  {1:.7,2:.95,3:1.,4:1.,6:1.}).get(cpu,1.)
++        elif self.kind=='ram':
++            rate=({20.83:.3,62.5:.5,125:1.,187.5:1.5,250:1.5} if job.job_id=='receiver' else
++                  {20.83:.7,62.5:.95,125:1.,187.5:1.,250:1.})[ram]
++        else:rate=1.
++        return replace(q,rho=rate,raw_rho=rate,effective_goodput=config.sia_goodput*rate,
++                       evidence='DECLARED_ANALYTIC_TEST_RESPONSE')
++
++def witness(kind='cpu',exchange=False):
++    jobs=[spec('receiver'),spec('donor',index=1)]
++    nodes=[NodeSpec('aws:0','aws',2,6.,250.)]
++    s=FactorScheduler(nodes,jobs,AnalyticOracle(kind),[1.,2.,3.,4.,6.],
++        [20.83,62.5,125.,187.5,250.],verify_exact=False,
++        minimum_cpu_per_gpu=1.,minimum_ram_gb_per_gpu=20.83,candidate_policy='b3')
++    return jobs,configure_scheduler(s,exchange)
++
++class ExchangeNetTests(unittest.TestCase):
++    def test_cpu_exchange_enters_candidates_and_improves_existing_fairness(self):
++        jobs,s=witness(exchange=True)
++        cs=[replace(c,scheduling_utility=fair_utility(c.query.effective_goodput)) for c in s.build_joint_columns()]
++        r=fixed_set_solve(s,cs,[j.job_id for j in jobs])
++        self.assertEqual(r.selected['receiver'].query.cpu_per_gpu,4.)
++        self.assertEqual(r.selected['donor'].query.cpu_per_gpu,2.)
++        self.assertAlmostEqual(sum(c.query.effective_goodput for c in r.selected.values()),2.45)
++        self.assertTrue(r.audit['valid'])
++
++    def test_ram_exchange_enters_candidates(self):
++        jobs,s=witness('ram',True)
++        cs=[replace(c,scheduling_utility=fair_utility(c.query.effective_goodput)) for c in s.build_joint_columns()]
++        r=fixed_set_solve(s,cs,[j.job_id for j in jobs])
++        self.assertEqual(r.selected['receiver'].query.ram_gb_per_gpu,187.5)
++        self.assertEqual(r.selected['donor'].query.ram_gb_per_gpu,62.5)
++
++    def test_historical_mode_retains_floor(self):
++        _,s=witness(exchange=False)
++        self.assertTrue(all(c.query.effective_goodput>=1 for c in s.build_joint_columns()))
++
++    def test_real_delay_can_reverse_greedy_speed_ranking(self):
++        self.assertGreater(window_utility(1.,0),window_utility(1.1,120.))
++
++    def test_startup_included_for_new_job_and_not_multiplied_by_rho(self):
++        self.assertEqual(window_utility(2.,150.),fair_utility(1.))
++
++    def test_invalid_delay_rejected(self):
++        for d in [-1.,float('nan')]:
++            with self.assertRaises(ValueError):window_utility(1.,d)
++
++    def test_exact_locks_remain_mandatory_with_exchange(self):
++        jobs,s=witness(exchange=True)
++        cs=[replace(c,scheduling_utility=fair_utility(c.query.effective_goodput)) for c in s.build_joint_columns()]
++        a=BundleAdmission(300.,250.,60.)
++        base=admission(jobs,50.);a.delay_costs=base.delay_costs;a.profile_sources=base.profile_sources
++        first=a.decide(s,cs,0.,{})
++        locked=[current(j,first.selected,locked=True) for j in jobs]
++        s.jobs=locked;s.job_map={j.job_id:j for j in locked}
++        r=a.decide(s,[replace(c,scheduling_utility=-100.) for c in s.build_joint_columns()],60.,{})
++        for j in jobs:self.assertEqual(geometry(r.selected[j.job_id]),geometry(first.selected[j.job_id]))
++
++    def test_capacity_audit_still_rejects_overallocation(self):
++        _,s=witness(exchange=True)
++        cs=[c for c in s.build_joint_columns() if c.query.cpu_per_gpu==4.]
++        self.assertFalse(s.audit([next(c for c in cs if c.job_id==j) for j in ['receiver','donor']])['valid'])
++
++if __name__=='__main__':unittest.main()
+--- /dev/null
++++ b/sia-simulator/tests/test_exchange_integration.py
+@@ -0,0 +1,45 @@
++import contextlib,io,json,math,unittest
++from pathlib import Path
++import pandas as pd
++from joint_prototype.full160 import make_cluster
++from joint_prototype.bundle_adaptation import install as install_old
++from joint_prototype.exchange_netprogress import install,window_utility
++from joint_prototype.execution_audit import audit_execution
++
++ROOT=Path(__file__).resolve().parents[3]
++class ExchangeIntegration(unittest.TestCase):
++    def build(self):
++        p=json.loads((ROOT/'research_runs/sia_synergy/small_mechanism_20261025/preregistration.json').read_text())
++        return make_cluster(json.loads(Path(p['config']).read_text()),
++            pd.DataFrame([dict(name='bert-mid',time=17,application='bert',num_replicas=1,batch_size=384)]),
++            p['registry'],p['models'],'joint_o','medium','half',False)
++
++    def test_both_flags_off_match_actual_g_decisions_progress_restarts(self):
++        with contextlib.redirect_stdout(io.StringIO()):
++            old=install_old(self.build());new=install(self.build(),False,False)
++            for _ in range(8):
++                old.step(60);new.step(60)
++                self.assertEqual(old.allocations,new.allocations)
++                self.assertEqual(old.jobs[0].progress,new.jobs[0].progress)
++                self.assertEqual(old.jobs[0].num_restarts,new.jobs[0].num_restarts)
++                self.assertEqual(old.policy.current_resources,new.policy.current_resources)
++
++    def test_unseeded_full_schedule_and_primary_scores_no_proxy_double_charge(self):
++        with contextlib.redirect_stdout(io.StringIO()):
++            c=install(self.build(),True,True);productive=0;locks=0
++            for _ in range(10):
++                c.step(60);d=c.policy.last_decision
++                self.assertTrue(d['result']['audit']['valid'])
++                self.assertTrue(d['shared_contract']['admission_unchanged'])
++                for v in d['net_progress_scores']:
++                    self.assertAlmostEqual(v['utility'],window_utility(v['normalized_rate_before_delay'],v['candidate_delay']))
++                for e in c.joint_round_logs[-1]['execution']:
++                    self.assertTrue(audit_execution(e)['valid']);productive+=e['training_seconds']
++                    locks+=e['checkpoint_delay_consumed']>0
++                    available=max(0.,e['interval_end']-max(e['interval_start'],e['arrival_time']))
++                    if e['checkpoint_delay_consumed']>=available>0:
++                        self.assertAlmostEqual(e['progress_after'],e['progress_before'])
++                for v in d['result']['audit']['service_delay_ledgers'].values():self.assertLessEqual(v['delay_charged'],250)
++            self.assertGreater(productive,0);self.assertGreater(locks,0)
++
++if __name__=='__main__':unittest.main()

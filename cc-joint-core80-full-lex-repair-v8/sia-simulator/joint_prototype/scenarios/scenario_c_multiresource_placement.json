@@ -1,0 +1,34 @@
+{
+  "scenario_id": "scenario_c_multiresource_placement",
+  "title": "CPU-sensitive and memory-sensitive jobs require different placements",
+  "mechanism": "GPU-only packing prefers the first two-GPU node. Joint placement can separate a CPU-sensitive ResNet18 template and a memory-sensitive M5 template across complementary nodes. GPU configs are fixed, so B3 is not expected to beat a successful B4 repair.",
+  "resource_model_type": "synthetic_cross_hardware_transfer",
+  "mapping_mode": "category_mix",
+  "allocation_bonus": 10.0,
+  "aux_cpu_points": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
+  "aux_ram_points": [20.83, 62.5, 125.0, 187.5, 250.0],
+  "nodes": [
+    {"node_id": "cpu-rich", "gpu_type": "shared", "gpus": 2, "cpu_cores": 6.0, "ram_gb": 125.0},
+    {"node_id": "memory-rich", "gpu_type": "shared", "gpus": 2, "cpu_cores": 2.0, "ram_gb": 250.0}
+  ],
+  "jobs": [
+    {
+      "job_id": "cpu-sensitive",
+      "template_file": "res18_1.py",
+      "arrival_time": 0,
+      "observed_progress": 0,
+      "configs": [
+        {"config_id": "cpu-job-1g", "gpu_type": "shared", "gpus": 1, "num_nodes": 1, "sia_goodput": 1.0, "cpu_demand_scale": 1.0, "memory_demand_scale": 1.0}
+      ]
+    },
+    {
+      "job_id": "memory-sensitive",
+      "template_file": "m5_1.py",
+      "arrival_time": 0,
+      "observed_progress": 0,
+      "configs": [
+        {"config_id": "memory-job-1g", "gpu_type": "shared", "gpus": 1, "num_nodes": 1, "sia_goodput": 1.0, "cpu_demand_scale": 0.3333333333333333, "memory_demand_scale": 1.0}
+      ]
+    }
+  ]
+}

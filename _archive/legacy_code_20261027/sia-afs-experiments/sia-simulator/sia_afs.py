@@ -1,0 +1,598 @@
+"""Paper-driven AFS-P core plus an explicit heterogeneous Sia mapping layer.
+
+The share allocator implements Section 3.3 of Hwang et al., NSDI 2021.
+The legal-configuration mapper is an adaptation for Sia's heterogeneous GPU
+model; it is not part of the original AFS-P algorithm.
+"""
+
+from dataclasses import dataclass
+import json
+import math
+import random
+import time
+
+import cvxpy as cp
+import numpy as np
+
+import simulator_config as sim_config
+from sia import SiaPolicy
+
+
+@dataclass(frozen=True)
+class AFSAllocationResult:
+    shares: dict
+    stage: str
+    dispatch_counters: dict
+
+
+def processor_share_counter(scheduled_seconds, unit_seconds):
+    """Return AFS-P's scheduled-wall-time counter (not GPU-seconds)."""
+    if unit_seconds <= 0:
+        raise ValueError("unit_seconds must be positive")
+    return int(max(float(scheduled_seconds), 0.0) // float(unit_seconds))
+
+
+def afs_equation_three(p_a, p_a_prime, p_b, p_b_prime):
+    """Evaluate paper Eq. (3), where a is assumed shorter than b."""
+    values = (p_a, p_a_prime, p_b, p_b_prime)
+    if any(not np.isfinite(value) for value in values):
+        return False
+    if p_a <= 0 or p_b_prime <= 0:
+        return False
+    lhs = (p_b_prime - p_b) / p_b_prime
+    rhs = (p_a_prime - p_a) / p_a
+    return lhs > rhs
+
+
+def _can_increment(curve, share):
+    return (
+        share + 1 < len(curve)
+        and curve[share] > 0
+        and curve[share + 1] > curve[share]
+    )
+
+
+def _modified_top_priority(curves, shares, eligible, rng):
+    """AFS-P's length-unaware modification of TopPriority()."""
+    ordered = list(eligible)
+    winner = rng.choice(ordered)
+    for contender in ordered:
+        if contender == winner:
+            continue
+        w_share, c_share = shares[winner], shares[contender]
+        w_curve, c_curve = curves[winner], curves[contender]
+
+        # First assume winner is shorter (a) and contender is longer (b).
+        contender_wins = afs_equation_three(
+            w_curve[w_share],
+            w_curve[w_share + 1],
+            c_curve[c_share],
+            c_curve[c_share + 1],
+        )
+        # Then evaluate the opposite, as required by AFS-P without lengths.
+        winner_wins = afs_equation_three(
+            c_curve[c_share],
+            c_curve[c_share + 1],
+            w_curve[w_share],
+            w_curve[w_share + 1],
+        )
+        if contender_wins:
+            winner = contender
+        elif not winner_wins and rng.randrange(2):
+            # The paper explicitly chooses randomly when neither direction
+            # resolves the unknown finishing order.
+            winner = contender
+    return winner
+
+
+def allocate_afs_p_homogeneous(
+    curves,
+    total_gpus,
+    scheduled_seconds,
+    unit_seconds=7200,
+    seed=0,
+    incumbents=None,
+    dispatch_counters=None,
+):
+    """Allocate integer shares using the homogeneous AFS-P core.
+
+    ``curves[j][r]`` is progress throughput with ``r`` identical GPUs.
+    In the processor-sharing stage, incumbents remain non-preemptible until
+    their scheduled-wall-time counter crosses the dispatch counter.
+    """
+    if total_gpus < 0:
+        raise ValueError("total_gpus must be non-negative")
+    if unit_seconds <= 0:
+        raise ValueError("unit_seconds must be positive")
+    names = list(curves)
+    shares = {name: 0 for name in names}
+    if not names or total_gpus == 0:
+        return AFSAllocationResult(shares, "processor_sharing", {})
+
+    rng = random.Random(seed)
+    counters = {
+        name: processor_share_counter(scheduled_seconds.get(name, 0), unit_seconds)
+        for name in names
+    }
+
+    # AFS-P stays in AFS-L stage one when jobs fill or exceed the GPU pool.
+    if len(names) >= total_gpus:
+        incumbents = set(incumbents or ()) & set(names)
+        dispatch_counters = dispatch_counters or {}
+        protected = [
+            name
+            for name in incumbents
+            if counters[name] <= dispatch_counters.get(name, counters[name] - 1)
+        ]
+        protected.sort()
+        selected = protected[:total_gpus]
+
+        waiting = [name for name in names if name not in selected]
+        randomized_ties = {name: rng.random() for name in waiting}
+        waiting.sort(
+            key=lambda name: (
+                counters[name],
+                float(scheduled_seconds.get(name, 0)),
+                randomized_ties[name],
+                name,
+            )
+        )
+        selected.extend(waiting[: max(total_gpus - len(selected), 0)])
+        for name in selected:
+            if len(curves[name]) > 1 and curves[name][1] > 0:
+                shares[name] = 1
+
+        next_dispatch = {}
+        for name in selected:
+            if name in protected:
+                next_dispatch[name] = dispatch_counters[name]
+            else:
+                next_dispatch[name] = counters[name]
+        return AFSAllocationResult(shares, "processor_sharing", next_dispatch)
+
+    # With spare GPUs, every feasible job first receives one GPU. Remaining
+    # GPUs are assigned one at a time with modified TopPriority / Eq. (3).
+    for name in names:
+        if len(curves[name]) > 1 and curves[name][1] > 0:
+            shares[name] = 1
+    remaining = total_gpus - sum(shares.values())
+    while remaining > 0:
+        eligible = [
+            name for name in names if _can_increment(curves[name], shares[name])
+        ]
+        if not eligible:
+            break
+        winner = (
+            eligible[0]
+            if len(eligible) == 1
+            else _modified_top_priority(curves, shares, eligible, rng)
+        )
+        shares[winner] += 1
+        remaining -= 1
+    return AFSAllocationResult(shares, "efficiency", {})
+
+
+class SiaAFSPolicy(SiaPolicy):
+    """AFS-P shares followed by a heterogeneous legal-config mapping."""
+
+    def __init__(
+        self,
+        processor_share_unit_seconds=7200,
+        afs_seed=0,
+        p_fairness=sim_config.sia_default_p_val,
+        restart_penalty=30,
+        migrate_penalty=45,
+        lambda_a=sim_config.sia_default_lambda_a,
+        lambda_n=sim_config.sia_default_lambda_n,
+        project_throughputs=False,
+        share_max_replicas=False,
+        sched_interval=60,
+        enable_bsz_tuning=True,
+    ):
+        if processor_share_unit_seconds <= 0:
+            raise ValueError("processor_share_unit_seconds must be positive")
+        super().__init__(
+            p_fairness=p_fairness,
+            restart_penalty=restart_penalty,
+            migrate_penalty=migrate_penalty,
+            lambda_a=lambda_a,
+            lambda_n=lambda_n,
+            project_throughputs=project_throughputs,
+            share_max_replicas=share_max_replicas,
+            sched_interval=sched_interval,
+            enable_bsz_tuning=enable_bsz_tuning,
+        )
+        self.processor_share_unit_seconds = float(processor_share_unit_seconds)
+        self.afs_seed = int(afs_seed)
+        self._event_index = 0
+        self._active_signature = None
+        self._profile_signature = None
+        self._checkpoint_signature = None
+        self._stage = None
+        self._dispatch_counters = {}
+        self.last_decision = {}
+        self.decision_records = []
+        print(
+            "AFS-P params: processor_share_unit_seconds={}, seed={}; "
+            "Sia p/lambda parameters are not used by the AFS share rule".format(
+                self.processor_share_unit_seconds, self.afs_seed
+            )
+        )
+
+    @staticmethod
+    def _job_scheduled_seconds(job):
+        return float(getattr(job, "execution_time", 0.0))
+
+    def _profile_state(self, jobs):
+        result = []
+        for name, job in jobs.items():
+            counts = getattr(job, "profile_counts", {})
+            count_tuple = tuple(
+                (cluster, int(counts.get(cluster, 0)))
+                for cluster in self.cluster_ordering
+            )
+            ready_tuple = tuple(
+                (cluster, job.speedup_fn.get(cluster) is not None)
+                for cluster in self.cluster_ordering
+            )
+            max_tuple = tuple(
+                (cluster, int(job.max_replicas.get(cluster, 0)))
+                for cluster in self.cluster_ordering
+            )
+            result.append((name, count_tuple, ready_tuple, max_tuple))
+        return tuple(result)
+
+    def _checkpoint_state(self, jobs):
+        return tuple(
+            (name, bool(getattr(job, "scaling_underway", False)))
+            for name, job in jobs.items()
+        )
+
+    def _projected_goodput(self, job, cluster, num_gpus):
+        scale_unit = int(job.scale_unit[cluster])
+        if num_gpus <= 0 or num_gpus % scale_unit:
+            return None
+        num_replicas = num_gpus // scale_unit
+        max_replicas = (
+            max(job.max_replicas.values())
+            if self.share_max_replicas
+            else job.max_replicas[cluster]
+        )
+        if num_replicas > max_replicas or num_replicas < 1:
+            return None
+        num_nodes = int(math.ceil(num_gpus / self.cluster_ngpus_per_node[cluster]))
+        if num_nodes > self.cluster_num_nodes[cluster]:
+            return None
+
+        fn = job.speedup_fn.get(cluster)
+        if fn is not None:
+            value = fn.get_goodput(
+                np.asarray([num_nodes], dtype=np.float32),
+                np.asarray([num_replicas], dtype=np.float32),
+            )
+            return float(np.asarray(value).reshape(-1)[0])
+
+        any_model = any(value is not None for value in job.speedup_fn.values())
+        if self.project_throughputs and any_model:
+            value = self._compute_goodputs_v2(
+                job,
+                cluster,
+                np.asarray([num_nodes], dtype=np.uint32),
+                np.asarray([num_gpus], dtype=np.uint32),
+            )
+            return float(np.asarray(value).reshape(-1)[0])
+
+        # CoDDL Section 4.5: assume linear scaling until measurements arrive.
+        base = float(job.cluster_throughputs[cluster])
+        return base * num_replicas
+
+    def _virtual_curve(self, job, total_gpus, fair_share=None):
+        per_job_limit = min(
+            total_gpus,
+            max(
+                min(
+                    int(job.max_replicas[cluster] * job.scale_unit[cluster]),
+                    int(self.cluster_total_gpus[cluster]),
+                )
+                for cluster in self.cluster_ordering
+            ),
+        )
+        # CoDDL Section 4.5 caps a new job's linear-overestimate allocation
+        # at its 1/n fair share until real throughput measurements arrive.
+        if not any(value is not None for value in job.speedup_fn.values()):
+            per_job_limit = min(per_job_limit, max(int(fair_share or 1), 1))
+        curve = [0.0] * (per_job_limit + 1)
+        for num_gpus in range(1, per_job_limit + 1):
+            values = []
+            for cluster in self.cluster_ordering:
+                value = self._projected_goodput(job, cluster, num_gpus)
+                if value is not None and np.isfinite(value) and value > 0:
+                    values.append(value)
+            if values:
+                curve[num_gpus] = max(values)
+        return curve
+
+    def _legal_candidates(self, name, job, target, previous):
+        if target <= 0:
+            return []
+        candidates = []
+        previous_cluster, previous_nodes = previous.get(name, (None, ()))
+        previous_gpus = len(previous_nodes)
+
+        if getattr(job, "scaling_underway", False) and previous_cluster is not None:
+            num_gpus = previous_gpus
+            num_nodes = len(set(previous_nodes))
+            value = self._projected_goodput(job, previous_cluster, num_gpus)
+            return [
+                {
+                    "job": name,
+                    "cluster": previous_cluster,
+                    "num_nodes": num_nodes,
+                    "num_gpus": num_gpus,
+                    "goodput": float(value or 0.0),
+                    "deviation": abs(num_gpus - target),
+                    "reuse": 2.0,
+                }
+            ]
+
+        if getattr(job, "category", None) == "rigid":
+            configs = []
+            for cluster in self.cluster_ordering:
+                num_gpus = int(job.max_replicas[cluster] * job.scale_unit[cluster])
+                num_nodes = int(math.ceil(num_gpus / self.cluster_ngpus_per_node[cluster]))
+                configs.append((cluster, num_nodes, num_gpus))
+        else:
+            configs = []
+            for cluster in self.cluster_ordering:
+                num_nodes_arr, num_gpus_arr = self.configs[cluster]
+                for num_nodes, num_gpus in zip(num_nodes_arr, num_gpus_arr):
+                    configs.append((cluster, int(num_nodes), int(num_gpus)))
+
+        for cluster, num_nodes, num_gpus in configs:
+            value = self._projected_goodput(job, cluster, num_gpus)
+            if value is None or not np.isfinite(value) or value <= 0:
+                continue
+            reuse = 0.0
+            if cluster == previous_cluster:
+                reuse = 1.0 + float(num_gpus == previous_gpus)
+            candidates.append(
+                {
+                    "job": name,
+                    "cluster": cluster,
+                    "num_nodes": num_nodes,
+                    "num_gpus": num_gpus,
+                    "goodput": float(value),
+                    "deviation": abs(num_gpus - target),
+                    "reuse": reuse,
+                }
+            )
+        return candidates
+
+    def _solve_mapping(self, jobs, shares, nodes, previous):
+        start = time.time()
+        by_job = {
+            name: self._legal_candidates(name, job, shares[name], previous)
+            for name, job in jobs.items()
+            if shares.get(name, 0) > 0
+        }
+        unmapped = [name for name, items in by_job.items() if not items]
+        candidates = [item for items in by_job.values() for item in items]
+        if not candidates:
+            return {}, unmapped, "no_candidates", (time.time() - start) * 1000
+
+        variable = cp.Variable(len(candidates), integer=True)
+        constraints = [variable >= 0, variable <= 1]
+        indices_by_job = {}
+        for idx, item in enumerate(candidates):
+            indices_by_job.setdefault(item["job"], []).append(idx)
+        for name, indices in indices_by_job.items():
+            constraints.append(cp.sum(variable[indices]) == 1)
+
+        for cluster in self.cluster_ordering:
+            indices = [
+                idx for idx, item in enumerate(candidates) if item["cluster"] == cluster
+            ]
+            if indices:
+                gpu_counts = np.asarray(
+                    [candidates[idx]["num_gpus"] for idx in indices], dtype=np.float64
+                )
+                capacity = sum(
+                    node.resources["nvidia.com/gpu"] for node in nodes[cluster].values()
+                )
+                constraints.append(gpu_counts @ variable[indices] <= capacity)
+
+        gpu_counts = np.asarray([item["num_gpus"] for item in candidates])
+        fixed_gpu_total = sum(
+            len(previous.get(name, (None, ())) [1])
+            for name, job in jobs.items()
+            if getattr(job, "scaling_underway", False)
+        )
+        virtual_total = max(sum(shares.values()), fixed_gpu_total)
+        constraints.append(gpu_counts @ variable <= virtual_total)
+
+        deviations = np.asarray([item["deviation"] for item in candidates])
+        reuse = np.asarray([item["reuse"] for item in candidates])
+        normalized_goodput = np.zeros(len(candidates), dtype=np.float64)
+        for indices in indices_by_job.values():
+            maximum = max(candidates[idx]["goodput"] for idx in indices)
+            for idx in indices:
+                normalized_goodput[idx] = candidates[idx]["goodput"] / maximum
+
+        objective = cp.Minimize(
+            deviations @ variable
+            - 1e-2 * (gpu_counts @ variable)
+            # CoDDL Section 4.4 prioritizes reuse after share regulation.
+            # GPU-type Goodput is the final heterogeneous-only tie-break.
+            - 1e-3 * (reuse @ variable)
+            - 1e-5 * (normalized_goodput @ variable)
+        )
+        problem = cp.Problem(objective, constraints)
+        problem.solve(
+            solver=cp.CBC,
+            verbose=sim_config.sia_solver_verbose,
+            numberThreads=sim_config.sia_solver_num_threads,
+            allowablePercentageGap=sim_config.sia_solver_thresh * 100,
+        )
+        elapsed_ms = (time.time() - start) * 1000
+        if problem.status != "optimal":
+            return {}, list(by_job), problem.status, elapsed_ms
+
+        solution = np.rint(variable.value).astype(np.int64)
+        selected = {
+            item["job"]: item for idx, item in enumerate(candidates) if solution[idx]
+        }
+        unmapped.extend(name for name in by_job if name not in selected)
+        return selected, sorted(set(unmapped)), problem.status, elapsed_ms
+
+    def _to_placements(self, jobs, selected, nodes, previous):
+        cluster_allocs = {}
+        for name, item in selected.items():
+            cluster_allocs.setdefault(item["cluster"], {})[name] = (
+                item["num_nodes"],
+                item["num_gpus"],
+            )
+
+        cluster_placements = {}
+        for cluster in self.cluster_ordering:
+            remaining = np.asarray(
+                [
+                    node.resources["nvidia.com/gpu"]
+                    for node in nodes[cluster].values()
+                ],
+                dtype=np.uint32,
+            )
+            allocations = cluster_allocs.get(cluster, {})
+            previous_subset = {
+                name: previous.get(name, (None, ())) for name in allocations
+            }
+            cluster_placements[cluster] = self.alloc_to_placement(
+                cluster, allocations, previous_subset, remaining
+            )
+
+        result = {}
+        for name in jobs:
+            item = selected.get(name)
+            if item is None:
+                result[name] = (None, ())
+            else:
+                result[name] = (
+                    item["cluster"],
+                    cluster_placements[item["cluster"]][name],
+                )
+        return result
+
+    def _record(self, record):
+        self.last_decision = record
+        self.decision_records.append(record)
+        print("AFS_STATE " + json.dumps(record, sort_keys=True))
+
+    def optimize(self, jobs, nodes, base_allocations):
+        if not jobs:
+            return {}
+        total_gpus = sum(
+            node.resources["nvidia.com/gpu"]
+            for cluster_nodes in nodes.values()
+            for node in cluster_nodes.values()
+        )
+        active_signature = tuple(jobs)
+        profile_signature = self._profile_state(jobs)
+        checkpoint_signature = self._checkpoint_state(jobs)
+        stage = "processor_sharing" if len(jobs) >= total_gpus else "efficiency"
+        scheduled = {
+            name: self._job_scheduled_seconds(job) for name, job in jobs.items()
+        }
+        quantum_expired = stage == "processor_sharing" and any(
+            processor_share_counter(
+                scheduled.get(name, 0), self.processor_share_unit_seconds
+            )
+            > counter
+            for name, counter in self._dispatch_counters.items()
+            if name in jobs
+        )
+
+        reasons = []
+        if self._active_signature is None:
+            reasons.append("initial")
+        elif active_signature != self._active_signature:
+            reasons.append("churn")
+        if self._stage is not None and stage != self._stage:
+            reasons.append("stage_change")
+        if self._profile_signature is not None and profile_signature != self._profile_signature:
+            reasons.append("throughput_report")
+        if self._checkpoint_signature is not None and checkpoint_signature != self._checkpoint_signature:
+            reasons.append("checkpoint_change")
+        if quantum_expired:
+            reasons.append("quantum_expiry")
+
+        if not reasons and set(base_allocations) == set(jobs):
+            self._record(
+                {
+                    "stage": stage,
+                    "reason": "no_event",
+                    "active_jobs": len(jobs),
+                    "total_gpus": total_gpus,
+                }
+            )
+            return dict(base_allocations)
+
+        fair_share = max(total_gpus // len(jobs), 1)
+        curves = {
+            name: self._virtual_curve(job, total_gpus, fair_share=fair_share)
+            for name, job in jobs.items()
+        }
+        incumbents = {
+            name
+            for name, (cluster, placement) in base_allocations.items()
+            if cluster is not None and placement
+        }
+        core_result = allocate_afs_p_homogeneous(
+            curves,
+            total_gpus=total_gpus,
+            scheduled_seconds=scheduled,
+            unit_seconds=self.processor_share_unit_seconds,
+            seed=self.afs_seed + self._event_index,
+            incumbents=incumbents,
+            dispatch_counters=self._dispatch_counters,
+        )
+        selected, unmapped, status, mapping_ms = self._solve_mapping(
+            jobs, core_result.shares, nodes, base_allocations
+        )
+        core_unmappable = [
+            name
+            for name, curve in curves.items()
+            if len(curve) <= 1 or curve[1] <= 0
+        ]
+        unmapped = sorted(set(unmapped) | set(core_unmappable))
+        placements = self._to_placements(jobs, selected, nodes, base_allocations)
+
+        self._active_signature = active_signature
+        self._profile_signature = profile_signature
+        self._checkpoint_signature = checkpoint_signature
+        self._stage = core_result.stage
+        self._dispatch_counters = core_result.dispatch_counters
+        self._event_index += 1
+
+        mapped = {
+            name: [item["cluster"], item["num_nodes"], item["num_gpus"]]
+            for name, item in selected.items()
+        }
+        self._record(
+            {
+                "stage": core_result.stage,
+                "reason": "+".join(reasons),
+                "active_jobs": len(jobs),
+                "total_gpus": total_gpus,
+                "virtual_shares": core_result.shares,
+                "processor_counters": {
+                    name: processor_share_counter(
+                        seconds, self.processor_share_unit_seconds
+                    )
+                    for name, seconds in scheduled.items()
+                },
+                "mapped_configs": mapped,
+                "unmapped_jobs": unmapped,
+                "mapping_status": status,
+                "mapping_ms": round(mapping_ms, 3),
+            }
+        )
+        return placements

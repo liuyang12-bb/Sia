@@ -1,0 +1,21 @@
+{
+  "label": "SIA_P_medium_clean",
+  "command": [
+    "D:\\科研启航\\Sia\\.venv-sia-baseline\\Scripts\\python.exe",
+    "-X",
+    "utf8",
+    "-B",
+    "D:\\科研启航\\Sia\\maintenance\\cc_joint_cleanup_20261027\\checks.py",
+    "probe",
+    "--variant",
+    "clean",
+    "--method",
+    "SIA_P",
+    "--response",
+    "medium"
+  ],
+  "cwd": "D:\\科研启航\\Sia\\cc-joint\\sia-simulator",
+  "exit_code": 0,
+  "seconds": 9.920411825180054,
+  "log_sha256": "867116844DE944971FC1D245FE9A7E593E4700AB79D0EAEED7DF6904C03B082D"
+}

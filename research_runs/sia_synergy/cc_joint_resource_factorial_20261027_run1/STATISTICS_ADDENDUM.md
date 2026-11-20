@@ -1,0 +1,6 @@
+# 删失统计口径
+
+冻结工作负载最后到达2400秒，共同观察上限6000x60=360000秒；若出现上限删失，所有作业共同可观察的JCT窗口为tau=357600秒。
+独立分析报告样本RMST=mean(min(JCT,tau))。已完成作业使用真实完成事件；未完成者必须已被观察至少tau，才贡献tau。这是受限时间统计，不是插补完整JCT。
+原运行器沿用旧Accumulator，其restricted_mean_jct按各作业实际观察期裁切；出现不同arrival的删失时不能直接当共同tau RMST。保留原JSON不改，由独立分析另报common_followup_sample_rmst和tau。
+tau完全由冻结上限与最后arrival推导，不根据JCT结果选取；不改变任何执行参数、容量或6000轮观察窗。完整JCT均值和分位数只用于20/20完成配对。

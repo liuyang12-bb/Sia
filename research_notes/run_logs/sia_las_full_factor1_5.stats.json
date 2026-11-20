@@ -1,0 +1,74 @@
+{
+  "average_jct_hours": 0.5871736111111111,
+  "average_jct_seconds": 2113.825,
+  "average_jct_seconds_per_type": {
+    "bert": 1090.6666666666667,
+    "cifar10": 827.6940298507462,
+    "deepspeech2": 2830.5,
+    "imagenet": 31162.666666666668,
+    "yolov3": 14137.714285714286
+  },
+  "average_restarts_per_job": 4.43125,
+  "average_restarts_per_type": {
+    "bert": 1.5,
+    "cifar10": 3.671641791044776,
+    "deepspeech2": 8.7,
+    "imagenet": 15.333333333333334,
+    "yolov3": 10.714285714285714
+  },
+  "capacity_violation_count": 0,
+  "capacity_violations": [],
+  "completed_jobs": 160,
+  "contention_max": 22,
+  "contention_mean": 7.2979274611398965,
+  "gpu_hours_mean_per_job": 3.543541666666677,
+  "gpu_hours_per_job_type_and_gpu": {
+    "bert": {
+      "aws": 0.049999999999999996,
+      "dgx-ext": 0.6222222222222223
+    },
+    "cifar10": {
+      "aws": 0.08631840796019913,
+      "dgx-ext": 0.506467661691541,
+      "rtx": 0.15049751243781065
+    },
+    "deepspeech2": {
+      "aws": 1.3433333333333333,
+      "dgx-ext": 0.6066666666666675,
+      "rtx": 4.28666666666666
+    },
+    "imagenet": {
+      "aws": 0.027777777777777776,
+      "dgx-ext": 37.15555555555594,
+      "rtx": 55.91666666666703
+    },
+    "yolov3": {
+      "aws": 13.61428571428568,
+      "dgx-ext": 1.323809523809524,
+      "rtx": 2.442857142857144
+    }
+  },
+  "jobs": 160,
+  "makespan_hours": 12.744166666666667,
+  "makespan_seconds": 45879.0,
+  "maximum_allocated_gpus": {
+    "aws": 24,
+    "dgx-ext": 16,
+    "rtx": 24
+  },
+  "p99_jct_hours_official_index": 7.845,
+  "p99_jct_seconds_official_index": 28242.0,
+  "queue_max": 0,
+  "queue_mean": 0,
+  "queue_median": 0.0,
+  "records": 772,
+  "scheduling_time": {
+    "policy_rounds_measured": 765,
+    "policy_time_mean_ms": 40.14688888888889,
+    "policy_time_total_seconds": 30.712370000000014,
+    "solver_rounds_measured": 765,
+    "solver_time_mean_ms": 25.98013071895425,
+    "solver_time_p99_ms": 53.54,
+    "solver_time_total_seconds": 19.874800000000008
+  }
+}

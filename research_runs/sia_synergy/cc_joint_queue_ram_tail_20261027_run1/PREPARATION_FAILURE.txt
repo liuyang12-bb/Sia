@@ -1,0 +1,3 @@
+Preparation failed before any training: ModuleNotFoundError joint_prototype.
+The isolated source root was on sys.path but its sia-simulator child was not.
+Runner setup corrected; new run2 directory used. This snapshot is preserved.

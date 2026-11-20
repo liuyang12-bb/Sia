@@ -1,0 +1,34 @@
+{
+  "scenario_id": "scenario_b_elastic_gpu_cpu_limit",
+  "title": "Elastic GPU scale-up is capped by CPU supply",
+  "mechanism": "The elastic job has higher nominal Sia Goodput on two GPUs, while a neutral one-GPU peer consumes part of a four-GPU node. The two-GPU config has a larger synthetic CPU demand scale.",
+  "resource_model_type": "synthetic_cross_hardware_transfer",
+  "mapping_mode": "category_mix",
+  "allocation_bonus": 10.0,
+  "aux_cpu_points": [1.0, 1.5, 2.0, 2.25, 2.5, 3.0, 4.0, 5.0, 6.0],
+  "aux_ram_points": [20.83, 62.5, 125.0],
+  "nodes": [
+    {"node_id": "elastic-0", "gpu_type": "elastic", "gpus": 4, "cpu_cores": 6.0, "ram_gb": 250.0}
+  ],
+  "jobs": [
+    {
+      "job_id": "elastic-target",
+      "template_file": "res18_1.py",
+      "arrival_time": 0,
+      "observed_progress": 0,
+      "configs": [
+        {"config_id": "elastic-1g", "gpu_type": "elastic", "gpus": 1, "num_nodes": 1, "sia_goodput": 1.5, "cpu_demand_scale": 1.0, "memory_demand_scale": 1.0},
+        {"config_id": "elastic-2g", "gpu_type": "elastic", "gpus": 2, "num_nodes": 1, "sia_goodput": 2.0, "cpu_demand_scale": 2.0, "memory_demand_scale": 1.0}
+      ]
+    },
+    {
+      "job_id": "neutral-peer",
+      "template_file": "transformer_1.py",
+      "arrival_time": 0,
+      "observed_progress": 0,
+      "configs": [
+        {"config_id": "peer-1g", "gpu_type": "elastic", "gpus": 1, "num_nodes": 1, "sia_goodput": 0.5, "cpu_demand_scale": 1.0, "memory_demand_scale": 1.0}
+      ]
+    }
+  ]
+}

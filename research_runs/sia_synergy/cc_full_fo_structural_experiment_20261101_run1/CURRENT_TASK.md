@@ -1,0 +1,1 @@
+当前授权：冻结6/8GPU结构场景，先真实FO/FULL 60轮机会门槛；通过后依次执行六格。算法、响应、工作量不变。原源码344文件按SHA校验，完整source_snapshot.zip。新输出不覆盖。内存2GiB/磁盘5GiB；60秒/6000轮。失败保存现场，不能按JCT调参。入口pipeline.py；门槛未通过即停止，不启动完整六格。SYNTHETIC CROSS-HARDWARE TRANSFER — NOT REAL SATURN PERFORMANCE。

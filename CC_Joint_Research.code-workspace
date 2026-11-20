@@ -1,0 +1,22 @@
+{
+  "folders": [
+    {"name": "01 论文与文献", "path": "research_notes/paper/cc_joint_draft_20261101_v1"},
+    {"name": "02 论文主实现 v8（80作业）", "path": "cc-joint-core80-full-lex-repair-v8"},
+    {"name": "03 恢复等效修正版（12作业）", "path": "cc-joint-recovery-equivalent-v1"},
+    {"name": "04 干净机制消融", "path": "cc-joint-clean-ab-r3"},
+    {"name": "05 资源开关基础", "path": "cc-joint-resource-study"},
+    {"name": "06 响应候选基础", "path": "cc-joint-breakpoint-precision"},
+    {"name": "07 早期统一入口", "path": "cc-joint"},
+    {"name": "08 实验原始证据", "path": "research_runs/sia_synergy"},
+    {"name": "09 历史报告", "path": "research_notes/synergy"},
+    {"name": "10 Sia 官方参照", "path": "official-artifacts/sia-simulator"},
+    {"name": "11 Synergy 官方参照", "path": "research_sources/Synergy/simulator"},
+    {"name": "12 本轮整理与恢复", "path": "maintenance/project_organization_20261101_v1"}
+  ],
+  "settings": {
+    "python.defaultInterpreterPath": "D:/科研启航/Sia/.venv-sia-baseline/Scripts/python.exe",
+    "files.exclude": {"**/__pycache__": true, "**/.pytest_cache": true},
+    "search.exclude": {"**/*.jsonl": true, "**/*.jsonl.gz": true, "**/*.zip": true, "**/*.pdf": true},
+    "files.watcherExclude": {"**/*.jsonl": true, "**/*.jsonl.gz": true, "**/*.zip": true, "**/pdf_qa*/**": true}
+  }
+}

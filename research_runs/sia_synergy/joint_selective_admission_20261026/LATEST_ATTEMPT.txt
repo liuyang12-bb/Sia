@@ -1,0 +1,1 @@
+最新结果位于 attempt2/，10/10冻结小规模格均完成并通过原始审计。阅读 attempt2/FINAL_REVIEW.md、attempt2/JOINT_SELECTIVE_ADMISSION_RESULTS.md、attempt2/source_version.json 与 attempt2/delivery_manifest.json。父目录报告/manifest为先前工程通过但内存阻塞的历史版本，保持不改写。正式104仍暂停，本轮已停止，禁止自动追加实验。

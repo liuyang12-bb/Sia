@@ -1,0 +1,21 @@
+{
+  "label": "SIA_P_medium_frozen",
+  "command": [
+    "D:\\科研启航\\Sia\\.venv-sia-baseline\\Scripts\\python.exe",
+    "-X",
+    "utf8",
+    "-B",
+    "D:\\科研启航\\Sia\\maintenance\\cc_joint_cleanup_20261027\\checks.py",
+    "probe",
+    "--variant",
+    "frozen",
+    "--method",
+    "SIA_P",
+    "--response",
+    "medium"
+  ],
+  "cwd": "D:\\科研启航\\Sia\\cc-joint\\sia-simulator",
+  "exit_code": 0,
+  "seconds": 9.831812381744385,
+  "log_sha256": "CD8A57707E2E93F85501CDC160ACEF4909961AA8D7884E2963ECE8989B53D617"
+}

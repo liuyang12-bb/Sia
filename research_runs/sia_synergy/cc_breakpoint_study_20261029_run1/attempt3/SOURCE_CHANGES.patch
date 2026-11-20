@@ -1,0 +1,391 @@
+--- old42/sia-simulator/joint_prototype/completion_continuity.py
++++ new/sia-simulator/joint_prototype/completion_continuity.py
+@@ -45,25 +45,115 @@
+     return rounded
+ 
+ 
++def condition_constraint_bands(constraints):
++    """Algebraically identical power-of-two scaling, never widen a band.
++
++    A2**k/b2**k round-trip bit-for-bit to A/b. Narrow nonzero objective
++    bands are represented at width>=1 for HiGHS; all returned solutions
++    must still pass canonical_integral_solution on the ORIGINAL rows.
++    """
++    from scipy.optimize import LinearConstraint
++    conditioned, exponents = [], []
++    for constraint in constraints:
++        matrix = np.atleast_2d(np.asarray(constraint.A, dtype=float))
++        lower = np.broadcast_to(constraint.lb, (matrix.shape[0],)).copy()
++        upper = np.broadcast_to(constraint.ub, (matrix.shape[0],)).copy()
++        powers = np.zeros(matrix.shape[0], dtype=int)
++        for row in range(matrix.shape[0]):
++            if np.isfinite(lower[row]) and np.isfinite(upper[row]):
++                width = upper[row] - lower[row]
++                if 0 < width < 1e-6:
++                    powers[row] = math.ceil(-math.log2(width))
++        a = np.ldexp(matrix, powers[:, None])
++        lo, hi = np.ldexp(lower, powers), np.ldexp(upper, powers)
++        if (not np.array_equal(np.ldexp(a, -powers[:, None]), matrix)
++                or not np.array_equal(np.ldexp(lo, -powers), lower)
++                or not np.array_equal(np.ldexp(hi, -powers), upper)):
++            raise RuntimeError('NONREVERSIBLE_NUMERICAL_CONDITIONING')
++        conditioned.append(LinearConstraint(a, lo, hi))
++        exponents.append(powers.tolist())
++    return conditioned, exponents
++
++
++def objective_solver_units(cost):
++    """Common positive units, derived from the existing primary half-band.
++
++    Only fractional coefficient vectors need this unit conversion. Every
++    relative coefficient and feasible allocation ordering is unchanged.
++    Solver options are not changed. Returned fun is restored to original units.
++    """
++    original = np.asarray(cost, dtype=float)
++    if original.ndim != 1 or not np.all(np.isfinite(original)):
++        raise ValueError('INVALID_OBJECTIVE_COEFFICIENTS')
++    power = 0 if np.array_equal(original, np.rint(original)) else math.ceil(-math.log2(1e-9))
++    converted = np.ldexp(original, power)
++    if not np.all(np.isfinite(converted)) or not np.array_equal(np.ldexp(converted, -power), original):
++        raise ValueError('NONREVERSIBLE_OBJECTIVE_UNITS')
++    return converted, float(2. ** power)
++
++
+ class NumericalAdmission(ProtectedAdmission):
++    def _decide(self, *args):
++        self.objective_unit_certifications = []
++        result = super()._decide(*args)
++        result.audit['objective_unit_certifications'] = self.objective_unit_certifications
++        return result
++
+     def _milp(self, cost, columns, constraints):
++        backend_cost, cost_scale = objective_solver_units(cost)
++        if cost_scale > 1:
++            if not hasattr(self, 'objective_unit_certifications'):
++                self.objective_unit_certifications = []
++            self.objective_unit_certifications.append(dict(scale=cost_scale,
++                source='EXISTING_PRIMARY_HALF_BAND_1E_MINUS9', reversible=True,
++                relative_weights_unchanged=True, solver_options_unchanged=True))
++        diagnostic = None
+         try:
+-            return super()._milp(cost, columns, constraints)
++            result = super()._milp(backend_cost, columns, constraints)
+         except RuntimeError as exc:
+             d = getattr(exc, 'solver_diagnostics', None)
+             if (str(exc) != 'INVALID_SOLVER_RESULT_AFTER_NUMERICAL_RETRY'
+                     or not d or d.get('retry_status') != 0 or d.get('retry_x') is None):
+                 raise
++            diagnostic = d
++            result = OptimizeResult(x=np.asarray(d['retry_x']), status=0,
++                                    success=True, message=d['retry_message'])
++        if result.status != 0 or not result.success or result.x is None:
++            return result
++        try:
++            rounded = canonical_integral_solution(result.x, constraints)
++        except ValueError:
++            # Never accept a secondary solution outside the original primary
++            # band, even when a broad resource tolerance would permit it.
++            from scipy.optimize import Bounds
++            from . import adaptive_service as solver_backend
++            conditioned, powers = condition_constraint_bands(constraints)
++            if not any(any(k > 0 for k in row) for row in powers):
++                raise RuntimeError('INVALID_SOLVER_RESULT_WITHOUT_CONDITIONABLE_BAND')
++            options = dict(time_limit=30., mip_rel_gap=0., presolve=False)
++            retried = solver_backend.milp(c=backend_cost, integrality=np.ones(len(columns)),
++                bounds=Bounds(np.zeros(len(columns)), np.ones(len(columns))),
++                constraints=conditioned, options=options)
++            record = dict(reformulation='REVERSIBLE_POWER_OF_TWO_ROW_SCALING',
++                row_exponents=powers, solver_options=options,
++                objective_unit_scale=cost_scale,
++                status=int(retried.status), message=str(retried.message),
++                unscaled_original_rows_validated=False)
++            self.numerical_solver_retries.append(record)
++            if retried.status != 0 or not retried.success or retried.x is None:
++                raise RuntimeError('CONDITIONED_SOLVER_NO_OPTIMAL_SOLUTION')
+             try:
+-                rounded = canonical_integral_solution(d['retry_x'], constraints)
+-            except ValueError:
+-                raise exc
+-            d.update(canonical_binary_accepted=True, canonical_x=rounded.tolist(),
+-                canonicalization='NEAR_BINARY_1E6_THEN_UNCHANGED_ALL_ROW_AUDIT',
+-                primary_and_secondary_rows_preserved=True)
+-            return OptimizeResult(x=rounded, status=0, success=True,
+-                fun=float(np.dot(cost, rounded)),
+-                message=d['retry_message']+'; validated canonical binary vector')
++                rounded = canonical_integral_solution(retried.x, constraints)
++            except ValueError as exc:
++                raise RuntimeError('CONDITIONED_SOLUTION_FAILS_ORIGINAL_ROWS') from exc
++            record['unscaled_original_rows_validated'] = True
++            result = retried
++        if diagnostic is not None:
++            diagnostic.update(canonical_binary_accepted=True,
++                canonical_x=rounded.tolist(), primary_and_secondary_rows_preserved=True)
++        return OptimizeResult(x=rounded, status=0, success=True,
++            fun=float(np.dot(cost, rounded)),
++            message=str(result.message)+'; integer vector validated on original rows')
+ 
+ 
+ class ContinuityAdmission(NumericalAdmission):
+--- old42/sia-simulator/joint_prototype/joint_scheduler.py
++++ new/sia-simulator/joint_prototype/joint_scheduler.py
+@@ -298,6 +298,17 @@
+             raise RuntimeError(f"INFEASIBLE_CHECKPOINT_LOCK: {audit}")
+         return selected
+ 
++    def resource_points(self, job, config, placement):
++        """Current trusted candidate contract, defaulting to the historical grid.
++
++        An opt-in provider changes candidate representation only. Generation,
++        refresh and final audit derive eligibility from this same contract.
++        """
++        provider = getattr(self, "resource_point_provider", None)
++        if provider is None:
++            return self.aux_cpu_points, self.aux_ram_points
++        return provider(self, job, config, placement)
++
+     def build_joint_columns(
+         self, allowed_configs: Mapping[str, Iterable[str]] | None = None
+     ) -> List[JointColumn]:
+@@ -325,12 +336,13 @@
+                     prop_query = self.oracle.query(
+                         job, config, execution_floor[0], execution_floor[1], prop
+                     )
++                    current_cpu_points, current_ram_points = self.resource_points(job, config, placement)
+                     cpu_points = sorted(
+-                        point for point in set(self.aux_cpu_points + (execution_floor[0],))
++                        point for point in set(current_cpu_points + (execution_floor[0],))
+                         if point + 1e-9 >= self.minimum_cpu_per_gpu
+                     )
+                     ram_points = sorted(
+-                        point for point in set(self.aux_ram_points + (execution_floor[1],))
++                        point for point in set(current_ram_points + (execution_floor[1],))
+                         if point + 1e-9 >= self.minimum_ram_gb_per_gpu
+                     )
+                     for cpu, ram in itertools.product(cpu_points, ram_points):
+@@ -697,7 +709,8 @@
+                         violations.append(f"non-proportional candidate {col.job_id}")
+                     # Normal eligibility derives from policy, not the label.
+                     if self.candidate_policy in {"b3", "b4"}:
+-                        if point[0] not in self.aux_cpu_points + (floor[0],) or point[1] not in self.aux_ram_points + (floor[1],):
++                        current_cpu_points, current_ram_points = self.resource_points(job, col.config, col.placement)
++                        if point[0] not in current_cpu_points + (floor[0],) or point[1] not in current_ram_points + (floor[1],):
+                             violations.append(f"quota outside current candidate grid {col.job_id}")
+                         baseline = self.oracle.query(job, col.config, *floor, prop)
+                         if self.enforce_floor and col.query.effective_goodput + 1e-9 < baseline.effective_goodput:
+--- /dev/null
++++ new/breakpoint_study.py
+@@ -0,0 +1,69 @@
++"""Candidate-only opt-in: inverse source knots and feasible peer complements.
++
++No new response values, no target/arrival/work modification. Registry peers
++are the full fixed offline application domain, never a future job queue.
++"""
++import math,types
++import numpy as np
++from resource_study import build as original_build
++from joint_prototype.joint_profile import CPU_COORDS,RAM_COORDS
++
++VERSION='SOURCE_SLOPE_KNOTS_PLUS_ONE_PEER_COMPLEMENTS_V1'
++def slope_knots(matrix,axis,dimension):
++    a=np.asarray(matrix,dtype=float)
++    if dimension==1:a=a.T
++    slopes=np.diff(a,axis=0)/np.diff(axis)[:,None]
++    return tuple(float(axis[i]) for i in range(len(axis)) if i in (0,len(axis)-1)
++                 or np.any(np.abs(slopes[i]-slopes[i-1])>1e-12))
++
++def resource_points(scheduler,job,config,placement):
++    oracle=scheduler.oracle
++    cpu_enabled=getattr(scheduler,'breakpoint_cpu_enabled',True)
++    ram_enabled=getattr(scheduler,'breakpoint_ram_enabled',True)
++    own=oracle.reference(job.job_id,config.config_id)
++    template=oracle.template(job.template_file)
++    axes=(CPU_COORDS,RAM_COORDS)
++    base=(scheduler.aux_cpu_points,scheduler.aux_ram_points)
++    scales=(own['phi_c'],own['phi_m'])
++    key=(job.template_file,config.config_id,scales,placement.node_gpus,
++         tuple((n.node_id,n.cpu_cores,n.ram_gb,n.gpus) for n in scheduler.nodes),
++         cpu_enabled,ram_enabled,base)
++    cache=getattr(oracle,'_breakpoint_points_cache',None)
++    if cache is None:cache={};oracle._breakpoint_points_cache=cache
++    if key in cache:return cache[key]
++    out=[]
++    for dim,enabled in enumerate((cpu_enabled,ram_enabled)):
++        values=set(base[dim])
++        if enabled:
++            values.update(k*scales[dim] for k in slope_knots(template.matrix,axes[dim],dim))
++            for node_id,g in placement.node_gpus:
++                node=scheduler.node_map[node_id]
++                capacity=node.cpu_cores if dim==0 else node.ram_gb
++                for ref in oracle.registry.values():
++                    cid=ref['key'].split('/',1)[1];typ,nn,gg=cid.split(':');gg=int(gg)
++                    if typ!=config.gpu_type or int(nn)!=1 or g+gg>node.gpus:continue
++                    peer=oracle.template(ref['template'])
++                    scale=ref['phi_c'] if dim==0 else ref['phi_m']
++                    for knot in slope_knots(peer.matrix,axes[dim],dim):
++                        values.add((capacity-gg*scale*knot)/g)
++        # Preserve exact floats and original points. No result-based rounding.
++        minimum=scheduler.minimum_cpu_per_gpu if dim==0 else scheduler.minimum_ram_gb_per_gpu
++        out.append(tuple(sorted(v for v in values if math.isfinite(v) and v>=minimum and v>0)))
++    cache[key]=tuple(out)
++    return cache[key]
++
++def install(cluster,method):
++    if method in ('SIA_P','CC_P'):return cluster
++    old=cluster.policy._scheduler
++    def make(self,nodes,specs):
++        s=old(nodes,specs)
++        s.breakpoint_cpu_enabled=method!='CC_MEM'
++        s.breakpoint_ram_enabled=method!='CC_CPU'
++        s.resource_point_provider=resource_points
++        s.breakpoint_candidate_version=VERSION
++        return s
++    cluster.policy._scheduler=types.MethodType(make,cluster.policy)
++    return cluster
++
++def build(method,scenario,response='medium',workload_path=None):
++    return install(original_build(method,scenario,response,workload_path),method)
+--- /dev/null
++++ new/sia-simulator/tests/test_breakpoint_candidates.py
+@@ -0,0 +1,54 @@
++import unittest,sys
++from pathlib import Path
++from dataclasses import replace
++ROOT=Path(__file__).resolve().parents[2]
++sys.path.insert(0,str(ROOT))
++from breakpoint_study import resource_points,slope_knots
++from joint_prototype.r0_liveness import R0Oracle,APPLICATION_TEMPLATES
++from joint_prototype.joint_profile import JobSpec,GpuConfig,NodeSpec
++from joint_prototype.joint_scheduler import Placement
++from joint_prototype.neutral_liveness import FactorScheduler
++from resource_study import ORIGINAL_CPU,ORIGINAL_RAM
++
++class BreakpointCandidates(unittest.TestCase):
++ def setUp(self):
++  self.o=R0Oracle(ROOT/'inputs/registry.json',ROOT/'inputs/models',{'cf':'cifar10','ds':'deepspeech2'},'medium')
++  self.jobs=[]
++  for name,app in [('cf','cifar10'),('ds','deepspeech2')]:
++   r=self.o.reference(name,'dgx-ext:1:1')
++   g=GpuConfig('dgx-ext:1:1','dgx-ext',1,1,1.,r['phi_c'],r['phi_m'])
++   self.jobs.append(JobSpec(name,APPLICATION_TEMPLATES[app],(g,)))
++  self.s=FactorScheduler([NodeSpec('dgx-ext:0','dgx-ext',2,12.,187.5)],self.jobs,self.o,
++       ORIGINAL_CPU,ORIGINAL_RAM,enforce_proportional_progress_floor=False,verify_exact=False,candidate_policy='b3')
++  self.p=Placement((('dgx-ext:0',1),))
++ def test_breakpoint_and_complement_are_generated_and_audited(self):
++  self.s.resource_point_provider=resource_points
++  cols=self.s.build_joint_columns()
++  r=self.o.reference('cf','dgx-ext:1:1');knot=62.5*r['phi_m'];other=187.5-knot
++  cf=next(c for c in cols if c.job_id=='cf' and c.query.cpu_per_gpu==6. and c.query.ram_gb_per_gpu==knot)
++  ds=next(c for c in cols if c.job_id=='ds' and c.query.cpu_per_gpu==6. and c.query.ram_gb_per_gpu==other)
++  self.assertTrue(self.s.audit([cf,ds])['valid'])
++  self.assertFalse(cf.query.source_coordinate_clipped or cf.query.baseline_coordinate_clipped)
++  self.assertFalse(ds.query.source_coordinate_clipped or ds.query.baseline_coordinate_clipped)
++ def test_default_grid_and_forged_quota_stay_rejected(self):
++  cols=self.s.build_joint_columns();self.assertTrue(cols)
++  r=self.o.reference('cf','dgx-ext:1:1');knot=62.5*r['phi_m']
++  self.assertFalse(any(c.query.ram_gb_per_gpu==knot for c in cols))
++  col=cols[0];q=self.o.query(self.s.job_map[col.job_id],col.config,6.,101.2345,(6.,93.75))
++  fake=replace(col,query=q,node_usage=self.s._node_usage(col.placement,6.,101.2345))
++  self.s.resource_point_provider=resource_points
++  self.assertFalse(self.s.audit([fake])['valid'])
++ def test_axis_ablation_remains_literal(self):
++  self.s.aux_cpu_points=(6.,);self.s.breakpoint_cpu_enabled=False
++  self.s.resource_point_provider=resource_points
++  self.assertTrue(all(c.query.cpu_per_gpu==6. for c in self.s.build_joint_columns()))
++ def test_source_slopes_no_new_response_or_lookahead(self):
++  matrix=self.o.template('alexnet_1.py').matrix
++  from joint_prototype.joint_profile import RAM_COORDS
++  self.assertIn(62.5,slope_knots(matrix,RAM_COORDS,1))
++  before=self.o.provenance_digest()
++  a=resource_points(self.s,self.jobs[0],self.jobs[0].configs[0],self.p)
++  b=resource_points(self.s,replace(self.jobs[0],arrival_time=999,observed_progress=100),self.jobs[0].configs[0],self.p)
++  self.assertEqual(a,b);self.assertEqual(before,self.o.provenance_digest())
++
++if __name__=='__main__':unittest.main()
+--- /dev/null
++++ new/sia-simulator/tests/test_breakpoint_numeric_conditioning.py
+@@ -0,0 +1,50 @@
++"""Actual74-column red fixture, reversible conditioning, strict-row protection."""
++import gzip,importlib,json,unittest
++from pathlib import Path
++from types import SimpleNamespace
++from unittest.mock import patch
++import numpy as np
++from scipy.optimize import LinearConstraint,OptimizeResult
++
++class BreakpointConditioning(unittest.TestCase):
++ def admission(self):
++  m=importlib.import_module('joint_prototype.completion_continuity')
++  a=m.NumericalAdmission(300.,250.,60.);a._diagnostic_job_order=[];a.numerical_solver_retries=[]
++  return m,a
++ def fixture(self):
++  p=Path(__file__).parent/'fixtures/breakpoint_primary_band_failure.json.gz'
++  return json.loads(gzip.open(p,'rt',encoding='utf8').read())
++ def test_actual_failed74_column_model_obeys_original_rows(self):
++  m,a=self.admission();d=self.fixture();model=d['model']
++  cols=[SimpleNamespace(job_id=v['job'],column_id=v['column_id']) for v in model['columns']]
++  constraints=[LinearConstraint(v['A'],v['lb'],v['ub']) for v in model['constraints']]
++  out=a._milp(np.array(model['c']),cols,constraints)
++  self.assertEqual(out.status,0);x=m.canonical_integral_solution(out.x,constraints)
++  self.assertTrue(np.all((x==0)|(x==1)))
++ def test_power_two_transformation_is_bit_reversible_and_preserves_input(self):
++  m,_=self.admission();d=self.fixture();model=d['model']
++  rows=[LinearConstraint(v['A'],v['lb'],v['ub']) for v in model['constraints']]
++  before=[(np.asarray(v.A).copy(),np.asarray(v.lb).copy(),np.asarray(v.ub).copy()) for v in rows]
++  scaled,exp=m.condition_constraint_bands(rows)
++  self.assertTrue(any(any(e>0 for e in row) for row in exp))
++  for original,new,exps,old in zip(rows,scaled,exp,before):
++   self.assertTrue(np.array_equal(np.ldexp(np.asarray(new.A),-np.asarray(exps)[:,None]),np.atleast_2d(original.A)))
++   for a,b in zip((original.A,original.lb,original.ub),old):self.assertTrue(np.array_equal(a,b))
++ def test_success_status_cannot_hide_small_primary_band_violation(self):
++  m,a=self.admission();rows=[LinearConstraint([[1.,1.000000015]],1.000000014,1.000000016)]
++  cols=[SimpleNamespace(job_id='a',column_id='a'),SimpleNamespace(job_id='b',column_id='b')]
++  bad=OptimizeResult(status=0,success=True,x=np.array([1.,0.]),fun=0.,message='injected within loose resource tolerance but outside primary band')
++  with patch('joint_prototype.bundle_adaptation.BundleAdmission._milp',return_value=bad):
++   try:out=a._milp(np.zeros(2),cols,rows)
++   except RuntimeError as exc:
++    # Conditioning is not guaranteed to cure every numerical model. A clear
++    # stop is correct; a status0 vector outside the primary band is not.
++    self.assertIn(str(exc),['CONDITIONED_SOLVER_NO_OPTIMAL_SOLUTION','CONDITIONED_SOLUTION_FAILS_ORIGINAL_ROWS'])
++   else:
++    x=m.canonical_integral_solution(out.x,rows)
++    self.assertEqual(x.tolist(),[0.,1.])
++ def test_illegal_resource_vector_still_cannot_be_canonicalized(self):
++  m,_=self.admission()
++  with self.assertRaises(ValueError):m.canonical_integral_solution([1.,1.],[LinearConstraint([[1.,1.]],-np.inf,1.)])
++
++if __name__=='__main__':unittest.main()
+--- /dev/null
++++ new/sia-simulator/tests/test_breakpoint_objective_units.py
+@@ -0,0 +1,32 @@
++"""Original feasible incumbent disproves loose 'optimal'; numeric units only."""
++import gzip,importlib,json,unittest
++from pathlib import Path
++from types import SimpleNamespace
++import numpy as np
++from scipy.optimize import LinearConstraint
++
++class ObjectiveUnits(unittest.TestCase):
++ def module(self):return importlib.import_module('joint_prototype.completion_continuity')
++ def test_common_units_roundtrip_and_relative_coefficients_preserved(self):
++  original=np.array([0.,-.913,1e-8,-1.]);scaled,k=self.module().objective_solver_units(original)
++  self.assertEqual(k,2.**30);self.assertTrue(np.array_equal(scaled/k,original))
++  self.assertTrue(np.array_equal(original,np.array([0.,-.913,1e-8,-1.])))
++ def test_integer_tie_costs_need_no_unit_change(self):
++  original=np.array([0.,-1.,1.,25.,99.]);scaled,k=self.module().objective_solver_units(original)
++  self.assertEqual(k,1.);self.assertTrue(np.array_equal(original,scaled))
++ def test_nonfinite_objective_stops_not_zeroed(self):
++  for v in [[0.,float('nan')],[float('inf'),1.]]:
++   with self.assertRaises(ValueError):self.module().objective_solver_units(v)
++ def test_recorded_primary_meets_known_better_feasible_incumbent(self):
++  m=self.module();p=Path(__file__).parent/'fixtures'
++  d=json.loads(gzip.open(p/'breakpoint_primary_band_failure.json.gz','rt',encoding='utf8').read());proof=json.loads((p/'breakpoint_primary_precision.json').read_text())
++  data=d['model'];weights=np.asarray(data['constraints'][1]['A']).reshape(-1)
++  rows=[LinearConstraint(data['constraints'][0]['A'],data['constraints'][0]['lb'],data['constraints'][0]['ub'])]
++  cols=[SimpleNamespace(job_id=c['job'],column_id=c['column_id']) for c in data['columns']]
++  a=m.NumericalAdmission(300.,250.,60.);a._diagnostic_job_order=[];a.numerical_solver_retries=[]
++  out=a._milp(-weights,cols,rows);x=m.canonical_integral_solution(out.x,rows)
++  self.assertGreaterEqual(float(weights@x)+1e-10,proof['known_feasible_baseline'])
++  self.assertAlmostEqual(out.fun,float(-weights@x),places=12)
++  self.assertGreater(len(a.objective_unit_certifications),0)
++
++if __name__=='__main__':unittest.main()

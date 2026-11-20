@@ -1,0 +1,62 @@
+{
+  "valid": true,
+  "training_experiment": false,
+  "pairs": [
+    {
+      "method": "SIA_P",
+      "response": "neutral",
+      "exact": true,
+      "jobs": 2,
+      "rounds": 5
+    },
+    {
+      "method": "SIA_P",
+      "response": "medium",
+      "exact": true,
+      "jobs": 2,
+      "rounds": 5
+    },
+    {
+      "method": "SIA_ECT_AUX",
+      "response": "neutral",
+      "exact": true,
+      "jobs": 2,
+      "rounds": 5
+    },
+    {
+      "method": "SIA_ECT_AUX",
+      "response": "medium",
+      "exact": true,
+      "jobs": 2,
+      "rounds": 5
+    },
+    {
+      "method": "JOINT_CC_P",
+      "response": "neutral",
+      "exact": true,
+      "jobs": 2,
+      "rounds": 5
+    },
+    {
+      "method": "JOINT_CC_P",
+      "response": "medium",
+      "exact": true,
+      "jobs": 2,
+      "rounds": 5
+    },
+    {
+      "method": "JOINT_CC",
+      "response": "neutral",
+      "exact": true,
+      "jobs": 2,
+      "rounds": 5
+    },
+    {
+      "method": "JOINT_CC",
+      "response": "medium",
+      "exact": true,
+      "jobs": 2,
+      "rounds": 5
+    }
+  ]
+}

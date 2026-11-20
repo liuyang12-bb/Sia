@@ -1,0 +1,206 @@
+[
+  {
+    "Name": "cc-joint",
+    "Attributes": 16,
+    "LinkType": null,
+    "Target": null
+  },
+  {
+    "Name": "cc-joint-ample-lex-repair",
+    "Attributes": 16,
+    "LinkType": null,
+    "Target": null
+  },
+  {
+    "Name": "cc-joint-bounded-correction-v1",
+    "Attributes": 16,
+    "LinkType": null,
+    "Target": null
+  },
+  {
+    "Name": "cc-joint-breakpoint-conditioned",
+    "Attributes": 16,
+    "LinkType": null,
+    "Target": null
+  },
+  {
+    "Name": "cc-joint-breakpoint-conditioned-r2",
+    "Attributes": 16,
+    "LinkType": null,
+    "Target": null
+  },
+  {
+    "Name": "cc-joint-breakpoint-precision",
+    "Attributes": 16,
+    "LinkType": null,
+    "Target": null
+  },
+  {
+    "Name": "cc-joint-breakpoint-study",
+    "Attributes": 16,
+    "LinkType": null,
+    "Target": null
+  },
+  {
+    "Name": "cc-joint-clean-ab",
+    "Attributes": 16,
+    "LinkType": null,
+    "Target": null
+  },
+  {
+    "Name": "cc-joint-clean-ab-r2",
+    "Attributes": 16,
+    "LinkType": null,
+    "Target": null
+  },
+  {
+    "Name": "cc-joint-clean-ab-r3",
+    "Attributes": 16,
+    "LinkType": null,
+    "Target": null
+  },
+  {
+    "Name": "cc-joint-competition-v1",
+    "Attributes": 16,
+    "LinkType": null,
+    "Target": null
+  },
+  {
+    "Name": "cc-joint-core80-8h",
+    "Attributes": 16,
+    "LinkType": null,
+    "Target": null
+  },
+  {
+    "Name": "cc-joint-core80-8h-v2",
+    "Attributes": 16,
+    "LinkType": null,
+    "Target": null
+  },
+  {
+    "Name": "cc-joint-core80-8h-v3",
+    "Attributes": 16,
+    "LinkType": null,
+    "Target": null
+  },
+  {
+    "Name": "cc-joint-core80-full-lex-repair-v4",
+    "Attributes": 16,
+    "LinkType": null,
+    "Target": null
+  },
+  {
+    "Name": "cc-joint-core80-full-lex-repair-v5",
+    "Attributes": 16,
+    "LinkType": null,
+    "Target": null
+  },
+  {
+    "Name": "cc-joint-core80-full-lex-repair-v6",
+    "Attributes": 16,
+    "LinkType": null,
+    "Target": null
+  },
+  {
+    "Name": "cc-joint-core80-full-lex-repair-v7",
+    "Attributes": 16,
+    "LinkType": null,
+    "Target": null
+  },
+  {
+    "Name": "cc-joint-core80-full-lex-repair-v8",
+    "Attributes": 16,
+    "LinkType": null,
+    "Target": null
+  },
+  {
+    "Name": "cc-joint-core80-repair",
+    "Attributes": 16,
+    "LinkType": null,
+    "Target": null
+  },
+  {
+    "Name": "cc-joint-core80-repair-v2",
+    "Attributes": 16,
+    "LinkType": null,
+    "Target": null
+  },
+  {
+    "Name": "cc-joint-core80-repair-v3",
+    "Attributes": 16,
+    "LinkType": null,
+    "Target": null
+  },
+  {
+    "Name": "cc-joint-fo-audit-repair-v2",
+    "Attributes": 16,
+    "LinkType": null,
+    "Target": null
+  },
+  {
+    "Name": "cc-joint-mismatch-v1",
+    "Attributes": 16,
+    "LinkType": null,
+    "Target": null
+  },
+  {
+    "Name": "cc-joint-persistent-v1",
+    "Attributes": 16,
+    "LinkType": null,
+    "Target": null
+  },
+  {
+    "Name": "cc-joint-policy-rollout-v3",
+    "Attributes": 16,
+    "LinkType": null,
+    "Target": null
+  },
+  {
+    "Name": "cc-joint-queue-ablation",
+    "Attributes": 16,
+    "LinkType": null,
+    "Target": null
+  },
+  {
+    "Name": "cc-joint-recovery-equivalent-v1",
+    "Attributes": 16,
+    "LinkType": null,
+    "Target": null
+  },
+  {
+    "Name": "cc-joint-release-evaluation-v1",
+    "Attributes": 16,
+    "LinkType": null,
+    "Target": null
+  },
+  {
+    "Name": "cc-joint-release-reconfig-v2",
+    "Attributes": 16,
+    "LinkType": null,
+    "Target": null
+  },
+  {
+    "Name": "cc-joint-residual-capacity-v1",
+    "Attributes": 16,
+    "LinkType": null,
+    "Target": null
+  },
+  {
+    "Name": "cc-joint-resource-study",
+    "Attributes": 16,
+    "LinkType": null,
+    "Target": null
+  },
+  {
+    "Name": "cc-joint-tail-recovery",
+    "Attributes": 16,
+    "LinkType": null,
+    "Target": null
+  },
+  {
+    "Name": "cc-joint-uncertainty-v4",
+    "Attributes": 16,
+    "LinkType": null,
+    "Target": null
+  }
+]

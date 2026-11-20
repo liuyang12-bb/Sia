@@ -1,0 +1,17 @@
+{
+  "status": "PASS",
+  "utc": "2026-11-02T04:24:47.516560+00:00",
+  "protected_content_files_unchanged": 3975,
+  "historical_result_files_size_mtime_unchanged": 19158,
+  "paper_delivery_files_unchanged": 123,
+  "archived_trees": 28,
+  "archived_files": 8797,
+  "workspace_folders_valid": 12,
+  "source_backed_cache_files_removed": 10636,
+  "net_content_MiB_freed": 566.83,
+  "archive_sha256": "1A694484E00A56FC1B4AFD9DFE254A0FC0B67C2D34E6E65ACE9E936C962D2955",
+  "algorithm_changes": false,
+  "new_simulations": 0,
+  "git_note": "Workspace root and CC snapshots are not Git repositories; no reset/clean/commit/push used.",
+  "validation_limit": "Historical logs checked by exact file list, size and nanosecond mtime; not all 16.4 GiB rehashed."
+}

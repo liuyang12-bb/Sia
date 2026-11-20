@@ -1,0 +1,86 @@
+{
+  "afs_state": {
+    "events_with_unmapped_jobs": 0,
+    "reason_counts": {},
+    "records": 0,
+    "stage_counts": {}
+  },
+  "average_jct_seconds": 1393.4,
+  "average_jct_seconds_per_app": {
+    "cifar10": 689.6666666666666,
+    "deepspeech2": 2510.5,
+    "yolov3": 7481.0
+  },
+  "average_restarts_per_app": {
+    "cifar10": 3.2666666666666666,
+    "deepspeech2": 7.75,
+    "yolov3": 7
+  },
+  "average_restarts_per_job": 4.35,
+  "capacity_violation_count": 0,
+  "capacity_violations": [],
+  "completed_jobs": 20,
+  "completion_fraction": 1.0,
+  "contention_max": 10,
+  "contention_mean": 3.1073825503355703,
+  "gpu_hours_by_type": {
+    "aws": 6.300000000000002,
+    "dgx-ext": 35.333333333333236,
+    "rtx": 23.016666666666634
+  },
+  "gpu_hours_mean_per_job": 3.2324999999999933,
+  "gpu_type_share_fraction": {
+    "aws": 0.09744779582366613,
+    "dgx-ext": 0.5465326114978084,
+    "rtx": 0.3560195926785256
+  },
+  "jobs": 20,
+  "makespan_seconds": 8528.0,
+  "maximum_allocated_gpus": {
+    "aws": 24,
+    "dgx-ext": 16,
+    "rtx": 24
+  },
+  "p95_jct_seconds_official_index": 7481.0,
+  "p99_jct_seconds_official_index": 7481.0,
+  "queue_max": 0,
+  "queue_mean": 0,
+  "queue_median": 0,
+  "records": 149,
+  "scheduling_time": {
+    "afs_mapping_rounds": 0,
+    "afs_mapping_time_mean_ms": null,
+    "afs_mapping_time_p99_ms": null,
+    "afs_mapping_time_total_seconds": 0.0,
+    "policy_rounds_measured": 142,
+    "policy_time_mean_ms": 17.23176056338028,
+    "policy_time_p99_ms": 27.95,
+    "policy_time_total_seconds": 2.4469100000000004,
+    "solver_rounds_measured": 142,
+    "solver_time_mean_ms": 13.781760563380281,
+    "solver_time_p99_ms": 24.18,
+    "solver_time_total_seconds": 1.95701
+  },
+  "task_jct_seconds": {
+    "cifar10-0": 557.0,
+    "cifar10-1": 586.0,
+    "cifar10-10": 621.0,
+    "cifar10-11": 655.0,
+    "cifar10-13": 793.0,
+    "cifar10-14": 924.0,
+    "cifar10-15": 668.0,
+    "cifar10-17": 949.0,
+    "cifar10-18": 676.0,
+    "cifar10-19": 679.0,
+    "cifar10-2": 583.0,
+    "cifar10-3": 674.0,
+    "cifar10-4": 663.0,
+    "cifar10-5": 649.0,
+    "cifar10-6": 668.0,
+    "deepspeech2-12": 2569.0,
+    "deepspeech2-16": 2409.0,
+    "deepspeech2-8": 2358.0,
+    "deepspeech2-9": 2706.0,
+    "yolov3-7": 7481.0
+  }
+}

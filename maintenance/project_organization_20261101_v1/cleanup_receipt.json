@@ -1,0 +1,11 @@
+{
+  "removed_cache_bytes": 137567006.0,
+  "removed_cache_files": 10636,
+  "archived_source_bytes": 642752941,
+  "archive_bytes": 185950777,
+  "utc": "2026-11-02T04:24:25.1137531Z",
+  "archive_sha256": "1A694484E00A56FC1B4AFD9DFE254A0FC0B67C2D34E6E65ACE9E936C962D2955",
+  "status": "COMPLETED",
+  "net_content_bytes_freed": 594369170.0,
+  "archived_trees": 28
+}

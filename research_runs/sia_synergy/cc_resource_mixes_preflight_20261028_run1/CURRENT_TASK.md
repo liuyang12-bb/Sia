@@ -1,0 +1,1 @@
+COMPLETE_OFFLINE_ONLY. REPORT.md contains supported CPU/RAM opportunities and full-domain denominator gap. 42-cell batch NOT started or approved. Historical algorithms and results protected. Stop for review.

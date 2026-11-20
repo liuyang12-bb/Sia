@@ -1,0 +1,21 @@
+{
+  "label": "JOINT_CC_neutral_frozen",
+  "command": [
+    "D:\\科研启航\\Sia\\.venv-sia-baseline\\Scripts\\python.exe",
+    "-X",
+    "utf8",
+    "-B",
+    "D:\\科研启航\\Sia\\maintenance\\cc_joint_cleanup_20261027\\checks.py",
+    "probe",
+    "--variant",
+    "frozen",
+    "--method",
+    "JOINT_CC",
+    "--response",
+    "neutral"
+  ],
+  "cwd": "D:\\科研启航\\Sia\\cc-joint\\sia-simulator",
+  "exit_code": 0,
+  "seconds": 8.258957386016846,
+  "log_sha256": "96A62E6A9A0CBEF3449F984BFDABB70F5ACF2B7B1DDBD9D3D01A56B2971D22C1"
+}

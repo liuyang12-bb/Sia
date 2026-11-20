@@ -1,0 +1,8 @@
+test_default_log_schema_is_unchanged (test_preemption_audit.PreemptionAuditTest) ... ok
+test_enabling_audit_only_appends_a_top_level_field (test_preemption_audit.PreemptionAuditTest) ... ok
+test_job_state_distinguishes_restore_from_training (test_preemption_audit.PreemptionAuditTest) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.019s
+
+OK

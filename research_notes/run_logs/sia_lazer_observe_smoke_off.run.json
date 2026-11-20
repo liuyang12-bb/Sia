@@ -1,0 +1,5 @@
+﻿{
+    "exit_code":  0,
+    "elapsed_seconds":  79.5892966,
+    "command":  "multi_simulator.py D:\\科研启航\\Sia\\research_runs\\sia_las_weighted\\traces\\workload-1-first20.csv --policy=sia --policy_p_val=-0.5 --mip_lambda_a=0.01 --mip_lambda_n=1.1 --interval=60 --project_throughputs --share_max_replicas --output=D:\\科研启航\\Sia\\research_runs\\sia_lazer_observe\\smoke\\off\\workload-1-first20.log"
+}

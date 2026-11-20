@@ -1,0 +1,15 @@
+ sia-simulator/check_stage1_legacy_regression.py    |  65 +++++
+ sia-simulator/job.py                               |  23 ++
+ sia-simulator/joint_prototype/execution_audit.py   |  39 +++
+ sia-simulator/joint_prototype/joint_integration.py | 107 +++++++-
+ sia-simulator/joint_prototype/joint_profile.py     |   5 +
+ sia-simulator/joint_prototype/joint_scheduler.py   | 123 ++++++++-
+ sia-simulator/joint_prototype/synergy_adapter.py   |  17 +-
+ sia-simulator/preflight_stage1_response.py         | 237 ++++++++++++++++++
+ sia-simulator/run_cpu_bottleneck_smoke.py          |  16 +-
+ sia-simulator/tests/test_b3_failure_handling.py    |   3 +
+ sia-simulator/tests/test_b3_prop_ablation.py       |   3 +
+ .../tests/test_joint_integration_coverage.py       |   6 +-
+ sia-simulator/tests/test_joint_prototype.py        |   3 +
+ sia-simulator/tests/test_stage1_correctness.py     | 274 +++++++++++++++++++++
+ 14 files changed, 899 insertions(+), 22 deletions(-)

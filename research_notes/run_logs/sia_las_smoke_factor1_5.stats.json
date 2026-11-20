@@ -1,0 +1,61 @@
+{
+  "average_jct_hours": 0.38130555555555556,
+  "average_jct_seconds": 1372.7,
+  "average_jct_seconds_per_type": {
+    "cifar10": 624.4,
+    "deepspeech2": 2463.5,
+    "yolov3": 8234.0
+  },
+  "average_restarts_per_job": 3.75,
+  "average_restarts_per_type": {
+    "cifar10": 2.8,
+    "deepspeech2": 6.25,
+    "yolov3": 8
+  },
+  "capacity_violation_count": 0,
+  "capacity_violations": [],
+  "completed_jobs": 20,
+  "contention_max": 9,
+  "contention_mean": 2.8271604938271606,
+  "gpu_hours_mean_per_job": 3.409166666666664,
+  "gpu_hours_per_job_type_and_gpu": {
+    "cifar10": {
+      "aws": 0.006666666666666666,
+      "dgx-ext": 0.6711111111111109,
+      "rtx": 0.01
+    },
+    "deepspeech2": {
+      "aws": 0.05416666666666667,
+      "dgx-ext": 1.7333333333333332,
+      "rtx": 4.112499999999999
+    },
+    "yolov3": {
+      "aws": 1.9999999999999998,
+      "dgx-ext": 1.4333333333333331,
+      "rtx": 30.833333333333286
+    }
+  },
+  "jobs": 20,
+  "makespan_hours": 2.5780555555555558,
+  "makespan_seconds": 9281.0,
+  "maximum_allocated_gpus": {
+    "aws": 17,
+    "dgx-ext": 16,
+    "rtx": 24
+  },
+  "p99_jct_hours_official_index": 2.2872222222222223,
+  "p99_jct_seconds_official_index": 8234.0,
+  "queue_max": 0,
+  "queue_mean": 0,
+  "queue_median": 0.0,
+  "records": 162,
+  "scheduling_time": {
+    "policy_rounds_measured": 155,
+    "policy_time_mean_ms": 29.74683870967742,
+    "policy_time_total_seconds": 4.61076,
+    "solver_rounds_measured": 155,
+    "solver_time_mean_ms": 23.85038709677419,
+    "solver_time_p99_ms": 37.85,
+    "solver_time_total_seconds": 3.6968099999999975
+  }
+}

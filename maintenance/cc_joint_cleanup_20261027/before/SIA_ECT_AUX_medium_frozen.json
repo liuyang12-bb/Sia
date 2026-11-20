@@ -1,0 +1,21 @@
+{
+  "label": "SIA_ECT_AUX_medium_frozen",
+  "command": [
+    "D:\\科研启航\\Sia\\.venv-sia-baseline\\Scripts\\python.exe",
+    "-X",
+    "utf8",
+    "-B",
+    "D:\\科研启航\\Sia\\maintenance\\cc_joint_cleanup_20261027\\checks.py",
+    "probe",
+    "--variant",
+    "frozen",
+    "--method",
+    "SIA_ECT_AUX",
+    "--response",
+    "medium"
+  ],
+  "cwd": "D:\\科研启航\\Sia\\cc-joint\\sia-simulator",
+  "exit_code": 0,
+  "seconds": 9.773736000061035,
+  "log_sha256": "D03C62786B367B29F809E7342084CC6B477D1862D178727EABE2230B973E1DDA"
+}

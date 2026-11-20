@@ -1,0 +1,5 @@
+ sia-simulator/joint_prototype/neutral_liveness.py  | 250 ++++++++++++++++++
+ .../joint_prototype/stage2b_neutral_config.json    |  25 ++
+ sia-simulator/stage2b_preflight.py                 | 207 +++++++++++++++
+ sia-simulator/tests/test_stage2b_neutral.py        | 280 +++++++++++++++++++++
+ 4 files changed, 762 insertions(+)

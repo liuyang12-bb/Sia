@@ -1,0 +1,91 @@
+diff --git a/sia-simulator/cluster.py b/sia-simulator/cluster.py
+index e7b8719..7d67318 100644
+--- a/sia-simulator/cluster.py
++++ b/sia-simulator/cluster.py
+@@ -391,6 +391,13 @@ class Cluster(object):
+         job_info.used_gpu_seconds = job.used_gpu_seconds
+         job_info.wasted_gpu_seconds = job.wasted_gpu_seconds
+ 
++        # AFS-P's processor-sharing counter is scheduled wall time, not
++        # GPU-seconds.  These read-only fields do not alter the Sia path.
++        job_info.execution_time = job.execution_time
++        job_info.profile_counts = {
++            cname: len(job.profiles[cname]) for cname in self.clusters
++        }
++
+         # record job category
+         job_info.category = job.category
+         if job_info.category == "rigid" or job_info.category == "scale-gpus":
+diff --git a/sia-simulator/multi_simulator.py b/sia-simulator/multi_simulator.py
+index 43cf050..b6e1c36 100644
+--- a/sia-simulator/multi_simulator.py
++++ b/sia-simulator/multi_simulator.py
+@@ -11,6 +11,7 @@ from rich.table import Table
+ from cluster import Cluster
+ from gavel import GavelPolicy
+ from sia import SiaPolicy
++from sia_afs import SiaAFSPolicy
+ from sia_fix import SiaFixPolicy
+ import simulator_config as sim_config
+ 
+@@ -34,6 +35,17 @@ def multi_simulate(args):
+                                                lambda_n=args.mip_lambda_n,
+                                                project_throughputs=args.project_throughputs,
+                                                share_max_replicas=args.share_max_replicas)
++    elif args.policy == "sia_afs":
++        policy = SiaAFSPolicy(p_fairness=args.policy_p_val,
++                              restart_penalty=30,
++                              lambda_a=args.mip_lambda_a,
++                              lambda_n=args.mip_lambda_n,
++                              project_throughputs=args.project_throughputs,
++                              share_max_replicas=args.share_max_replicas,
++                              sched_interval=args.interval,
++                              enable_bsz_tuning=not args.disable_bsz_tuning,
++                              processor_share_unit_seconds=args.afs_processor_share_unit_seconds,
++                              afs_seed=args.afs_seed)
+     else:
+         policy = SiaPolicy(p_fairness=args.policy_p_val,
+                                    restart_penalty=30,
+@@ -46,12 +58,12 @@ def multi_simulate(args):
+         cluster_populate_nnodes, sim_ngpus_per_node, sim_config.cluster_max_physical_nnodes)
+     cluster = Cluster(workload, policy, sim_config.cluster_nnodes, sim_ngpus_per_node,
+                       max_physical_nodes=sim_config.cluster_max_physical_nnodes)
+-    if args.disable_bsz_tuning and args.policy == "sia":
++    if args.disable_bsz_tuning and args.policy in ("sia", "sia_afs"):
+         print(f"Diabled bsz tuning for {args.policy} policy")
+         cluster.disable_bsz_tuning()
+     if args.policy == "gavel":
+         cluster.disable_bsz_tuning()
+-    if args.policy == "sia":
++    if args.policy in ("sia", "sia_afs"):
+         # seed profiles for all rigid jobs
+         rigid_jobs = [job for job in cluster.jobs if job.category == "rigid"]
+         for job in rigid_jobs:
+@@ -130,7 +142,7 @@ if __name__ == "__main__":
+     parser = argparse.ArgumentParser()
+     parser.add_argument("workload", type=str, help="path to workload csv")
+     parser.add_argument("--policy", type=str, default="sia",
+-                        choices=["sia", "gavel", "sia_fix"])
++                        choices=["sia", "sia_afs", "gavel", "sia_fix"])
+     parser.add_argument("--policy_p_val", type=float,
+                         default=0.5, help="value of p for policy=sia")
+     parser.add_argument("--mip_lambda_n", type=float, default=None,
+@@ -151,6 +163,11 @@ if __name__ == "__main__":
+                         default=0, help="number of replicas to seed profiles for")
+     parser.add_argument("--interval", type=int, default=60,
+                         help="scheduling interval in seconds")
++    parser.add_argument("--afs_processor_share_unit_seconds", type=float,
++                        default=7200,
++                        help="AFS-P processor-sharing quantum in seconds")
++    parser.add_argument("--afs_seed", type=int, default=0,
++                        help="seed for AFS-P's paper-specified random ties")
+     parser.add_argument("--output", type=str, help="path to output logs")
+     parser.add_argument("--debug", action='store_true', default=False,
+                         help="DEBUG MODE: simulate a scheduling round, pause and wait for user input to simulate next round")
+@@ -184,4 +201,4 @@ if __name__ == "__main__":
+         with open(args.output + "/summary.json", "w") as f:
+             json.dump(summary, f, indent=4)
+     else:
+-        multi_simulate(args)
+\ No newline at end of file
++        multi_simulate(args)

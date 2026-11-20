@@ -1,0 +1,22 @@
+{
+    "search.exclude": {
+        "**/_archive/**": true,
+        "**/.venv-sia-baseline/**": true,
+        "**/.venv-synergy/**": true,
+        "**/research_runs/**/source/**": true,
+        "**/research_runs/**/*.jsonl": true,
+        "**/research_runs/**/*.jsonl.gz": true
+    },
+    "files.exclude": {
+        "**/__pycache__": true,
+        "**/.pytest_cache": true
+    },
+    "files.watcherExclude": {
+        "**/_archive/**": true,
+        "**/.venv-sia-baseline/**": true,
+        "**/.venv-synergy/**": true,
+        "**/*.jsonl": true,
+        "**/*.jsonl.gz": true,
+        "**/*.zip": true
+    }
+}

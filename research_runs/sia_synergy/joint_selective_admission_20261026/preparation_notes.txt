@@ -1,0 +1,2 @@
+首次prepare在比较Windows相对路径分隔符时停止：实际sia-simulator\joint_prototype\adaptive_service.py与手写正斜杠字符串不同。没有生成正式manifest或启动任何训练单元。改用Path.as_posix做路径表示归一化，文件内容hash与科学定义不变。错误之后run因不存在preregistration.json正常拒绝启动。原终端输出保留于对话工具记录。
+首次seal在以系统默认GBK读取UTF-8诊断脚本时停止，在创建任何封存文件前退出；改用显式UTF-8解码，未修改执行源码、输入或实验参数。

@@ -1,0 +1,15 @@
+{
+    "search.exclude": {
+        "**/_archive/**": true,
+        "**/.venv-sia-baseline/**": true,
+        "**/.venv-synergy/**": true,
+        "**/research_runs/**/source/**": true,
+        "**/research_runs/**/*.jsonl": true,
+        "**/research_runs/**/*.jsonl.gz": true
+    },
+    "files.watcherExclude": {
+        "**/_archive/**": true,
+        "**/.venv-sia-baseline/**": true,
+        "**/.venv-synergy/**": true
+    }
+}

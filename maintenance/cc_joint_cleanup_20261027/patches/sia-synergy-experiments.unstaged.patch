@@ -1,0 +1,350 @@
+diff --git a/sia-simulator/cluster.py b/sia-simulator/cluster.py
+index e7b8719..e875d65 100644
+--- a/sia-simulator/cluster.py
++++ b/sia-simulator/cluster.py
+@@ -13,7 +13,8 @@ import simulator_config as sim_config
+ 
+ class Cluster(object):
+     # num_nodes, ngpus_per_node are dicts with key=cluster_name
+-    def __init__(self, workload, policy, num_nodes, ngpus_per_node, max_physical_nodes):
++    def __init__(self, workload, policy, num_nodes, ngpus_per_node,
++                 max_physical_nodes, auxiliary_allocator=None):
+         print(f"Simulated cluster config: \nnnodes: {num_nodes}, ngpus_per_node:{ngpus_per_node}")
+         # workload is a pandas dataframe
+         self.workload = workload
+@@ -23,7 +24,16 @@ class Cluster(object):
+         self.current_time = 0
+         self.clusters = list(self.num_nodes.keys())
+         self.max_physical_nodes = max_physical_nodes
++        self.auxiliary_allocator = auxiliary_allocator
+         self.rescale_events, self.migrate_events = [], []
++        self.sia_gpu_decision_changes = 0
++        self.auxiliary_resource_seconds = {
++            cluster: {
++                str(node): {"cpu_core_seconds": 0.0, "ram_gb_seconds": 0.0}
++                for node in range(num_nodes[cluster])
++            }
++            for cluster in num_nodes
++        }
+ 
+         # create inverse map like {app-name: {cluster_name: cluster_app}}
+         self.cluster_applications = dict()
+@@ -117,6 +127,7 @@ class Cluster(object):
+     def step(self, seconds=60):
+         # advance job state for `seconds` seconds
+         start_t = time.time()
++        self._account_auxiliary_resources(seconds)
+         if self.process_pool:
+             self.step_jobs_parallel(seconds)
+         else:
+@@ -148,15 +159,32 @@ class Cluster(object):
+                     idx in interfere_nodes for idx in alloc_set) else 0.0
+             else:
+                 interference = 0.0
+-            job.step(seconds, interference=interference)
++            auxiliary_multiplier = (self.auxiliary_allocator.multiplier_for(job.name)
++                                    if self.auxiliary_allocator else 1.0)
++            job.step(seconds, interference=interference,
++                     auxiliary_multiplier=auxiliary_multiplier)
+ 
+         self.current_time += seconds
+ 
+     # WARNING:: disables batch size & interference check (see other version above)
+     def step_jobs_parallel(self, seconds=60):
+-        self.jobs = self.process_pool.starmap(_helper_step_job_single, [(job, seconds) for job in self.jobs])
++        self.jobs = self.process_pool.starmap(
++            _helper_step_job_single,
++            [(job, seconds,
++              self.auxiliary_allocator.multiplier_for(job.name)
++              if self.auxiliary_allocator else 1.0)
++             for job in self.jobs])
+         self.current_time += seconds
+ 
++    def _account_auxiliary_resources(self, seconds):
++        if not self.auxiliary_allocator:
++            return
++        for cluster, nodes in self.auxiliary_allocator.last_result["node_usage"].items():
++            for node, usage in nodes.items():
++                counters = self.auxiliary_resource_seconds[cluster][node]
++                counters["cpu_core_seconds"] += usage["cpu"] * seconds
++                counters["ram_gb_seconds"] += usage["ram_gb"] * seconds
++
+     def optimize_policy(self):
+         job_infos = self.get_job_infos()
+         policy_optim_time, alloc_event_time = 0, 0
+@@ -177,6 +205,7 @@ class Cluster(object):
+         # rescale: change in ngpus, migrate: change in ngpus and/or cluster
+         p_start_t = time.time()
+         rescale_events, migrate_events = [], []
++        decision_changes = 0
+         for job in self.jobs:
+             if job.submission_time <= self.current_time and job.completion_time is None:
+                 job.contention.append(len(job_infos))
+@@ -188,6 +217,7 @@ class Cluster(object):
+                             alloc) == job.target_num_replicas, f'{job.name} target_num_replicas: {job.target_num_replicas} alloc: {alloc}'
+                     # change in resources
+                     if allocations.get(job.name) != self.allocations.get(job.name):
++                        decision_changes += 1
+                         placement = []
+                         for i in range(len(alloc)):
+                             if i == 0 or alloc[i] != alloc[i - 1]:
+@@ -217,6 +247,11 @@ class Cluster(object):
+                     assert False, "other policies not implemented"
+         # make a copy of allocations
+         self.allocations = allocations
++        self.sia_gpu_decision_changes += decision_changes
++        if self.auxiliary_allocator:
++            jobs = {job.name: job for job in self.jobs}
++            self.auxiliary_allocator.allocate(
++                self.allocations, jobs, self.current_time)
+         alloc_event_time = time.time() - p_start_t
+         print(f"Policy optimization took {policy_optim_time*1000:.2f}ms, reallocating+migrating jobs took {alloc_event_time*1000:.2f}ms")
+         if sim_config.log_sched_decisions:
+@@ -335,6 +370,16 @@ class Cluster(object):
+                 for job in self.jobs if job.submission_time <= self.current_time
+             ],
+         }
++        if self.auxiliary_allocator:
++            step_log["synthetic_resource_model"] = self.auxiliary_allocator.last_result
++            step_log["sia_gpu_decision_changes"] = self.sia_gpu_decision_changes
++            for job_record in step_log["submitted_jobs"]:
++                resource_record = self.auxiliary_allocator.last_result["jobs"].get(
++                    job_record["name"])
++                job_record["auxiliary_multiplier"] = (
++                    resource_record["multiplier"] if resource_record else 1.0)
++                job_record["auxiliary_profile"] = (
++                    resource_record["profile"] if resource_record else None)
+         self.logs.append(step_log)
+ 
+     def get_job_infos(self):
+@@ -516,6 +561,76 @@ class Cluster(object):
+                 json.dump(record, f)
+                 f.write("\n")
+ 
++    def get_synthetic_metrics(self):
++        if not self.auxiliary_allocator:
++            raise ValueError("synthetic resource model is not enabled")
++        completed = [job for job in self.jobs if job.completion_time is not None]
++        jcts = np.asarray([
++            job.completion_time - job.submission_time for job in completed
++        ], dtype=float)
++        first_submission = min((job.submission_time for job in self.jobs), default=0.0)
++        last_completion = max((job.completion_time for job in completed), default=first_submission)
++        cpu_core_seconds = sum(
++            values["cpu_core_seconds"]
++            for nodes in self.auxiliary_resource_seconds.values()
++            for values in nodes.values())
++        ram_gb_seconds = sum(
++            values["ram_gb_seconds"]
++            for nodes in self.auxiliary_resource_seconds.values()
++            for values in nodes.values())
++        per_node_utilization = {}
++        for cluster, nodes in self.auxiliary_resource_seconds.items():
++            capacity = self.auxiliary_allocator.capacities[cluster]
++            per_node_utilization[cluster] = {}
++            for node, values in nodes.items():
++                elapsed = max(float(self.current_time), 1.0)
++                per_node_utilization[cluster][node] = {
++                    "cpu": values["cpu_core_seconds"] /
++                           (float(capacity["cpu_per_node"]) * elapsed),
++                    "ram": values["ram_gb_seconds"] /
++                           (float(capacity["ram_gb_per_node"]) * elapsed),
++                }
++        jobs = []
++        for job in self.jobs:
++            jobs.append({
++                "name": job.name,
++                "submission_time": job.submission_time,
++                "completion_time": job.completion_time,
++                "jct_seconds": (job.completion_time - job.submission_time
++                                if job.completion_time is not None else None),
++                "num_restarts": job.num_restarts or 0,
++                "num_migrations": job.num_migrations or 0,
++                "used_gpu_seconds": job.used_gpu_seconds,
++                "wasted_gpu_seconds": job.wasted_gpu_seconds,
++                "synthetic_profile": self.auxiliary_allocator.profile_for(job.name),
++            })
++        result = self.auxiliary_allocator.metadata()
++        result.update({
++            "completed_jobs": len(completed),
++            "total_jobs": len(self.jobs),
++            "mean_jct_seconds": float(jcts.mean()) if jcts.size else None,
++            "p95_jct_seconds": float(np.percentile(jcts, 95)) if jcts.size else None,
++            "p99_jct_seconds": float(np.percentile(jcts, 99)) if jcts.size else None,
++            "makespan_seconds": float(last_completion - first_submission),
++            "simulation_end_time_seconds": float(self.current_time),
++            "gpu_hours": sum(job.used_gpu_seconds + job.wasted_gpu_seconds
++                             for job in self.jobs) / 3600.0,
++            "productive_gpu_hours": sum(job.used_gpu_seconds
++                                        for job in self.jobs) / 3600.0,
++            "restart_gpu_hours": sum(job.wasted_gpu_seconds
++                                     for job in self.jobs) / 3600.0,
++            "cpu_core_hours": cpu_core_seconds / 3600.0,
++            "ram_gb_hours": ram_gb_seconds / 3600.0,
++            "per_node_utilization": per_node_utilization,
++            "restart_count": sum(job.num_restarts or 0 for job in self.jobs),
++            "migration_count": sum(job.num_migrations or 0 for job in self.jobs),
++            "sia_gpu_decision_changes": self.sia_gpu_decision_changes,
++            "capacity_violation_count": len(
++                self.auxiliary_allocator.last_result["capacity_violations"]),
++            "jobs": jobs,
++        })
++        return result
++
+     def get_jcts(self):
+         if len(self.logs) > 0:
+             return {
+@@ -526,7 +641,8 @@ class Cluster(object):
+         else:
+             return {}
+ 
+-def _helper_step_job_single(job, seconds):
+-    job.step(seconds=seconds, interference=0)
++def _helper_step_job_single(job, seconds, auxiliary_multiplier=1.0):
++    job.step(seconds=seconds, interference=0,
++             auxiliary_multiplier=auxiliary_multiplier)
+     # important to return job object as all changes are process-local
+     return job
+diff --git a/sia-simulator/job.py b/sia-simulator/job.py
+index 0223ac3..08f9664 100644
+--- a/sia-simulator/job.py
++++ b/sia-simulator/job.py
+@@ -77,6 +77,13 @@ class Job(object):
+         # GPU-seconds wasted by job
+         self.wasted_gpu_seconds = 0
+ 
++        # Synthetic auxiliary-resource instrumentation.  These fields do not
++        # affect the historical simulator path because the default multiplier
++        # passed to step() is exactly one.
++        self.last_base_goodput = 0.0
++        self.last_effective_goodput = 0.0
++        self.last_auxiliary_multiplier = 1.0
++
+         # number of jobs contending for resources (one value per round)
+         self.contention = []
+         # number of times the job has been restarted
+@@ -411,7 +418,31 @@ class Job(object):
+         else:
+             self.perf_params[self.current_cluster] = perf_params
+ 
+-    def step(self, seconds, interference=0.0):
++    def estimate_current_goodput(self, interference=0.0):
++        """Return the current Sia goodput without mutating profile/job state."""
++        if not self.placement or self.current_cluster is None:
++            return 0.0
++        application = self.applications[self.current_cluster]
++        placement = tuple(filter(None, self.placement))
++        num_gpus = sum(placement)
++        local_bsz = self.atomic_bsz * (self.accum_steps + 1)
++        num_replicas = (num_gpus // self.num_stages
++                        if self.num_stages > 1 else num_gpus)
++        batch_size = num_replicas * local_bsz
++        scale = batch_size / application.init_batch_size
++        grad_sqr, grad_var = application.get_grad_stats(batch_size, self.epoch)
++        gain = (grad_var + grad_sqr) / (grad_var / scale + grad_sqr)
++        query_bsz = local_bsz if self.num_stages > 1 else self.atomic_bsz
++        step_time, sync_time = application.get_throughput(placement, query_bsz)
++        accum_time = step_time - sync_time
++        accum_steps = self.accum_steps if self.num_stages == 1 else 0
++        total_time = step_time + accum_time * accum_steps
++        return float(gain / total_time * (1.0 - interference)
++                     * self.calibration_factor)
++
++    def step(self, seconds, interference=0.0, auxiliary_multiplier=1.0):
++        if auxiliary_multiplier < 1.0 - 1e-12:
++            raise ValueError("auxiliary multiplier may not fall below baseline")
+         if self.completion_time is not None:
+             return
+         if not self.placement:
+@@ -484,6 +515,14 @@ class Job(object):
+             # slowdown for job
+             goodput = goodput * self.calibration_factor
+ 
++            # The synthetic response is relative to the exact Sia baseline and
++            # is applied once, only to productive training progress.  Restart
++            # delay and GPU accounting retain their original semantics.
++            self.last_base_goodput = goodput
++            self.last_auxiliary_multiplier = auxiliary_multiplier
++            goodput = goodput * auxiliary_multiplier
++            self.last_effective_goodput = goodput
++
+             # Update current epoch and progress.
+             next_progress = application.get_progress(self.epoch + 1)
+             if self.progress + goodput * seconds < next_progress:
+@@ -577,4 +616,4 @@ class Job(object):
+         # Record a migrate event
+         new_migrate_event = (self.name, self.current_time, prev_cluster, new_cluster, new_placement, self.rescale_time)
+         self.migrate_events.append(new_migrate_event)
+-        return new_migrate_event
+\ No newline at end of file
++        return new_migrate_event
+diff --git a/sia-simulator/multi_simulator.py b/sia-simulator/multi_simulator.py
+index 43cf050..d628ea0 100644
+--- a/sia-simulator/multi_simulator.py
++++ b/sia-simulator/multi_simulator.py
+@@ -12,6 +12,7 @@ from cluster import Cluster
+ from gavel import GavelPolicy
+ from sia import SiaPolicy
+ from sia_fix import SiaFixPolicy
++from synergy_synthetic import SCENARIOS, SyntheticAuxAllocator
+ import simulator_config as sim_config
+ 
+ 
+@@ -44,8 +45,22 @@ def multi_simulate(args):
+                                    enable_bsz_tuning=not args.disable_bsz_tuning)
+     policy.populate_valid_configs(
+         cluster_populate_nnodes, sim_ngpus_per_node, sim_config.cluster_max_physical_nnodes)
++    auxiliary_allocator = None
++    if args.synthetic_mode is not None:
++        if args.policy != "sia":
++            raise ValueError("synthetic S1/S2 require --policy=sia")
++        config_path = args.synthetic_resource_config or os.path.join(
++            os.path.dirname(__file__), "synthetic_resource_model.json")
++        auxiliary_allocator = SyntheticAuxAllocator(
++            config_path=config_path,
++            mode=args.synthetic_mode,
++            scenario=args.synthetic_scenario,
++            cluster_num_nodes=sim_config.cluster_nnodes,
++            cluster_ngpus_per_node=sim_ngpus_per_node,
++        )
+     cluster = Cluster(workload, policy, sim_config.cluster_nnodes, sim_ngpus_per_node,
+-                      max_physical_nodes=sim_config.cluster_max_physical_nnodes)
++                      max_physical_nodes=sim_config.cluster_max_physical_nnodes,
++                      auxiliary_allocator=auxiliary_allocator)
+     if args.disable_bsz_tuning and args.policy == "sia":
+         print(f"Diabled bsz tuning for {args.policy} policy")
+         cluster.disable_bsz_tuning()
+@@ -110,6 +125,11 @@ def multi_simulate(args):
+ 
+     if args.output:
+         cluster.output_logs(args.output)
++    if args.synthetic_summary:
++        if auxiliary_allocator is None:
++            raise ValueError("--synthetic_summary requires --synthetic_mode")
++        with open(args.synthetic_summary, "w", encoding="utf-8") as stream:
++            json.dump(cluster.get_synthetic_metrics(), stream, indent=2)
+     return cluster.logs, cluster.get_jcts()
+ 
+ 
+@@ -152,6 +172,14 @@ if __name__ == "__main__":
+     parser.add_argument("--interval", type=int, default=60,
+                         help="scheduling interval in seconds")
+     parser.add_argument("--output", type=str, help="path to output logs")
++    parser.add_argument("--synthetic_mode", choices=["s1", "s2"], default=None,
++                        help="enable controlled synthetic auxiliary allocation")
++    parser.add_argument("--synthetic_scenario", choices=SCENARIOS, default="neutral",
++                        help="synthetic CPU/RAM response scenario")
++    parser.add_argument("--synthetic_resource_config", type=str, default=None,
++                        help="explicit synthetic resource-model JSON")
++    parser.add_argument("--synthetic_summary", type=str, default=None,
++                        help="write synthetic run metrics as JSON")
+     parser.add_argument("--debug", action='store_true', default=False,
+                         help="DEBUG MODE: simulate a scheduling round, pause and wait for user input to simulate next round")
+ 
+@@ -184,4 +212,4 @@ if __name__ == "__main__":
+         with open(args.output + "/summary.json", "w") as f:
+             json.dump(summary, f, indent=4)
+     else:
+-        multi_simulate(args)
+\ No newline at end of file
++        multi_simulate(args)

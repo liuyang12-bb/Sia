@@ -1,0 +1,2 @@
+用户授权：完成事件后存活作业合法重配置预测。旧v1与所有历史结果保护。先4800/5820同状态验证，包含checkpoint完整锁、真实startup和生命周期恢复预算；通过后同COMPACT12旧FO/旧FULL/新FO/新FULL四格。60秒6000轮，2GiB/5GiB，独立进程串行。不调参数、不80作业、不扩展负载。新源cc-joint-release-reconfig-v2，完整335文件哈希核验复制。恢复入口本目录。SYNTHETIC CROSS-HARDWARE TRANSFER — NOT REAL SATURN PERFORMANCE
+完成并停止：同状态精确复算和未来容量/锁/预算审计通过；371测试和原Sia3轮通过。四格12/12；新模式轨迹与V1相同，新FULL较原FULL均值恶化3.396%。独立原始审计0错误。不扩大、不80作业。详见REPORT.md、v1_trajectory_comparison.json。

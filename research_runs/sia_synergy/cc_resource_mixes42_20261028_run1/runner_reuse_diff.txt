@@ -1,0 +1,1 @@
+Run loop identical to accepted30-cell runner except: mix in label, registered tuple and summary; explicit frozen workload_path argument. No scheduling/execution logic changes. Batch matrix and isolation/protection are new.

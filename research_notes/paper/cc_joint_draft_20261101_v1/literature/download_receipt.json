@@ -1,0 +1,126 @@
+[
+  {
+    "key": "sia2023",
+    "url": "https://suhasjs.github.io/files/sia-sosp23.pdf",
+    "title": "Sia: Heterogeneity-aware, goodput-optimized ML-cluster scheduling",
+    "status": "SAVED",
+    "path": "D:\\科研启航\\Sia\\research_notes\\paper\\cc_joint_draft_20261101_v1\\literature\\papers\\sia2023.pdf",
+    "sha256": "32044A4728D4E09BFB1747B17868631C52900F81DAB0C6D205F41D42D0A6784D",
+    "bytes": 1014420,
+    "pages": 14
+  },
+  {
+    "key": "pollux2021",
+    "url": "https://www.usenix.org/system/files/osdi21-qiao.pdf",
+    "title": "Pollux: Co-adaptive Cluster Scheduling for Goodput-Optimized Deep Learning",
+    "status": "SAVED",
+    "path": "D:\\科研启航\\Sia\\research_notes\\paper\\cc_joint_draft_20261101_v1\\literature\\papers\\pollux2021.pdf",
+    "sha256": "5D19B61A0C5DCB010B71EE0E395F9BFFBDAE1F50112F685AE12B2FDC0F9A20AD",
+    "bytes": 2892126,
+    "pages": 19
+  },
+  {
+    "key": "synergy2022",
+    "url": "https://www.usenix.org/system/files/osdi22-mohan.pdf",
+    "title": "Looking Beyond GPUs for DNN Scheduling on Multi-Tenant Clusters",
+    "status": "SAVED",
+    "path": "D:\\科研启航\\Sia\\research_notes\\paper\\cc_joint_draft_20261101_v1\\literature\\papers\\synergy2022.pdf",
+    "sha256": "B698E3C3F06EFD1E17EF1B93926B337DB5540C7CA9AC4A469CD7D86D1756E1C1",
+    "bytes": 4543136,
+    "pages": 19
+  },
+  {
+    "key": "gavel2020",
+    "url": "https://www.usenix.org/system/files/osdi20-narayanan_deepak.pdf",
+    "title": "Heterogeneity-Aware Cluster Scheduling Policies for Deep Learning Workloads",
+    "status": "SAVED",
+    "path": "D:\\科研启航\\Sia\\research_notes\\paper\\cc_joint_draft_20261101_v1\\literature\\papers\\gavel2020.pdf",
+    "sha256": "14DFD28574F02845542C063E850C2ADF2C39AB618FAB42845D614D34585DAC82",
+    "bytes": 862715,
+    "pages": 19
+  },
+  {
+    "key": "Tiresias2019",
+    "url": "https://www.usenix.org/system/files/nsdi19-gu.pdf",
+    "title": "Tiresias: A GPU Cluster Manager for Distributed Deep Learning",
+    "status": "SAVED",
+    "path": "D:\\科研启航\\Sia\\research_notes\\paper\\cc_joint_draft_20261101_v1\\literature\\papers\\Tiresias2019.pdf",
+    "sha256": "09CDA6426C5130F7DF1386953640BD4D513F4946C0C7BF178D9219ADCA71E245",
+    "bytes": 1069962,
+    "pages": 17
+  },
+  {
+    "key": "Optimus2018",
+    "url": "https://i.cs.hku.hk/~cwu/papers/yhpeng-eurosys18.pdf",
+    "title": "Optimus: An Efficient Dynamic Resource Scheduler for Deep Learning Clusters",
+    "status": "SAVED",
+    "path": "D:\\科研启航\\Sia\\research_notes\\paper\\cc_joint_draft_20261101_v1\\literature\\papers\\Optimus2018.pdf",
+    "sha256": "8D23C3069F6E8BC82E863E4BB52C45B675B9415D6A6B0D7F3BD35ADFF0E2BC89",
+    "bytes": 12032518,
+    "pages": 14
+  },
+  {
+    "key": "Gandiva2018",
+    "url": "https://www.usenix.org/system/files/osdi18-xiao.pdf",
+    "title": "Gandiva: Introspective Cluster Scheduling for Deep Learning",
+    "status": "SAVED",
+    "path": "D:\\科研启航\\Sia\\research_notes\\paper\\cc_joint_draft_20261101_v1\\literature\\papers\\Gandiva2018.pdf",
+    "sha256": "1C21BF8C2502284287B364FEA02063786D5965B912CBDA6D3849DA34A566F584",
+    "bytes": 1170496,
+    "pages": 17
+  },
+  {
+    "key": "Themis2020",
+    "url": "https://www.usenix.org/system/files/nsdi20-paper-mahajan.pdf",
+    "title": "Themis: Fair and Efficient GPU Cluster Scheduling",
+    "status": "SAVED",
+    "path": "D:\\科研启航\\Sia\\research_notes\\paper\\cc_joint_draft_20261101_v1\\literature\\papers\\Themis2020.pdf",
+    "sha256": "45F460204A73FC2627FDBC8EE85C79391A2F93715E8B35F806C0C6737D584AFA",
+    "bytes": 1004674,
+    "pages": 17
+  },
+  {
+    "key": "AntMan2020",
+    "url": "https://www.usenix.org/system/files/osdi20-xiao.pdf",
+    "title": "AntMan: Dynamic Scaling on GPU Clusters for Deep Learning",
+    "status": "SAVED",
+    "path": "D:\\科研启航\\Sia\\research_notes\\paper\\cc_joint_draft_20261101_v1\\literature\\papers\\AntMan2020.pdf",
+    "sha256": "FB306F8EFB09A11C8342CAF5F571BCB3C921229318BD8D08215CD6DD50E9D10C",
+    "bytes": 1390899,
+    "pages": 17
+  },
+  {
+    "key": "CoorDL2021",
+    "url": "https://vldb.org/pvldb/vol14/p771-mohan.pdf",
+    "title": "Analyzing and Mitigating Data Stalls in DNN Training",
+    "status": "SAVED",
+    "path": "D:\\科研启航\\Sia\\research_notes\\paper\\cc_joint_draft_20261101_v1\\literature\\papers\\CoorDL2021.pdf",
+    "sha256": "B19E3E98409B832ACABD60E1000F24964EF53472FDB7988D086ADFEF052DC026",
+    "bytes": 3012661,
+    "pages": 14
+  },
+  {
+    "key": "TFData2021",
+    "url": "https://www.vldb.org/pvldb/vol14/p2945-klimovic.pdf",
+    "title": "tf.data: A Machine Learning Data Processing Framework",
+    "status": "SAVED",
+    "path": "D:\\科研启航\\Sia\\research_notes\\paper\\cc_joint_draft_20261101_v1\\literature\\papers\\TFData2021.pdf",
+    "sha256": "C674790752D06C04A28A0C0F7293D7F1786BACD53C9EA99BF80B56D8E35A86CF",
+    "bytes": 3633226,
+    "pages": 14
+  },
+  {
+    "key": "RAP2024",
+    "url": null,
+    "title": "RAP: Resource-aware Automated GPU Sharing for Multi-GPU Recommendation Model Training and Input Preprocessing",
+    "status": "LINK_ONLY_NO_OPEN_FULLTEXT",
+    "primary_url": "https://www.pnnl.gov/publications/rap-resource-aware-automated-gpu-sharing-multi-gpu-recommendation-model-training-and"
+  },
+  {
+    "key": "Nexus2024",
+    "url": null,
+    "title": "Resource-Aware Heterogeneous Cluster Scheduling System for Deep Neural Network Training Tasks",
+    "status": "LINK_ONLY_NO_OPEN_FULLTEXT",
+    "primary_url": "https://ieeexplore.ieee.org/document/10942295/"
+  }
+]

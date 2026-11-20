@@ -1,0 +1,492 @@
+--- a/sia-simulator/joint_prototype/bundle_adaptation.py
++++ b/sia-simulator/joint_prototype/bundle_adaptation.py
+@@ -142,7 +142,18 @@
+         if not same_gpu:comparison['skip_reason']='INCUMBENT_OUTSIDE_SERIAL_FIXED_GPU_DOMAIN'
+         elif not eligible:comparison['skip_reason']='INCUMBENT_OUTSIDE_CURRENT_ELIGIBILITY_DOMAIN'
+         elif not audit['valid']:comparison['skip_reason']='INCUMBENT_PHYSICALLY_INVALID'
+-        if comparison['comparable'] and result.scheduling_objective+1e-7<comparison['baseline_objective']:
++        release = result.audit.get('release_completion', {})
++        new_objective = release.get('status') == 'OK'
++        if new_objective:
++            expected = next(v['columns'] for v in release['plans'] if v['name']==release['selected_plan'])
++            if (not release.get('selected_validated') or
++                    {j:c.column_id for j,c in result.selected.items()} != expected or
++                    release['selected']['sum_completion'] > release['baseline']['sum_completion']+1e-7):
++                raise RuntimeError('RELEASE_OBJECTIVE_GUARD_FAILED')
++            comparison['legacy_utility_is_not_primary_objective'] = True
++            comparison['acceptance_rule'] = 'CURRENT_RELEASE_EVALUATOR_WITH_ALL_CURRENT_JOBS'
++        if (not new_objective and comparison['comparable'] and
++                result.scheduling_objective+1e-7<comparison['baseline_objective']):
+             error=RuntimeError('GLOBAL_BUNDLE_OBJECTIVE_REGRESSION')
+             error.solver_diagnostics=dict(comparison=comparison,serial_stages=serial,
+                 baseline=[dict(job=c.job_id,column=c.column_id,utility=c.scheduling_utility) for c in baseline],
+--- a/sia-simulator/joint_prototype/clean_ablation.py
++++ b/sia-simulator/joint_prototype/clean_ablation.py
+@@ -191,6 +191,9 @@
+         chosen = solve(admitted, objective=True, tie=True, optional=optional)
+         if chosen is None:
+             raise RuntimeError('INFEASIBLE_FINAL_ADMISSION')
++        release_evidence = None
++        if hasattr(self, 'refine_completion_bundle'):
++            chosen, release_evidence = self.refine_completion_bundle(s, columns, chosen, now)
+         independent = s.audit(chosen)
+         if (not independent['valid'] or any(
+                 geometry(c) not in {geometry(v) for v in columns} for c in chosen)):
+@@ -268,6 +271,8 @@
+             incumbent_domain_membership=incumbent_membership,
+             productive_service={j: productive.get(j, 0.) - v['productive_base']
+                                 for j, v in self.services.items()})
++        if release_evidence is not None:
++            independent['release_completion'] = release_evidence
+         return PolicyResult(
+             'L2_ADAPTIVE', 'DRAIN_FOR_HEAD' if drain else 'OPTIMAL_ADAPTIVE_L2',
+             selected, sorted(set(jobs) - admitted),
+--- a/sia-simulator/joint_prototype/release_evaluation.py
++++ b/sia-simulator/joint_prototype/release_evaluation.py
+@@ -0,0 +1,190 @@
++"""Opt-in completion-event evaluation of a bounded set of whole bundles.
++
++No future arrivals, throughput lookup, Job.step, new quota points or service
++preemption. The continuation freezes survivors until completion and admits
++already-arrived FIFO waiters on the next scheduling boundary. This is a
++receding-horizon heuristic, NOT a global optimum or a JCT guarantee.
++"""
++import math
++import time
++import numpy as np
++from scipy.optimize import LinearConstraint
++from .neutral_liveness import geometry
++
++
++def evaluate_plan(scheduler, columns, scores, initial, queue, interval=60.):
++    jobs = set(scheduler.job_map)
++    if interval <= 0 or not math.isfinite(interval):
++        raise ValueError('INVALID_ROLLOUT_INTERVAL')
++    initial_audit = scheduler.audit(initial)
++    if not initial_audit['valid'] or len({c.job_id for c in initial}) != len(initial):
++        raise ValueError('INVALID_INITIAL_PLAN')
++    if any(c.job_id not in jobs for c in columns):
++        raise ValueError('NONCURRENT_JOB_COLUMN')
++    chosen = {c.job_id: c for c in initial}
++    queue = [j for j in queue if j not in chosen]
++    if len(queue) != len(set(queue)) or set(queue) != jobs-set(chosen):
++        raise ValueError('QUEUE_DOES_NOT_COVER_CURRENT_JOBS')
++    by_job = {j: [] for j in jobs}
++    for c in columns:
++        v = scores.get(c.column_id, {})
++        raw, work, delay = v.get('raw_rate'), v.get('remaining_work'), v.get('delay')
++        if raw is None or work is None or delay is None:
++            continue
++        if not all(math.isfinite(x) for x in (raw, work, delay, c.query.rho)):
++            raise ValueError('NONFINITE_ROLLOUT_MODEL')
++        if raw <= 0 or work < 0 or delay < 0 or c.query.rho <= 0:
++            raise ValueError('INVALID_ROLLOUT_MODEL')
++        if not math.isclose(v['rho'], c.query.rho, rel_tol=1e-12):
++            raise ValueError('ROLLOUT_RHO_MISMATCH')
++        by_job[c.job_id].append(c)
++    unknown = sorted(j for j in jobs if not by_job[j])
++    unknown += [j for j,c in chosen.items() if c not in by_job[j] and j not in unknown]
++    if unknown:
++        return dict(status='UNKNOWN_MODEL', unknown_jobs=sorted(unknown),
++                    rule='NO_FAKE_ETA_NO_JOB_EXCLUSION')
++    # Different columns of one job must use exactly the same remaining work.
++    for j, cs in by_job.items():
++        if len({scores[c.column_id]['remaining_work'] for c in cs}) != 1:
++            raise ValueError('INCONSISTENT_REMAINING_WORK')
++    def duration(c):
++        v = scores[c.column_id]
++        return float(v['delay'] + v['remaining_work']/(v['raw_rate']*c.query.rho))
++    def fits(bundle):
++        for node in scheduler.nodes:
++            use = [sum(c.usage_for(node.node_id)[k] for c in bundle) for k in range(3)]
++            if any(x > y+1e-7 for x,y in zip(use,(node.gpus,node.cpu_cores,node.ram_gb))):
++                return False
++        return True
++    if not fits(initial):
++        raise ValueError('INITIAL_RESOURCE_OVERFLOW')
++    running = {j:dict(column=c, finish=duration(c)) for j,c in chosen.items()}
++    completions = {}; events = []; t = 0.
++    # Each iteration admits a job, completes a job, or advances to its release.
++    for _ in range(4*len(jobs)+4):
++        for j in sorted(list(running)):
++            if running[j]['finish'] <= t+1e-8:
++                completions[j] = running[j]['finish']
++                events.append(dict(event='COMPLETE_RELEASE',job=j,time=running[j]['finish'],
++                                   next_admission_boundary=t))
++                del running[j]
++        # Only `initial` is actually committed at this boundary. Do not give
++        # an excluded waiter fictitious service at t=0, even if space is free.
++        while queue and t > 0:
++            j=queue[0]; resident=[v['column'] for v in running.values()]
++            feasible=[c for c in by_job[j] if fits(resident+[c])]
++            if not feasible:
++                break  # FIFO head draining, no bypass or future reservation.
++            c=min(feasible,key=lambda x:(duration(x),str(geometry(x))))
++            running[j]=dict(column=c,finish=t+duration(c)); queue.pop(0)
++            events.append(dict(event='FIFO_START',job=j,time=t,column=c.column_id,
++                               duration=duration(c)))
++        if not running:
++            if queue:
++                return dict(status='NO_CONTINUATION',blocked=queue[0],events=events)
++            break
++        earliest=min(v['finish'] for v in running.values())
++        next_time=interval*math.ceil(max(0.,earliest-1e-9)/interval)
++        if t == 0 and queue:
++            next_time=min(next_time,interval)
++        t=max(t,next_time)
++    else:
++        raise RuntimeError('ROLLOUT_EVENT_BOUND')
++    if set(completions) != jobs:
++        raise RuntimeError('INCOMPLETE_ROLLOUT')
++    return dict(status='OK',sum_completion=sum(completions.values()),
++                completion_times=completions,events=events,
++                continuation='CURRENT_MODEL_FROZEN_SURVIVORS_FIFO_AT_INTERVAL_BOUNDARY',
++                model_scope='CURRENT_ARRIVED_JOBS_ONLY',global_optimum=False)
++
++
++class ReleaseEvaluationMixin:
++    """Change only final bundle evaluation, before any ledger/atomic commit."""
++    def refine_completion_bundle(self,s,columns,legacy,now):
++        start=time.perf_counter()
++        scores=s.current_completion_scores
++        served={c.job_id for c in legacy}
++        queue=[j for j in self.ready if j not in served]
++        evaluated=evaluate_plan(s,columns,scores,legacy,queue,self.interval)
++        evidence=dict(version='RELEASE_EVALUATION_V1',status=evaluated['status'],
++            fixed_service_set=sorted(served),future_arrivals_read=False,
++            historical_reciprocal_is_proposal_only=True,baseline=evaluated,
++            plans=[],selected_plan='LEGACY',guard_seconds_tolerance=1e-7)
++        if evaluated['status'] != 'OK' or not legacy:
++            evidence['reason']='UNKNOWN_OR_UNAVAILABLE_CONTINUATION_KEEP_VALIDATED_BOOTSTRAP'
++            evidence['seconds']=time.perf_counter()-start
++            return legacy,evidence
++        fixed={c.job_id:c.config.config_id for c in legacy} if self.clean_gpu=='fixed' else None
++        domain=[c for c in columns if c.job_id in served
++                and (fixed is None or fixed[c.job_id]==c.config.config_id)
++                and scores.get(c.column_id,{}).get('raw_rate') is not None]
++        matrix,upper=s._constraint_matrix(domain,('gpu','cpu','ram'))
++        lower=np.full(len(upper),-np.inf)
++        for i,j in enumerate(s.jobs):lower[i]=upper[i]=float(j.job_id in served)
++        cost=np.array([scores[c.column_id]['estimated_completion'] for c in domain])
++        solve=self._milp(cost,domain,[LinearConstraint(matrix,lower,upper)])
++        if solve.status!=0 or not solve.success or solve.x is None:
++            raise RuntimeError('RELEASE_ETA_PROPOSAL_UNPROVEN')
++        eta=[c for c,x in zip(domain,solve.x) if x>.5]
++        if ({c.job_id for c in eta}!=served or not s.audit(eta)['valid']
++                or np.any(abs(solve.x-np.rint(solve.x))>1e-6)):
++            raise RuntimeError('RELEASE_ETA_PROPOSAL_INVALID')
++        plans=[('LEGACY',legacy),('MIN_STATIC_SUM_ETA',eta)]
++        prior=[]
++        for c in legacy:
++            old=self.services.get(c.job_id,{}).get('column')
++            match=next((v for v in domain if old is not None and geometry(v)==geometry(old)),None)
++            prior.append(match or c)
++        if s.audit(prior)['valid']:
++            plans.append(('CURRENT_ELIGIBLE_BUNDLE',prior))
++        best=legacy;best_score=evaluated['sum_completion'];best_eval=evaluated
++        for name,bundle in plans:
++            ev=evaluated if name=='LEGACY' else evaluate_plan(s,columns,scores,bundle,queue,self.interval)
++            evidence['plans'].append(dict(name=name,evaluation=ev,
++                columns={c.job_id:c.column_id for c in bundle},
++                static_sum_eta=sum(scores[c.column_id]['estimated_completion'] for c in bundle)))
++            if ev['status']=='OK' and ev['sum_completion']<best_score-1e-7:
++                best,best_score,best_eval=bundle,ev['sum_completion'],ev
++                evidence['selected_plan']=name
++        if fixed is not None and {c.job_id:c.config.config_id for c in best}!=fixed:
++            raise RuntimeError('RELEASE_SERIAL_GPU_CHANGED')
++        # Independent repeat, not a result.x/fun-only acceptance.
++        checked=evaluate_plan(s,columns,scores,best,queue,self.interval)
++        if (checked['status']!='OK' or checked['sum_completion']>evaluated['sum_completion']+1e-7
++                or not s.audit(best)['valid']):
++            raise RuntimeError('RELEASE_PLAN_ACCEPTANCE_FAILED')
++        savings={j:evaluated['completion_times'][j]-best_eval['completion_times'][j]
++                 for j in s.job_map}
++        evidence.update(status='OK',selected=best_eval,
++            predicted_sum_completion_saved=evaluated['sum_completion']-best_score,
++            per_job_predicted_saved=savings,
++            receiver_gain=sum(max(x,0.) for x in savings.values()),
++            donor_loss=sum(max(-x,0.) for x in savings.values()),
++            solver_status=int(solve.status),seconds=time.perf_counter()-start,
++            fo_fixed_gpu=fixed,selected_validated=True)
++        return best,evidence
++
++
++def install(cluster):
++    from core80 import Core80Policy
++    old=cluster.policy.liveness.__class__
++    cluster.policy.liveness.__class__=type('Release'+old.__name__,(ReleaseEvaluationMixin,old),{})
++    class ReleasePolicy(Core80Policy):
++        def optimize(self,*args):
++            answer=super().optimize(*args)
++            self.last_decision['shared_contract'].update(
++                policy_version='COMPLETION_EVENT_RELEASE_V1',
++                objective='MIN_PREDICTED_SUM_COMPLETION_OVER_THREE_BUNDLES',
++                proposal_objectives=['HISTORICAL_RECIPROCAL','STATIC_SUM_ETA','CURRENT_VALID_BUNDLE'],
++                admission_and_service_unchanged=True,global_optimum=False)
++            for key in ('clean_contract',):
++                self.last_decision[key]['objective']='MIN_PREDICTED_SUM_COMPLETION_OVER_THREE_BUNDLES'
++            self.last_decision['probe']['contract']['objective']='MIN_PREDICTED_SUM_COMPLETION_OVER_THREE_BUNDLES'
++            ev=self.last_decision['result']['audit']['release_completion']
++            self.last_decision['completion_event_objective_seconds']=ev.get('selected',{}).get('sum_completion')
++            self.last_decision['legacy_utility_field_is_diagnostic_only']=True
++            self.last_decision['result']['status']=('RELEASE_EVALUATED_FEASIBLE'
++                if ev['status']=='OK' else 'RELEASE_ABSTAIN_'+ev['status'])
++            return answer
++    cluster.policy.__class__=ReleasePolicy
++    return cluster
+--- a/sia-simulator/tests/test_release_evaluation.py
++++ b/sia-simulator/tests/test_release_evaluation.py
+@@ -0,0 +1,148 @@
++"""Deterministic release-rollout tests; real columns/audits, explicit toy rates.
++
++These are mechanism tests, not Sia prediction-accuracy or JCT experiments.
++No future arrivals, application lookup or Job.step is supplied to the evaluator.
++"""
++import copy
++import unittest
++
++from test_adaptive_service import spec, current, columns, scheduler
++from test_clean_ablation import state
++from joint_prototype.joint_profile import NodeSpec
++from joint_prototype.release_evaluation import evaluate_plan
++
++
++class ReleaseEvaluationTests(unittest.TestCase):
++    def fixture(self, names, gpus=1):
++        jobs = [spec(name, index=i) for i, name in enumerate(names)]
++        scheduler = state(jobs, [NodeSpec('aws:0', 'aws', gpus,
++                                        3. * gpus, 62.5 * gpus)])
++        scheduler.enforce_floor = False
++        all_columns = columns(scheduler)
++        prop = {name: next(c for c in all_columns if c.job_id == name
++                          and c.query.cpu_per_gpu == 3.
++                          and c.query.ram_gb_per_gpu == 62.5)
++                for name in names}
++        return scheduler, all_columns, prop
++
++    def scores(self, cols, work, raw=None, delays=None, rhos=None):
++        raw, delays, rhos = raw or {}, delays or {}, rhos or {}
++        rows = {}
++        for c in cols:
++            n = c.job_id
++            rate, delay, rho = raw.get(n, 1.), delays.get(n, 0.), rhos.get(n, 1.)
++            rows[c.column_id] = dict(raw_rate=rate, rho=rho,
++                remaining_work=float(work[n]), delay=float(delay),
++                estimated_completion=(None if rate is None
++                                      else delay + work[n] / (rate * rho)))
++        return rows
++
++    def test_actual_startup_and_rho_applied_once(self):
++        s = scheduler([spec('a',template='res18_1.py')],
++                      [NodeSpec('aws:0','aws',1,6.,125.)],medium=True)
++        s.enforce_floor=False
++        cols=columns(s)
++        c=next(c for c in cols if c.query.cpu_per_gpu==6. and c.query.ram_gb_per_gpu==125.)
++        cols=[c];rho=c.query.rho
++        self.assertNotEqual(rho,1.)
++        scores = self.scores(cols, {'a': 100.}, raw={'a': 2.},
++                             rhos={'a': rho}, delays={'a': 30.})
++        result = evaluate_plan(s, cols, scores, [c], [])
++        self.assertEqual(result['status'], 'OK')
++        self.assertAlmostEqual(result['completion_times']['a'], 30.+100./(2.*rho))
++        self.assertAlmostEqual(result['sum_completion'], 30.+100./(2.*rho))
++
++    def test_completion_releases_resources_only_for_next_boundary_start(self):
++        s, cols, p = self.fixture(['a', 'b'])
++        scores = self.scores(cols, {'a': 75., 'b': 10.}, delays={'b': 5.})
++        result = evaluate_plan(s, cols, scores, [p['a']], ['b'])
++        self.assertEqual(result['status'], 'OK')
++        self.assertAlmostEqual(result['completion_times']['a'], 75.)
++        self.assertAlmostEqual(result['completion_times']['b'], 135.)
++        self.assertAlmostEqual(result['sum_completion'], 210.)
++
++    def test_fifo_queue_is_not_sorted_by_shortest_prediction(self):
++        s, cols, p = self.fixture(['a', 'b', 'c'])
++        scores = self.scores(cols, {'a': 10., 'b': 90., 'c': 1.})
++        result = evaluate_plan(s, cols, scores, [p['a']], ['b', 'c'])
++        self.assertEqual(result['status'], 'OK')
++        self.assertEqual(result['completion_times'], {'a': 10., 'b': 150., 'c': 181.})
++        self.assertAlmostEqual(result['sum_completion'], 341.)
++
++    def test_uncommitted_waiter_cannot_start_at_time_zero_in_free_space(self):
++        s,cols,p=self.fixture(['a','b'],gpus=2)
++        scores=self.scores(cols,{'a':300.,'b':10.})
++        result=evaluate_plan(s,cols,scores,[p['a']],['b'])
++        self.assertEqual(result['completion_times'],{'a':300.,'b':70.})
++        start=next(e for e in result['events'] if e['event']=='FIFO_START')
++        self.assertEqual(start['time'],60.)
++
++    def test_all_donor_delay_counts_not_only_receiver_gain(self):
++        s, cols, p = self.fixture(['receiver', 'donor'], gpus=2)
++        before = self.scores(cols, {'receiver': 60., 'donor': 100.})
++        after = self.scores(cols, {'receiver': 60., 'donor': 100.},
++                            raw={'receiver': 2., 'donor': .5})
++        plan = [p['receiver'], p['donor']]
++        old = evaluate_plan(s, cols, before, plan, [])
++        new = evaluate_plan(s, cols, after, plan, [])
++        self.assertAlmostEqual(old['sum_completion'], 160.)
++        self.assertAlmostEqual(new['sum_completion'], 230.)
++        self.assertGreater(new['sum_completion'], old['sum_completion'])
++
++    def test_earlier_release_can_outweigh_larger_running_only_eta_sum(self):
++        s, cols, p = self.fixture(['a', 'b', 'waiter'], gpus=2)
++        work = {'a': 61., 'b': 61., 'waiter': 100.}
++        first_scores = self.scores(cols, work)
++        second_scores = self.scores(cols, work,
++                                   raw={'a': 61./59., 'b': 61./70.})
++        initial = [p['a'], p['b']]
++        first = evaluate_plan(s, cols, first_scores, initial, ['waiter'])
++        second = evaluate_plan(s, cols, second_scores, initial, ['waiter'])
++        # Running-only sums prefer 61+61 to 59+70. Waiting task can start
++        # one full 60-second boundary earlier in the second complete plan.
++        self.assertGreater(59. + 70., 61. + 61.)
++        self.assertAlmostEqual(first['sum_completion'], 342.)
++        self.assertAlmostEqual(second['sum_completion'], 289.)
++        self.assertLess(second['sum_completion'], first['sum_completion'])
++
++    def test_unknown_waiter_abstains_instead_of_disappearing(self):
++        s, cols, p = self.fixture(['a', 'unknown'])
++        scores = self.scores(cols, {'a': 20., 'unknown': 100.}, raw={'unknown': None})
++        result = evaluate_plan(s, cols, scores, [p['a']], ['unknown'])
++        self.assertEqual(result['status'], 'UNKNOWN_MODEL')
++        self.assertIsNone(result.get('sum_completion'))
++
++    def test_invalid_initial_bundle_is_rejected(self):
++        s, cols, p = self.fixture(['a', 'b'])
++        scores = self.scores(cols, {'a': 10., 'b': 10.})
++        with self.assertRaises((ValueError, RuntimeError)):
++            evaluate_plan(s, cols, scores, [p['a'], p['b']], [])
++
++    def test_checkpoint_lock_cannot_be_replaced_by_cheaper_quota(self):
++        s, cols, p = self.fixture(['a'])
++        locked = current(s.jobs[0], {'a': p['a']}, locked=True)
++        locked_s = state([locked], s.nodes)
++        locked_s.enforce_floor = False
++        # This is a real normal column from the same legal grid but violates
++        # the current lock's exact CPU/RAM contract.
++        replacement = next(c for c in cols if c.job_id == 'a'
++                           and c.query.cpu_per_gpu == 1.
++                           and c.query.ram_gb_per_gpu == 20.83)
++        scores = self.scores(cols, {'a': 10.})
++        with self.assertRaises((ValueError, RuntimeError)):
++            evaluate_plan(locked_s, cols, scores, [replacement], [])
++
++    def test_evaluation_does_not_mutate_models_queue_or_initial(self):
++        s, cols, p = self.fixture(['a', 'b'])
++        scores = self.scores(cols, {'a': 20., 'b': 30.})
++        frozen_scores = copy.deepcopy(scores)
++        queue, initial = ['b'], [p['a']]
++        evaluate_plan(s, cols, scores, initial, queue)
++        self.assertEqual(scores, frozen_scores)
++        self.assertEqual(queue, ['b'])
++        self.assertEqual(initial, [p['a']])
++        self.assertEqual(set(s.job_map), {'a', 'b'})
++
++
++if __name__ == '__main__':
++    unittest.main()
+--- a/sia-simulator/tests/test_release_integration.py
++++ b/sia-simulator/tests/test_release_integration.py
+@@ -0,0 +1,102 @@
++import unittest
++import copy
++from dataclasses import replace
++from unittest.mock import patch
++from test_adaptive_service import spec,columns,cfg,current
++from test_clean_ablation import controller,state
++from joint_prototype.joint_profile import NodeSpec
++from joint_prototype.release_evaluation import ReleaseEvaluationMixin
++from joint_prototype.neutral_liveness import geometry
++
++class ReleaseIntegrationTests(unittest.TestCase):
++    def test_opt_in_accounts_for_donor_before_atomic_commit(self):
++        jobs=[spec('receiver'),spec('donor',index=1)]
++        s=state(jobs,[NodeSpec('aws:0','aws',2,6.,125.)]);s.enforce_floor=False
++        costs={'receiver':{3.:50.,4.:40.},'donor':{3.:200.,1.:500.}}
++        cs=[];scores={}
++        for c in columns(s):
++            if c.query.cpu_per_gpu not in costs[c.job_id] or c.query.ram_gb_per_gpu!=62.5:continue
++            eta=costs[c.job_id][c.query.cpu_per_gpu]
++            cs.append(replace(c,scheduling_utility=1./eta))
++            scores[c.column_id]=dict(raw_rate=100./eta,rho=c.query.rho,
++                remaining_work=100.,delay=0.,estimated_completion=eta)
++        s.current_completion_scores=scores
++        x=controller(jobs,gpu='joint',aux='opt')
++        x.__class__=type('TestRelease',(ReleaseEvaluationMixin,x.__class__),{})
++        r=x.decide(s,cs,0.,{})
++        self.assertEqual(r.selected['receiver'].query.cpu_per_gpu,3.)
++        self.assertEqual(r.selected['donor'].query.cpu_per_gpu,3.)
++        self.assertTrue(r.audit['valid'])
++        ev=r.audit['release_completion']
++        self.assertAlmostEqual(ev['baseline']['sum_completion'],540.)
++        self.assertAlmostEqual(ev['selected']['sum_completion'],250.)
++        self.assertAlmostEqual(ev['receiver_gain']-ev['donor_loss'],290.)
++
++    def test_fixed_fo_cannot_escape_its_frozen_gpu_intent(self):
++        jobs=[spec('a',configs=[cfg('aws'),cfg('dgx-ext')])]
++        nodes=[NodeSpec(t+':0',t,1,6.,125.) for t in ('aws','dgx-ext')]
++        s=state(jobs,nodes);s.enforce_floor=False
++        cs=[];scores={}
++        # Proportional proposal: DGX50 beats AWS100. AWS nonproportional10
++        # would beat every DGX candidate but is outside serial GPU intent.
++        etas={('aws',6.):100.,('aws',3.):10.,
++              ('dgx-ext',6.):50.,('dgx-ext',3.):30.}
++        for c in columns(s):
++            key=(c.config.gpu_type,c.query.cpu_per_gpu)
++            if key not in etas or c.query.ram_gb_per_gpu!=125.:continue
++            eta=etas[key]
++            cs.append(replace(c,scheduling_utility=1./eta))
++            scores[c.column_id]=dict(raw_rate=100./(eta*c.query.rho),
++                rho=c.query.rho,remaining_work=100.,delay=0.,estimated_completion=eta)
++        s.current_completion_scores=scores
++        x=controller(jobs,gpu='fixed',aux='opt')
++        x.__class__=type('TestReleaseFixed',(ReleaseEvaluationMixin,x.__class__),{})
++        r=x.decide(s,cs,0.,{})
++        self.assertTrue(r.audit['valid'])
++        self.assertEqual(r.selected['a'].config.config_id,'dgx-ext:1:1')
++        self.assertEqual(r.audit['serial_proposals'][-1]['fixed'],{'a':'dgx-ext:1:1'})
++        ev=r.audit['release_completion']
++        self.assertEqual(ev['fo_fixed_gpu'],{'a':'dgx-ext:1:1'})
++        self.assertTrue(ev['selected_validated'])
++
++    def test_evaluator_failure_does_not_commit_any_ledger(self):
++        jobs=[spec('a')];s=state(jobs)
++        cs=[c for c in columns(s) if c.query.cpu_per_gpu==3.
++            and c.query.ram_gb_per_gpu==62.5]
++        s.current_completion_scores={c.column_id:dict(raw_rate=1.,rho=c.query.rho,
++            remaining_work=100.,delay=0.,estimated_completion=100./c.query.rho) for c in cs}
++        x=controller(jobs,gpu='joint',aux='opt')
++        x.__class__=type('TestReleaseAtomic',(ReleaseEvaluationMixin,x.__class__),{})
++        before=copy.deepcopy(x.__dict__)
++        with patch('joint_prototype.release_evaluation.evaluate_plan',
++                   side_effect=RuntimeError('INJECTED_RELEASE_EVALUATOR_FAILURE')):
++            with self.assertRaisesRegex(RuntimeError,'INJECTED_RELEASE_EVALUATOR_FAILURE'):
++                x.decide(s,cs,0.,{})
++        self.assertEqual(x.__dict__,before)
++        self.assertEqual(x.services,{})
++        self.assertEqual(x.ready,[])
++
++    def test_checkpoint_keeps_current_full_bundle_in_new_mode(self):
++        jobs=[spec('a'),spec('b',arrival=60.,index=1)]
++        s=state(jobs[:1]);s.enforce_floor=False
++        cs=[c for c in columns(s) if c.query.cpu_per_gpu==3.
++            and c.query.ram_gb_per_gpu==62.5]
++        s.current_completion_scores={c.column_id:dict(raw_rate=1.,rho=c.query.rho,
++            remaining_work=100.,delay=50.,estimated_completion=150.) for c in cs}
++        x=controller(jobs,gpu='joint',aux='opt')
++        x.__class__=type('TestReleaseCheckpoint',(ReleaseEvaluationMixin,x.__class__),{})
++        first=x.decide(s,cs,0.,{})
++        locked_a=current(jobs[0],first.selected,locked=True)
++        next_s=state([locked_a,jobs[1]]);next_s.enforce_floor=False
++        next_cols=columns(next_s)
++        next_s.current_completion_scores={c.column_id:dict(raw_rate=1.,rho=c.query.rho,
++            remaining_work=100.,delay=50.,estimated_completion=150.) for c in next_cols}
++        result=x.decide(next_s,next_cols,60.,{'a':0.})
++        self.assertTrue(result.audit['valid'])
++        self.assertEqual(set(result.selected),{'a'})
++        self.assertEqual(geometry(result.selected['a']),geometry(first.selected['a']))
++        self.assertEqual(result.selected['a'].candidate_kind,'locked')
++        self.assertIn('a',result.audit['checkpoint_locks'])
++        self.assertEqual(x.services['a']['delay_charged'],50.)
++
++if __name__=='__main__':unittest.main()

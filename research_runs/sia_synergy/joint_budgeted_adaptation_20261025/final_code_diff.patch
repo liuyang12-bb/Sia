@@ -1,0 +1,483 @@
+--- old/joint_prototype/adaptive_service.py
++++ new/joint_prototype/adaptive_service.py
+@@ -45,6 +45,16 @@
+         if not math.isfinite(value) or value <= 0:
+             raise RuntimeError(f'INVALID_PREDICTED_RATE: {column.job_id}')
+         return value
++
++    def _secondary_tie(self, scheduler, columns, required, constraints, call, chosen):
++        """Historical modes retain their original lexicographic tie rule."""
++        return chosen
++
++    def _milp(self, cost, columns, constraints):
++        return milp(c=cost, integrality=np.ones(len(columns)),
++                    bounds=Bounds(np.zeros(len(columns)), np.ones(len(columns))),
++                    constraints=constraints,
++                    options={'time_limit': 30., 'mip_rel_gap': 0.})
+ 
+     def eligible_held_columns(self, scheduler, job, service, columns, productive, now):
+         """Return current-round eligible columns plus explicit filter evidence.
+@@ -175,10 +185,7 @@
+             constraints = [LinearConstraint(matrix, lower, upper)]
+ 
+             def call(cost):
+-                result = milp(c=cost, integrality=np.ones(len(columns)),
+-                              bounds=Bounds(np.zeros(len(columns)), np.ones(len(columns))),
+-                              constraints=constraints,
+-                              options={'time_limit': 30., 'mip_rel_gap': 0.})
++                result = self._milp(cost, columns, constraints)
+                 traces.append(dict(required=sorted(required), status=int(result.status),
+                                    message=str(result.message),
+                                    phase='objective' if objective else 'feasibility'))
+@@ -203,6 +210,7 @@
+             if tie:
+                 optimum = sum(c.scheduling_utility for c in chosen)
+                 constraints.append(LinearConstraint(weights, optimum - 1e-9, optimum + 1e-9))
++                chosen = self._secondary_tie(s, columns, required, constraints, call, chosen)
+                 for name in sorted(required):
+                     cost = np.zeros(len(columns))
+                     candidates = [i for i, c in enumerate(columns) if c.job_id == name]
+--- old/joint_prototype/execution_audit.py
++++ new/joint_prototype/execution_audit.py
+@@ -5,6 +5,10 @@
+ def audit_execution(event):
+     errors = []
+     segments = event["training_segments"]
++    bounded = "interval_start" in event and "interval_end" in event
++    active_start = max(event.get("interval_start", 0.), event.get("arrival_time", 0.))
++    available = max(0., event["interval_end"] - active_start) if bounded else event["observed_active_seconds"]
++    checkpoint_end = active_start + event["checkpoint_delay_consumed"]
+     def close(a, b):
+         return math.isclose(a, b, rel_tol=1e-9, abs_tol=1e-8)
+     if not close(sum(s["seconds"] for s in segments), event["training_seconds"]):
+@@ -27,10 +31,23 @@
+                 errors.append("epoch-boundary residual exceeds Sia rounding bound")
+         if not close(residual, s["rounding_progress_residual"]):
+             errors.append("incorrect recorded rounding residual")
++        if bounded:
++            if s["start_time"] < checkpoint_end - 1e-8:
++                errors.append("training segment starts inside checkpoint")
++            if s["progress_delta"] > 0 and s["start_time"] >= event["interval_end"]:
++                errors.append("progress without remaining requested execution time")
++            if s["start_time"] + dt > event["interval_end"] + 1e-8:
++                errors.append("segment exceeds requested interval")
+     observed = event["observed_active_seconds"]
+     if not close(event["waiting_seconds"] + event["checkpoint_delay_consumed"] + event["training_seconds"], observed):
+         errors.append("non-exclusive observed time")
+-    if event["checkpoint_delay_consumed"] >= observed > 0 and event["progress_delta"] != 0:
++    # Completion can round a sub-half-second final epoch duration to zero.
++    # Then observed time ends exactly at restore completion, while the requested
++    # Job.step interval still had positive execution time. Compare checkpoint
++    # against the requested available interval, not this completion-truncated
++    # observation. Segment ordering and the half-second residual bound above
++    # independently distinguish legal quantization from actual locked progress.
++    if event["checkpoint_delay_consumed"] >= available > 0 and event["progress_delta"] != 0:
+         errors.append("progress during full checkpoint interval")
+     if event["completion_time"] is not None:
+         for s in segments:
+--- old/joint_prototype/bundle_adaptation.py
++++ new/joint_prototype/bundle_adaptation.py
+@@ -0,0 +1,141 @@
++"""Opt-in JOINT-G: global exchanges under unchanged service/delay protection.
++
++No new utility weights, response model, grid, admission bonus or service clock.
++Local no-slowdown and within-lease payback are not global optimality conditions.
++The actual fairness objective (including its original restart factor) chooses
++whole bundles. Actual startup cost is a secondary criterion ONLY on exact
++primary ties; the cumulative actual-delay cap still protects productive service.
++"""
++import numpy as np
++import hashlib
++from scipy.optimize import LinearConstraint,Bounds
++from . import adaptive_service as solver_backend
++from .scaled_adaptive import ScaledAdmission, ScaledJoint, install as install_scaled
++from .neutral_liveness import geometry
++from .adaptive_service import gpu_geometry
++
++
++class BundleAdmission(ScaledAdmission):
++    def _milp(self,cost,columns,constraints):
++        def payload():
++            return dict(c=np.asarray(cost,dtype=float).tolist(),columns=[dict(job=c.job_id,column_id=c.column_id) for c in columns],constraints=[dict(
++                A=np.asarray(v.A,dtype=float).tolist(),lb=np.asarray(v.lb,dtype=float).tolist(),ub=np.asarray(v.ub,dtype=float).tolist()) for v in constraints])
++        def fingerprint():
++            h=hashlib.sha256(np.asarray(cost,dtype=float).tobytes())
++            for v in constraints:
++                for a in [v.A,v.lb,v.ub]:h.update(np.asarray(a,dtype=float).tobytes())
++            return h.hexdigest()
++        def verify(result):
++            x=getattr(result,'x',None)
++            if x is None:return dict(valid=False,reason='NO_X',maximum_violation=None)
++            x=np.asarray(x)
++            if x.shape!=(len(columns),) or not np.all(np.isfinite(x)):
++                return dict(valid=False,reason='NONFINITE_OR_SHAPE',maximum_violation=None)
++            maximum=max(float(np.max(np.abs(x-np.round(x)))),float(np.max(-x)),float(np.max(x-1.)))
++            violations=[]
++            for ci,v in enumerate(constraints):
++                for label,vec in [('raw',x),('rounded',np.round(x))]:
++                    values=np.asarray(v.A@vec).reshape(-1);lower=np.broadcast_to(v.lb,values.shape);upper=np.broadcast_to(v.ub,values.shape)
++                    delta=np.maximum(lower-values,values-upper);maximum=max(maximum,float(np.max(delta)))
++                    for row in np.flatnonzero(delta>1e-7):
++                        item=dict(constraint=ci,row=int(row),vector=label,value=float(values[row]),lb=float(lower[row]),ub=float(upper[row]),violation=float(delta[row]))
++                        if ci==0 and row<len(self._diagnostic_job_order):item['job_id']=self._diagnostic_job_order[row]
++                        violations.append(item)
++            return dict(valid=maximum<=1e-7,maximum_violation=maximum,violations=violations,
++                selected_jobs=[columns[i].job_id for i,v in enumerate(x) if v>.5])
++        model_hash=fingerprint();result=super()._milp(cost,columns,constraints)
++        if fingerprint()!=model_hash:raise RuntimeError('SOLVER_MUTATED_INPUT_MODEL')
++        # A timeout or genuine infeasibility is NOT silently converted to success.
++        if result.status!=0 or not result.success:return result
++        original=verify(result)
++        if original['valid']:return result
++        record=dict(model_fingerprint=model_hash,original_status=int(result.status),original_message=str(result.message),
++            original_validation=original,original_x=np.asarray(result.x).tolist(),model=payload(),
++            retry_options=dict(time_limit=30.,mip_rel_gap=0.,presolve=False))
++        retried=solver_backend.milp(c=cost,integrality=np.ones(len(columns)),bounds=Bounds(np.zeros(len(columns)),np.ones(len(columns))),
++            constraints=constraints,options=record['retry_options'])
++        record.update(retry_status=int(retried.status),retry_message=str(retried.message),retry_validation=verify(retried),
++                      retry_x=np.asarray(retried.x).tolist() if retried.x is not None else None)
++        self.numerical_solver_retries.append(record)
++        if fingerprint()!=model_hash or retried.status!=0 or not retried.success or not record['retry_validation']['valid']:
++            error=RuntimeError('INVALID_SOLVER_RESULT_AFTER_NUMERICAL_RETRY')
++            error.solver_diagnostics=record
++            raise error
++        return retried
++
++    def eligible_held_columns(self, scheduler, job, service, columns, productive, now):
++        legal, legacy = super().eligible_held_columns(scheduler, job, service, columns, productive, now)
++        by_id={c.column_id:c for c in columns if c.job_id==job.job_id}
++        reclaimed=[];remaining=[]
++        for item in legacy['rejected']:
++            if item['reason'] in {'NO_REMAINING_SERVICE_PAYBACK','AUX_REDUCES_CURRENT_RATE'}:
++                reclaimed.append(by_id[item['column_id']])
++            else:remaining.append(item)
++        # The legacy order already checked checkpoint, observed training,
++        # provenance and cumulative actual startup budget for GPU changes.
++        # CPU/RAM-only changes have no startup delay in the fixed execution model.
++        result=legal+reclaimed
++        evidence=dict(legacy)
++        evidence.update(eligibility_rule='GLOBAL_BUNDLE_WITH_REAL_LOCK_PROFILE_AND_DELAY_BUDGET',
++            legacy_rejection_counts=legacy['rejection_counts'],
++            reintroduced=[dict(column_id=c.column_id,config=c.config.config_id,
++                               effective_goodput=self._rate(c)) for c in reclaimed],
++            rejected=remaining,eligible_count=len(result))
++        from collections import Counter
++        evidence['rejection_counts']=dict(Counter(v['reason'] for v in remaining))
++        return result,evidence
++
++    def _secondary_tie(self, scheduler, columns, required, constraints, call, chosen):
++        costs=[]
++        for c in columns:
++            j=scheduler.job_map[c.job_id]
++            same=(j.current_config_id==c.config.config_id and j.current_placement==c.placement.node_gpus)
++            costs.append(0. if same else self._delay(c.job_id,c))
++        costs=np.asarray(costs)
++        candidate=call(costs)
++        if candidate is None:raise RuntimeError('SECONDARY_COST_INCONSISTENT')
++        best=sum(costs[i] for i,c in enumerate(columns) if any(v is c for v in candidate))
++        constraints.append(LinearConstraint(costs,best-1e-9,best+1e-9))
++        self.secondary_startup_cost=dict(minimum_actual_delay=best,
++            rule='MIN_ACTUAL_STARTUP_ON_EXACT_PRIMARY_OPTIMUM')
++        return candidate
++
++    def _decide(self,s,columns,now,productive):
++        self.secondary_startup_cost=dict(minimum_actual_delay=0.,rule='MIN_ACTUAL_STARTUP_ON_EXACT_PRIMARY_OPTIMUM')
++        self.numerical_solver_retries=[]
++        self._diagnostic_job_order=[j.job_id for j in s.jobs]
++        held={j:v for j,v in self.services.items() if j in s.job_map and
++              productive.get(j,0.)-v['productive_base']<self.quantum-1e-9}
++        old_geometry={j:geometry(v['column']) for j,v in held.items()}
++        result=super()._decide(s,columns,now,productive)
++        baseline=[]
++        for j,c in result.selected.items():
++            baseline.append(next(v for v in columns if geometry(v)==old_geometry[j]) if j in held else c)
++        audit=s.audit(baseline)
++        comparison=dict(feasible=audit['valid'],same_required_jobs=True,
++            baseline_objective=sum(c.scheduling_utility for c in baseline),
++            chosen_objective=result.scheduling_objective)
++        if audit['valid'] and result.scheduling_objective+1e-7<comparison['baseline_objective']:
++            raise RuntimeError('GLOBAL_BUNDLE_OBJECTIVE_REGRESSION')
++        if not audit['valid']:comparison['baseline_violations']=audit['violations']
++        result.audit.update(global_bundle_baseline=comparison,secondary_tie=self.secondary_startup_cost,
++            numerical_solver_retries=self.numerical_solver_retries)
++        result.policy='JOINT_G';result.status='DRAIN_FOR_HEAD' if result.audit['drain'] else 'OPTIMAL_GLOBAL_BUNDLE'
++        return result
++
++
++class BundleJoint(ScaledJoint):
++    def optimize(self,*args):
++        result=super().optimize(*args)
++        self.last_decision['shared_contract'].update(
++            admission='FIFO_PRODUCTIVE_GLOBAL_BUNDLE_DELAY_BUDGET',
++            eligibility='NO_LOCAL_PAYBACK_OR_PER_JOB_NONDEGRADATION_VETO',
++            secondary='MIN_ACTUAL_STARTUP_ON_PRIMARY_TIES')
++        return result
++
++
++def install(cluster):
++    install_scaled(cluster)
++    cluster.policy.__class__=BundleJoint
++    cluster.policy.liveness.__class__=BundleAdmission
++    return cluster
+--- old/run_bundle_cell.py
++++ new/run_bundle_cell.py
+@@ -0,0 +1,41 @@
++"""One frozen JOINT-G cell; same inputs/execution/window, no parameter search."""
++import argparse,gzip,json,sys,time,traceback,hashlib
++from pathlib import Path
++import pandas as pd
++import psutil
++from joint_prototype.full160 import make_cluster
++from joint_prototype.bundle_adaptation import install
++from run_full160_cell import FullMetrics
++from run_small_mechanism import save,default
++
++def main():
++    ap=argparse.ArgumentParser();ap.add_argument('--manifest',type=Path,required=True)
++    ap.add_argument('--size',type=int,choices=[8,20],required=True);ap.add_argument('--response',choices=['neutral','medium'],required=True)
++    ap.add_argument('--output',type=Path,required=True);a=ap.parse_args();p=json.loads(a.manifest.read_text())
++    memory=psutil.virtual_memory().available/1024**3
++    if memory<2:raise RuntimeError(f'MEMORY_GATE_2GiB: {memory:.6f}')
++    if psutil.disk_usage(str(a.output.parent)).free<5*1024**3:raise RuntimeError('DISK_GATE_5GiB')
++    for path,h in p['hashes'].items():
++        if hashlib.sha256(Path(path).read_bytes()).hexdigest().upper()!=h:raise RuntimeError('FROZEN_HASH_CHANGED:'+path)
++    a.output.mkdir(exist_ok=False);start=time.perf_counter()
++    c=install(make_cluster(json.loads(Path(p['config']).read_text()),pd.read_csv(p['workloads'][str(a.size)]),
++        p['registry'],p['models'],'joint_o',a.response,'main',True));m=FullMetrics(c)
++    save(a.output/'start.json',dict(command=sys.argv,manifest_hash=hashlib.sha256(a.manifest.read_bytes()).hexdigest(),
++        memory_gib=memory,actual_delay_costs=c.policy.liveness.delay_costs))
++    try:
++        with gzip.open(a.output/'rounds.jsonl.gz','xt',encoding='utf-8') as f:
++            for i in range(p['max_rounds']):
++                if c.all_complete():break
++                tick=time.perf_counter();c.step(60);r=c.joint_round_logs[-1];r['round_wall_seconds']=time.perf_counter()-tick
++                r['job_end_state']={j.name:dict(restarts=j.num_restarts or 0,migrations=j.num_migrations or 0,
++                    wasted_gpu_seconds=j.wasted_gpu_seconds,completion=j.completion_time) for j in c.jobs}
++                f.write(json.dumps(r,default=default)+'\n');f.flush();m.consume(c,r)
++                c.joint_round_logs.clear();c.logs.clear();c.rescale_events.clear();c.migrate_events.clear()
++                if (i+1)%50==0:print('PROGRESS',i+1,sum(j.completion_time is not None for j in c.jobs),flush=True)
++        result=m.summary(c,dict(rmst_tau_seconds=p['max_rounds']*60))
++        result.update(method='joint_g',response=a.response,size=a.size,total_wall_seconds=time.perf_counter()-start)
++        save(a.output/'summary.json',result);print('RESULT',result['completed'],result['mean_jct'],flush=True)
++    except Exception as exc:
++        save(a.output/'failure.json',dict(error=repr(exc),traceback=traceback.format_exc(),time=c.current_time,
++            last_decision=c.policy.last_decision,solver_diagnostics=getattr(exc,'solver_diagnostics',None)));raise
++if __name__=='__main__':main()
+--- old/tests/test_bundle_adaptation.py
++++ new/tests/test_bundle_adaptation.py
+@@ -0,0 +1,100 @@
++"""Red harness uses legacy behavior until the opt-in bundle class exists."""
++import copy,unittest
++from dataclasses import replace
++from types import SimpleNamespace
++from unittest.mock import patch
++from test_adaptive_service import spec,cfg,current,scheduler,columns,admission
++from joint_prototype.joint_profile import NodeSpec
++from joint_prototype.neutral_liveness import geometry
++try:
++    from joint_prototype.bundle_adaptation import BundleAdmission
++except ModuleNotFoundError:
++    from joint_prototype.scaled_adaptive import ScaledAdmission as BundleAdmission
++
++def controller(jobs,delay=50.):
++    a=BundleAdmission(300.,250.,60.)
++    old=admission(jobs,delay)
++    a.delay_costs=old.delay_costs;a.profile_sources=old.profile_sources
++    return a
++
++def swap_state():
++    jobs=[spec('a',configs=[cfg('aws',rate=1.),cfg('dgx-ext',rate=10.)]),
++          spec('b',configs=[cfg('aws',rate=2.),cfg('dgx-ext',rate=3.)],index=1)]
++    nodes=[NodeSpec(t+':0',t,1,3.,62.5) for t in ['aws','dgx-ext']]
++    a=controller(jobs);s=scheduler(jobs,nodes)
++    cs=[c for c in columns(s) if c.config.gpu_type==('aws' if c.job_id=='a' else 'dgx-ext')]
++    first=a.decide(s,cs,0.,{})
++    return jobs,nodes,a,first
++
++class BundleTests(unittest.TestCase):
++    def test_empty_arrived_set_is_audited_idle(self):
++        a=controller([]);s=scheduler([])
++        r=a.decide(s,[],0.,{})
++        self.assertEqual(r.selected,{})
++        self.assertTrue(r.audit['valid'])
++        self.assertEqual(r.audit['secondary_tie']['minimum_actual_delay'],0.)
++
++    def test_coordinated_gpu_exchange_may_reduce_one_peer_rate(self):
++        jobs,nodes,a,first=swap_state();s=scheduler([current(j,first.selected) for j in jobs],nodes)
++        cs=columns(s)
++        # Production-like restart factor is charged in primary utility, not bypassed.
++        cs=[replace(c,scheduling_utility=1.1-round((c.query.effective_goodput*(1. if c.config.config_id==first.selected[c.job_id].config.config_id else .8))**-.5,2)) for c in cs]
++        r=a.decide(s,cs,180.,{'a':130.,'b':130.})
++        self.assertEqual(r.selected['a'].config.gpu_type,'dgx-ext')
++        self.assertEqual(r.selected['b'].config.gpu_type,'aws')
++        self.assertLess(r.selected['b'].query.effective_goodput,first.selected['b'].query.effective_goodput)
++        self.assertTrue(r.audit['valid'])
++        self.assertEqual(a.services['a']['productive_base'],0.)
++        self.assertEqual(a.services['a']['delay_charged'],100.)
++
++    def test_auxiliary_decrease_is_candidate_not_a_per_job_veto(self):
++        j=spec('j',template='alexnet_1.py');a=controller([j]);s=scheduler([j],medium=True)
++        cs=[c for c in columns(s) if c.query.cpu_per_gpu==6.]
++        first=a.decide(s,cs,0.,{})
++        s=scheduler([current(j,first.selected)],medium=True)
++        legal,ev=a.eligible_held_columns(s,s.jobs[0],a.services['j'],columns(s),{'j':130.},180.)
++        base=first.selected['j'].query.effective_goodput
++        self.assertTrue(any(c.query.effective_goodput<base-1e-8 for c in legal))
++
++    def test_checkpoint_lock_still_blocks_bundle_exchange(self):
++        jobs,nodes,a,first=swap_state()
++        s=scheduler([current(j,first.selected,locked=True) for j in jobs],nodes)
++        r=a.decide(s,columns(s),60.,{})
++        for j in jobs:self.assertEqual(geometry(r.selected[j.job_id]),geometry(first.selected[j.job_id]))
++
++    def test_delay_budget_cannot_be_bypassed_by_global_gain(self):
++        jobs,nodes,a,first=swap_state()
++        for v in a.services.values():v['delay_charged']=250.
++        s=scheduler([current(j,first.selected) for j in jobs],nodes)
++        r=a.decide(s,columns(s),180.,{'a':130.,'b':130.})
++        for j in jobs:self.assertEqual(r.selected[j.job_id].config.config_id,first.selected[j.job_id].config.config_id)
++
++    def test_exact_primary_tie_prefers_no_actual_restart(self):
++        j=spec(configs=[cfg('aws'),cfg('rtx')]);a=controller([j]);s=scheduler([j])
++        first=a.decide(s,[c for c in columns(s) if c.config.gpu_type=='rtx'],0.,{})
++        s=scheduler([current(j,first.selected)])
++        r=a.decide(s,[replace(c,scheduling_utility=.1) for c in columns(s)],180.,{'j':130.})
++        self.assertEqual(r.selected['j'].config.gpu_type,'rtx')
++        self.assertEqual(a.services['j']['delay_charged'],50.)
++
++    def test_unknown_profile_and_no_training_remain_excluded(self):
++        jobs,nodes,a,first=swap_state();s=scheduler([current(j,first.selected) for j in jobs],nodes)
++        for name in a.profile_sources:
++            a.profile_sources[name]={k:'unprofiled_sia_fallback' for k in a.profile_sources[name]}
++        r=a.decide(s,columns(s),180.,{'a':130.,'b':130.})
++        for j in jobs:self.assertEqual(r.selected[j.job_id].config.config_id,first.selected[j.job_id].config.config_id)
++        r=a.decide(s,columns(s),180.,{'a':0.,'b':0.})
++        for j in jobs:self.assertEqual(r.selected[j.job_id].config.config_id,first.selected[j.job_id].config.config_id)
++
++    def test_solver_failure_rolls_back_queue_and_budget(self):
++        jobs,nodes,a,first=swap_state();s=scheduler([current(j,first.selected) for j in jobs],nodes)
++        before=copy.deepcopy(a.__dict__)
++        fail=SimpleNamespace(x=None,status=1,success=False,message='injected')
++        with patch('joint_prototype.adaptive_service.milp',return_value=fail):
++            with self.assertRaisesRegex(RuntimeError,'SOLVER_UNDECIDED'):a.decide(s,columns(s),180.,{'a':130.,'b':130.})
++        self.assertEqual(a.__dict__,before)
++
++    def test_negative_utility_does_not_restore_empty_absorption(self):
++        j=spec();a=controller([j]);s=scheduler([j])
++        r=a.decide(s,columns(s,negative=True),0.,{})
++        self.assertEqual(set(r.selected),{'j'});self.assertTrue(r.audit['valid'])
+--- old/tests/test_bundle_integration.py
++++ new/tests/test_bundle_integration.py
+@@ -0,0 +1,26 @@
++import unittest,json
++from pathlib import Path
++import pandas as pd
++from joint_prototype.full160 import make_cluster
++from joint_prototype.bundle_adaptation import install
++from joint_prototype.execution_audit import audit_execution
++
++class BundleIntegration(unittest.TestCase):
++    def test_real_unseeded_checkpoint_to_training_and_next_decision(self):
++        root=Path(__file__).resolve().parents[3]
++        p=json.loads((root/'research_runs/sia_synergy/small_mechanism_20261025/preregistration.json').read_text())
++        c=install(make_cluster(json.loads(Path(p['config']).read_text()),
++            pd.DataFrame([dict(name='bert-mid',time=17,application='bert',num_replicas=1,batch_size=384)]),
++            p['registry'],p['models'],'joint_o','medium','main',False))
++        productive=0.;locks=0
++        for _ in range(10):
++            if c.all_complete():break
++            c.step(60);r=c.joint_round_logs[-1];d=c.policy.last_decision
++            self.assertTrue(d['result']['audit']['valid'])
++            self.assertEqual(d['result']['policy'],'JOINT_G')
++            for e in r['execution']:
++                self.assertTrue(audit_execution(e)['valid']);productive+=e['training_seconds']
++                locks+=int(e['checkpoint_delay_consumed']>0)
++            for v in d['result']['audit']['service_delay_ledgers'].values():self.assertLessEqual(v['delay_charged'],250.)
++        self.assertGreater(productive,0.);self.assertGreater(locks,0)
++        self.assertGreater(c.jobs[0].progress,0.)
+--- old/tests/test_bundle_solver_numerics.py
++++ new/tests/test_bundle_solver_numerics.py
+@@ -0,0 +1,30 @@
++"""An allegedly optimal integer vector must satisfy every linear constraint."""
++import unittest
++from unittest.mock import patch
++from types import SimpleNamespace
++import numpy as np
++import joint_prototype.adaptive_service as legacy
++from test_adaptive_service import spec,scheduler,columns
++from test_bundle_adaptation import controller
++
++class SolverNumericsTests(unittest.TestCase):
++    def test_invalid_optimal_vector_retries_identical_model_without_presolve(self):
++        j=spec();s=scheduler([j]);a=controller([j]);real=legacy.milp;seen=[]
++        def injected(**kwargs):
++            seen.append(kwargs)
++            if len(seen)==1:return SimpleNamespace(x=np.zeros(len(kwargs['c'])),success=True,status=0,message='injected presolve invalid optimal')
++            return real(**kwargs)
++        with patch.object(legacy,'milp',side_effect=injected):r=a.decide(s,columns(s),0.,{})
++        self.assertEqual(set(r.selected),{'j'});self.assertTrue(r.audit['valid'])
++        self.assertFalse(seen[1]['options']['presolve'])
++        np.testing.assert_array_equal(seen[0]['c'],seen[1]['c'])
++        for x,y in zip(seen[0]['constraints'],seen[1]['constraints']):
++            np.testing.assert_array_equal(x.A,y.A);np.testing.assert_array_equal(x.lb,y.lb);np.testing.assert_array_equal(x.ub,y.ub)
++        self.assertGreaterEqual(r.audit['numerical_solver_retries'][0]['original_validation']['maximum_violation'],1.)
++
++    def test_second_invalid_vector_stops_and_rolls_back(self):
++        j=spec();s=scheduler([j]);a=controller([j]);before=dict(a.__dict__)
++        def injected(**kwargs):return SimpleNamespace(x=np.zeros(len(kwargs['c'])),success=True,status=0,message='injected invalid optimal')
++        with patch.object(legacy,'milp',side_effect=injected):
++            with self.assertRaisesRegex(RuntimeError,'INVALID_SOLVER_RESULT_AFTER_NUMERICAL_RETRY'):a.decide(s,columns(s),0.,{})
++        self.assertEqual(a.__dict__,before)
+--- old/tests/test_checkpoint_rounding_audit.py
++++ new/tests/test_checkpoint_rounding_audit.py
+@@ -0,0 +1,50 @@
++"""Unmodified official Job.step reproduces zero-second completion rounding."""
++import copy,importlib.util,unittest
++from pathlib import Path
++from applications import APPLICATIONS
++from job import Job
++from joint_prototype.execution_audit import audit_execution
++
++ROOT=Path(__file__).resolve().parents[3]
++def configured(cls):
++    apps={t:APPLICATIONS[t]['cifar10'] for t in ['aws','dgx-ext','rtx']}
++    j=cls('cifar-quantized-boundary',apps,0,target_num_replicas=4,target_batch_size=4096)
++    j.migrate('rtx',[4]);j.current_time=660;j.rescale_time=50
++    a=apps['rtx'];bsz=sum(j.placement)*j.atomic_bsz*(j.accum_steps+1)
++    j.epoch=a.get_completion_epoch(bsz);j.epoch_duration=[0]*j.epoch
++    gs,gv=a.get_grad_stats(bsz,j.epoch);scale=bsz/a.init_batch_size
++    gain=(gv+gs)/(gv/scale+gs);step,sync=a.get_throughput((4,),j.atomic_bsz)
++    raw=gain/(step+(step-sync)*j.accum_steps)*j.calibration_factor
++    j.progress=a.get_progress(j.epoch+1)-.25*raw
++    j.enable_joint_accounting=True
++    return j
++def event():
++    j=configured(Job);before=j.progress;j.step(60)
++    return dict(interval_start=660,interval_end=720,arrival_time=0,observed_active_seconds=50,
++        waiting_seconds=0.,checkpoint_delay_consumed=50.,training_seconds=0.,progress_delta=j.progress-before,
++        rho=1.,completion_time=j.completion_time,training_segments=j.joint_step_segments),j
++
++class CheckpointRoundingTests(unittest.TestCase):
++    def test_official_step_matches_quantized_completion_after_checkpoint(self):
++        module=importlib.util.spec_from_file_location('untouched_official_job_rounding',ROOT/'official-artifacts/sia-simulator/job.py')
++        official=importlib.util.module_from_spec(module);module.loader.exec_module(official)
++        old=configured(official.Job);initial=old.progress;old.step(60)
++        e,j=event()
++        self.assertEqual((old.completion_time,old.progress,old.epoch,old.execution_time),
++                         (j.completion_time,j.progress,j.epoch,j.execution_time))
++        self.assertEqual(old.completion_time,710);self.assertEqual(old.execution_time,0)
++        self.assertGreater(old.progress,initial)
++        self.assertTrue(audit_execution(e)['valid'])
++
++    def test_segment_cannot_advance_inside_checkpoint(self):
++        e,_=event();e['training_segments'][0]['start_time']=709
++        self.assertFalse(audit_execution(e)['valid'])
++
++    def test_full_requested_checkpoint_cannot_hide_rounding_progress(self):
++        e,_=event();e.update(checkpoint_delay_consumed=60.,observed_active_seconds=60.,completion_time=720)
++        e['training_segments'][0]['start_time']=720
++        self.assertFalse(audit_execution(e)['valid'])
++
++    def test_quantization_residual_must_stay_within_half_second_rate(self):
++        e,_=event();v=e['training_segments'][0];v['progress_delta']=v['effective_rate'];v['rounding_progress_residual']=v['progress_delta'];e['progress_delta']=v['progress_delta']
++        self.assertFalse(audit_execution(e)['valid'])

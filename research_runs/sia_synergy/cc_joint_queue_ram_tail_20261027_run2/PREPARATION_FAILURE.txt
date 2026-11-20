@@ -1,0 +1,7 @@
+Offline preflight caught an incorrect hypothesis before any training.
+At187.5GB/node, CF125GB+DS62.5GB is feasible, but DS loses speed.
+DGX CF rho93.75=1.807254570482139 ->rho125=1.9258543619215314.
+DGX DS rho93.75=1.4858708648099386 ->rho62.5=1.2582522147889337.
+No claim of cost-free memory donation or guaranteed JCT benefit is allowed.
+Keep the same187.5GB scenario, record donor loss explicitly, freeze in run3.
+No response, workload or algorithm modification; no JCT outcomes seen.

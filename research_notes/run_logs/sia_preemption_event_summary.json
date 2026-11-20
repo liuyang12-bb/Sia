@@ -1,0 +1,78 @@
+{
+  "definition_boundary": {
+    "strict_lazer_futile_preemption_count": null,
+    "strict_status": "UNKNOWN_FROM_SAVED_JSONL",
+    "reason": "Saved Sia JSONL has no separate pause/save and load timestamps, no remaining-duration priority, and no scheduler-decision cause. The simulator hard-preserves a job while its combined checkpoint/restore countdown is positive, so reconstructed early-repeat candidates are reported separately and are zero on all three traces."
+  },
+  "workloads": {
+    "workload-1": {
+      "jobs": 160,
+      "restarts": 659,
+      "restarts_per_job_mean": 4.11875,
+      "restarts_per_job_median": 3.0,
+      "restarts_per_job_p95": 10,
+      "restarts_per_job_p99": 16,
+      "restarts_per_job_max": 25,
+      "restart_checkpoint_restore_gpu_seconds": 262590.0,
+      "restart_checkpoint_restore_gpu_hours": 72.9416666667,
+      "restart_then_change_without_observed_progress": 0,
+      "changed_before_reconstructed_rescale_complete": 0,
+      "gpu_type_changed_restart_fraction": 0.5857359636,
+      "gpu_count_changed_restart_fraction": 0.9332321700,
+      "restart_transition_categories": {
+        "gpu_type_and_count_changed": 342,
+        "gpu_type_only_changed": 44,
+        "gpu_count_only_changed": 273
+      },
+      "submission_to_scheduler_boundary_mean_seconds": 29.41875,
+      "completion_to_scheduler_boundary_mean_seconds": 25.63125,
+      "detail": "sia_preemption_workload1.events.json"
+    },
+    "workload-5": {
+      "jobs": 160,
+      "restarts": 692,
+      "restarts_per_job_mean": 4.325,
+      "restarts_per_job_median": 3.0,
+      "restarts_per_job_p95": 12,
+      "restarts_per_job_p99": 18,
+      "restarts_per_job_max": 23,
+      "restart_checkpoint_restore_gpu_seconds": 285065.0,
+      "restart_checkpoint_restore_gpu_hours": 79.1847222222,
+      "restart_then_change_without_observed_progress": 0,
+      "changed_before_reconstructed_rescale_complete": 0,
+      "gpu_type_changed_restart_fraction": 0.5621387283,
+      "gpu_count_changed_restart_fraction": 0.8424855491,
+      "restart_transition_categories": {
+        "gpu_type_and_count_changed": 280,
+        "gpu_type_only_changed": 109,
+        "gpu_count_only_changed": 303
+      },
+      "submission_to_scheduler_boundary_mean_seconds": 28.70625,
+      "completion_to_scheduler_boundary_mean_seconds": 26.60625,
+      "detail": "sia_preemption_workload5.events.json"
+    },
+    "workload-10": {
+      "jobs": 160,
+      "restarts": 749,
+      "restarts_per_job_mean": 4.68125,
+      "restarts_per_job_median": 4.0,
+      "restarts_per_job_p95": 11,
+      "restarts_per_job_p99": 19,
+      "restarts_per_job_max": 23,
+      "restart_checkpoint_restore_gpu_seconds": 301865.0,
+      "restart_checkpoint_restore_gpu_hours": 83.8513888889,
+      "restart_then_change_without_observed_progress": 0,
+      "changed_before_reconstructed_rescale_complete": 0,
+      "gpu_type_changed_restart_fraction": 0.6088117490,
+      "gpu_count_changed_restart_fraction": 0.9025367156,
+      "restart_transition_categories": {
+        "gpu_type_and_count_changed": 383,
+        "gpu_type_only_changed": 73,
+        "gpu_count_only_changed": 293
+      },
+      "submission_to_scheduler_boundary_mean_seconds": 31.7875,
+      "completion_to_scheduler_boundary_mean_seconds": 28.7,
+      "detail": "sia_preemption_workload10.events.json"
+    }
+  }
+}

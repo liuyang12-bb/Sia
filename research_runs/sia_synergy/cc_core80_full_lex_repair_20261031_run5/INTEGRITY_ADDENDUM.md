@@ -1,0 +1,3 @@
+# 独立最终完整性核验
+
+原始事件、结果、源码、输入和CELL_END收据均逐文件复核。旧seal保留；其自写watch.log若在完成打印后追加，仅以原SHA匹配的完整字节前缀证明日志追加，未修改原日志。observer_seal_reconciliation.json记录全部差异。进程退出后生成final_integrity_hashes.json与final_integrity_receipt.json，作为关闭文件的最终核验入口。没有改动任何科学结果或运行源码。

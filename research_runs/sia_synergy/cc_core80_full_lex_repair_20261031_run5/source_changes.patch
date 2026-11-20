@@ -1,0 +1,890 @@
+--- a/engineering_repair.py
++++ b/engineering_repair.py
+@@ -15,6 +15,8 @@
+  def decide(self,*args):
+   ephemeral=('_repair_last_x','_repair_last_columns','_repair_grid_domain','_repair_scope','_repair_variables_removed','_repair_zero_variables_removed','_repair_bound_certificates','_repair_native_calls','_repair_native_seconds','_repair_lp_calls','_repair_lp_seconds','_repair_lp_variables_removed','_repair_support_trace','_repair_last_failure','_repair_job_specs','_repair_job_order')
+   for key in ephemeral:self.__dict__.pop(key,None)
++  extra_ephemeral=('_repair_primary_domain_cache','_repair_primary_band_lp_calls','_repair_primary_band_lp_seconds','_repair_primary_band_variables_removed','_repair_primary_certificates','_repair_integer_rows_tightened','_repair_capacity_cover_cache','_repair_capacity_cover_peak','_repair_capacity_cover_proofs','_repair_epsilon_trace')
++  for key in extra_ephemeral:self.__dict__.pop(key,None)
+   self._repair_scope=True
+   self._repair_allow_cbc=True
+   self._repair_job_specs=args[0].job_map;self._repair_job_order=[j.job_id for j in args[0].jobs]
+@@ -22,11 +24,16 @@
+    r=old(self,*args)
+    r.audit['engineering_solver']={k:getattr(self,'_repair_'+k,0) for k in ('variables_removed','zero_variables_removed','bound_certificates','native_calls','native_seconds','lp_calls','lp_seconds','lp_variables_removed')}
+    r.audit['engineering_solver']['support_trace']=getattr(self,'_repair_support_trace',[])
++   r.audit['engineering_solver'].update({k:getattr(self,'_repair_'+k,0) for k in ('primary_band_lp_calls','primary_band_lp_seconds','primary_band_variables_removed','integer_rows_tightened')})
++   r.audit['engineering_solver']['primary_certificates']=getattr(self,'_repair_primary_certificates',[])
++   r.audit['engineering_solver']['epsilon_trace']=getattr(self,'_repair_epsilon_trace',[])
++   r.audit['engineering_solver']['capacity_cover_rows']=getattr(self,'_repair_capacity_cover_peak',0)
+    return r
+   except Exception as error:
+    if not hasattr(error,'solver_diagnostics') and hasattr(self,'_repair_last_failure'):error.solver_diagnostics=self._repair_last_failure
+    raise
+   finally:
+    for key in ephemeral:self.__dict__.pop(key,None)
++   for key in extra_ephemeral:self.__dict__.pop(key,None)
+    self.__dict__.pop('_repair_allow_cbc',None)
+  with storage_context(oracle),patch.object(ba.BundleAdmission,'_milp',canonical_bundle),patch.object(Core80Admission,'_decide',decide),patch.object(Core80Policy,'_repair_literal_factor',old_factor,create=True),patch.object(Core80Policy,'factor_columns',fast_factor):yield
+--- a/numeric_repair.py
++++ b/numeric_repair.py
+@@ -33,9 +33,17 @@
+     self._repair_bound_certificates=getattr(self,'_repair_bound_certificates',0)+1
+     return OptimizeResult(x=valid,status=0,success=True,fun=float(np.dot(cost,valid)),message='CERTIFIED_ATTAINED_JOBWISE_LOWER_BOUND; all current original rows validated')
+   except ValueError:pass
++ before=fingerprint(cost,constraints)
++ from integer_row_lattice import tighten_integer_rows
++ solver_constraints,lattice=tighten_integer_rows(constraints)
++ from capacity_cover import strengthen
++ solver_constraints=strengthen(self,columns,solver_constraints)
++ self._repair_integer_rows_tightened=getattr(self,'_repair_integer_rows_tightened',0)+len(lattice)
++ from primary_band_presolve import allowed,certificate_on_domain
++ primary_keep=allowed(self,columns,solver_constraints,valid,cache_token=constraints[:3])
+  if valid is not None and getattr(self,'_repair_scope',False):
+-  from dual_certificate import certificate,refresh_incumbent,public_proof
+-  proof=certificate(cost,constraints,valid)
++  from dual_certificate import refresh_incumbent,public_proof
++  proof=certificate_on_domain(cost,constraints,valid,primary_keep)
+   if proof is not None:
+    self._repair_lp_calls=getattr(self,'_repair_lp_calls',0)+1
+    self._repair_lp_seconds=getattr(self,'_repair_lp_seconds',0.)+proof['seconds']
+@@ -62,19 +70,30 @@
+     self._repair_bound_certificates=getattr(self,'_repair_bound_certificates',0)+1
+     self._repair_last_x=valid.copy();self._repair_last_columns=columns
+     return OptimizeResult(x=valid,status=0,success=True,fun=float(np.dot(cost,valid)),message='CERTIFIED_DUAL_LATTICE_LOWER_BOUND; '+str({k:v for k,v in public_proof(proof).items() if k!='fix_zero'}))
+- before=fingerprint(cost,constraints)
++ # Exact budget proof avoids minimizing startup in a hairline primary strip.
++ # It returns only a current original-row valid, globally certified optimum.
++ from epsilon_lex_repair import solve as startup_certificate
++ certified=startup_certificate(self,cost,columns,constraints,valid,primary_keep)
++ if certified is not None:
++  self._repair_last_x=certified.x.copy();self._repair_last_columns=columns
++  return certified
+  # Keep the literal first solve. The preserved first-conditioned technical
+  # variant timed out on a later lex phase; use the existing reversible row
+  # representation only when numerical validation/infeasibility needs it.
+  narrow=any(np.any(np.isfinite(c.lb)&np.isfinite(c.ub)&(np.asarray(c.ub)-np.asarray(c.lb)>0)&(np.asarray(c.ub)-np.asarray(c.lb)<1e-6)) for c in constraints)
+  from exact_grid_presolve import reduced
+- small_cost,small_columns,small_rows,kept=reduced(self,cost,columns,constraints)
++ small_cost,small_columns,small_rows,kept=reduced(self,cost,columns,solver_constraints)
++ if primary_keep is not None and len(primary_keep)<len(columns):
++  kept=primary_keep if kept is None else np.intersect1d(kept,primary_keep)
++  from scipy.optimize import LinearConstraint
++  small_cost=np.asarray(cost)[kept];small_columns=[columns[i] for i in kept]
++  small_rows=[LinearConstraint(c.A[:,kept],c.lb,c.ub) for c in solver_constraints]
+  if valid is not None and getattr(self,'_repair_scope',False) and proof is not None and proof.get('fix_zero'):
+   from scipy.optimize import LinearConstraint
+   allowed=np.ones(len(columns),dtype=bool);allowed[proof['fix_zero']]=False
+   kept=np.flatnonzero(allowed) if kept is None else kept[allowed[kept]]
+   small_cost=np.asarray(cost)[kept];small_columns=[columns[i] for i in kept]
+-  small_rows=[LinearConstraint(c.A[:,kept],c.lb,c.ub) for c in constraints]
++  small_rows=[LinearConstraint(c.A[:,kept],c.lb,c.ub) for c in solver_constraints]
+   self._repair_lp_variables_removed=max(getattr(self,'_repair_lp_variables_removed',0),len(proof['fix_zero']))
+  def lift(r):
+   if kept is not None and r.x is not None:
+@@ -99,8 +118,8 @@
+    self._repair_last_failure=dict(status=int(result.status),message=str(result.message),x=np.asarray(result.x).tolist() if result.x is not None else None,
+     model=dict(c=np.asarray(cost).tolist(),columns=[dict(job_id=c.job_id,column_id=c.column_id) for c in columns],constraints=[dict(A=matrix_payload(c.A),lb=np.asarray(c.lb).tolist(),ub=np.asarray(c.ub).tolist()) for c in constraints]))
+   self._repair_last_x=None;return result
+- conditioned,powers=condition_constraint_bands(constraints) if narrow else (constraints,[])
+- retry_rows=conditioned if narrow else constraints
++ conditioned,powers=condition_constraint_bands(solver_constraints) if narrow else (solver_constraints,[])
++ retry_rows=conditioned if narrow else solver_constraints
+  if kept is not None:
+   from scipy.optimize import LinearConstraint
+   retry_rows=[LinearConstraint(c.A[:,kept],c.lb,c.ub) for c in retry_rows]
+--- a/supervise80.py
++++ b/supervise80.py
+@@ -52,6 +52,8 @@
+   if timed:
+    # Do not edit or close/reconstruct a truncated worker log after a hard kill.
+    (out/'cells'/cell['id']/'COMPUTE_TIMEOUT.json').write_text(json.dumps(dict(status=state,wall_limit=p['cell_wall_limit_seconds'],unix=time.time(),reason='Hard watchdog; no JCT imputation, raw partial logs retained.'),indent=2),encoding='utf8')
++  if p.get('stop_on_engineering_failure',False) and state in ('FAILED','COMPUTE_TIMEOUT'):
++   stop_reason='REGISTERED_ENGINEERING_FAILURE_GATE';break
+  append(manifest,dict(event='BATCH_END',unix=time.time(),elapsed=time.time()-start,attempted=len(completed),stop_reason=stop_reason or 'REGISTERED_MATRIX_FINISHED'))
+ 
+ if __name__=='__main__':main(sys.argv[1])
+--- /dev/null
++++ b/capacity_cover.py
+@@ -0,0 +1,47 @@
++"""Exact threshold-cover inequalities; no binary feasible point is removed.
++
++If k+1 selected allocations each use more than C/(k+1), their total
++exceeds capacity C. Account conservatively for the existing validator's
++tolerance and floating summation error. All k are derived from the physical
++GPU capacity and active-job count, not fitted to an observed result.
++"""
++import hashlib
++import numpy as np
++from scipy import sparse
++from scipy.optimize import LinearConstraint
++from primary_band_presolve import UP,D,dot_error,upper_float
++from decimal import Decimal
++from scale_storage import matrix_bytes
++
++def strengthen(self,columns,constraints):
++ if not getattr(self,'_repair_scope',False) or not constraints:return constraints
++ jobs=getattr(self,'_repair_job_order',None)
++ if not jobs:return constraints
++ base=constraints[0];A=sparse.csr_matrix(base.A);n=len(jobs);extra=A.shape[0]-n
++ if extra<=0 or extra%3:return constraints
++ lo=np.broadcast_to(base.lb,(A.shape[0],));hi=np.broadcast_to(base.ub,(A.shape[0],))
++ h=hashlib.sha256(matrix_bytes(A[n:]));h.update(matrix_bytes(hi[n:]));h.update(str(n).encode());signature=h.hexdigest()
++ old=getattr(self,'_repair_capacity_cover_cache',None)
++ if old is None or old[0] is not columns or old[1]!=signature:
++  rr=[];cc=[];values=[];upper=[];proofs=[]
++  for start in range(n,A.shape[0],3):
++   g=float(hi[start])
++   if not np.isfinite(g) or g<1 or g!=round(g):continue
++   for row in (start+1,start+2):
++    v=A.getrow(row);cap=float(hi[row])
++    if not np.isfinite(cap) or cap<=0 or np.any(v.data<0) or not np.all(np.isfinite(v.data)):continue
++    tol=1e-10 if np.isfinite(lo[row]) and cap-lo[row]<1e-6 else 1e-7
++    bound=UP.add(UP.add(D(cap),D(tol)),dot_error(v.data,len(columns)));previous=None
++    for k in range(1,min(int(g),n)):
++     threshold=upper_float(UP.divide(bound,Decimal(k+1)));indices=v.indices[v.data>threshold]
++     if len(indices)<=k or previous is not None and np.array_equal(indices,previous):continue
++     if len({columns[int(i)].job_id for i in indices})<=k:continue
++     previous=indices.copy();idx=len(upper);rr.extend([idx]*len(indices));cc.extend(indices.tolist());values.extend([1.]*len(indices));upper.append(float(k))
++     if len(proofs)<12:proofs.append(dict(original_row=row,k=k,threshold=threshold,capacity=cap,columns=len(indices),proof='K_PLUS_ONE_STRICTLY_EXCEEDS_ORIGINAL_VALIDATOR_CAPACITY'))
++  cuts=sparse.csc_matrix((values,(rr,cc)),shape=(len(upper),len(columns)));upper=np.asarray(upper)
++  self._repair_capacity_cover_cache=(columns,signature,cuts,upper,proofs)
++ else:cuts,upper,proofs=old[2:]
++ if not len(upper):return constraints
++ self._repair_capacity_cover_peak=max(getattr(self,'_repair_capacity_cover_peak',0),len(upper));self._repair_capacity_cover_proofs=proofs
++ first=LinearConstraint(sparse.vstack([A,cuts]).tocsc(),np.concatenate([lo,np.full(len(upper),-np.inf)]),np.concatenate([hi,upper]))
++ return [first,*constraints[1:]]
+--- /dev/null
++++ b/epsilon_lex_repair.py
+@@ -0,0 +1,106 @@
++"""Exact startup minimization by monotone epsilon-constraint certificates.
++
++For original primary band [L,U] and integral startup d with gcd g, a currently
++valid point of startup V is optimal iff no original point with d*x <= V-g
++reaches L. Maximize the ORIGINAL primary on that budget, without its lower
++band. Valid primary-band witnesses decrease V. A global upper bound below L
++proves V optimal. Unknown/time-limit output never proves infeasibility.
++
++Only the numerical representation changes. All execution/model rows, lex
++bands and the final incumbent are independently checked on the originals.
++No training, response data or policy parameters are accessed here.
++"""
++import math,time
++from decimal import Decimal
++import numpy as np
++from scipy import sparse
++from scipy.optimize import Bounds,LinearConstraint,OptimizeResult
++from joint_prototype.completion_continuity import canonical_integral_solution,objective_solver_units
++from primary_band_presolve import dot_error,upper_float,UP,DOWN,D
++
++def lower_primary_cutoff(lower,primary,n):
++ return DOWN.subtract(DOWN.subtract(D(float(lower)),D(1e-10)),dot_error(primary,n))
++
++def outer_rows(rows,n):
++ """Proof-only superset of the ORIGINAL binary validator domain."""
++ result=[]
++ for c in rows:
++  A=sparse.csr_matrix(c.A);lo=np.broadcast_to(c.lb,(A.shape[0],)).copy();hi=np.broadcast_to(c.ub,(A.shape[0],)).copy()
++  for i in range(A.shape[0]):
++   row=A.getrow(i);narrow=np.isfinite(lo[i]) and np.isfinite(hi[i]) and hi[i]-lo[i]<1e-6;tol=1e-10 if narrow else 1e-7
++   error=UP.add(D(tol),dot_error(row.data,n))
++   if np.isfinite(lo[i]):lo[i]=-upper_float(UP.add(D(float(lo[i])).copy_negate(),error))
++   if np.isfinite(hi[i]):hi[i]=upper_float(UP.add(D(float(hi[i])),error))
++   # Integral job/GPU rows have an exact lattice: the expanded real interval
++   # can be inward rounded WITHOUT excluding any accepted binary point.
++   if np.array_equal(row.data,np.rint(row.data)) and sum(abs(int(x)) for x in row.data)<=2**52:
++    if np.isfinite(lo[i]):lo[i]=math.ceil(lo[i])
++    if np.isfinite(hi[i]):hi[i]=math.floor(hi[i])
++  result.append(LinearConstraint(A.tocsc(),lo,hi))
++ return result
++
++def solve(self,cost,columns,constraints,incumbent,keep):
++ from gpu_group_formulation import prepare
++ if not getattr(self,'_repair_scope',False) or incumbent is None or len(constraints)<2:return None
++ target=constraints[1];lo=np.asarray(target.lb).reshape(-1);hi=np.asarray(target.ub).reshape(-1)
++ if len(lo)!=1 or len(hi)!=1 or not np.isfinite(lo[0]) or not np.isfinite(hi[0]) or not 0<=hi[0]-lo[0]<1e-6:return None
++ c=np.asarray(cost,dtype=float)
++ if np.any(c<0) or not np.array_equal(c,np.rint(c)) or np.max(c,initial=0.)>2**40 or np.sum(c)>2**52:return None
++ g=math.gcd(*(int(x) for x in c if x)) if np.any(c) else 0
++ if not g:return None
++ best=canonical_integral_solution(incumbent,constraints);n=len(c);keep=np.arange(n) if keep is None else keep
++ if np.any(best[np.setdiff1d(np.arange(n),keep)]):raise RuntimeError('EPSILON_DOMAIN_LOST_VALID_INCUMBENT')
++ p=sparse.csr_matrix(constraints[1].A).toarray().reshape(-1);L=float(np.asarray(constraints[1].lb).item());U=float(np.asarray(constraints[1].ub).item())
++ cutoff=lower_primary_cutoff(L,p,n)
++ from capacity_cover import strengthen
++ resource=strengthen(self,columns,[constraints[0]])[0]
++ # Keep EVERY already-fixed startup/geometry/rank row; only the primary
++ # band is removed from this proof-only maximum-primary query.
++ outer=outer_rows([resource,*constraints[2:]],n)
++ from joint_prototype import adaptive_service
++ if not hasattr(self,'_repair_epsilon_trace'):self._repair_epsilon_trace=[]
++ while True:
++  value=int(c@best);budget=value-g
++  if budget<0:return OptimizeResult(x=best,status=0,success=True,fun=float(value),message='EXACT_NONNEGATIVE_INTEGER_LEX_LOWER_BOUND')
++  query=outer+[LinearConstraint(c.reshape(1,-1),-np.inf,float(budget))]
++  query=[LinearConstraint(r.A[:,keep],r.lb,r.ub) for r in query]
++  small_columns=[columns[i] for i in keep]
++  # Group-link construction is independent of the current rank objective.
++  # Its returned zero objective is discarded; the original primary stays
++  # on x. Nonuniform rank/budget rows also stay on x, never averaged on y.
++  extended=prepare(self,np.zeros(len(keep)),small_columns,query,True)
++  if extended is None:E=None;backend_rows=query;objective=-p[keep]
++  else:
++   _,backend_rows,E=extended;objective=np.concatenate([-p[keep],np.zeros(E.shape[0])])
++  backend_cost,scale=objective_solver_units(objective)
++  t=time.perf_counter();r=adaptive_service.milp(c=backend_cost,integrality=np.ones(len(backend_cost)),bounds=Bounds(0.,1.),constraints=backend_rows,options={'time_limit':30.,'mip_rel_gap':0.})
++  record=dict(budget=budget,incumbent_integer_cost=value,lex_stage='STARTUP' if len(constraints)==2 else 'INTEGER_TIE_RANK',retained_prior_constraint_groups=len(constraints)-2,gcd=g,status=int(r.status),message=str(r.message),seconds=time.perf_counter()-t,variables=len(backend_cost),original_variables=n,proof='EXACT_INTEGER_LEX_EPSILON_CONSTRAINT',options={'time_limit':30.,'mip_rel_gap':0.})
++  self._repair_epsilon_trace.append(record)
++  # A witness only improves an UPPER bound; it need not be globally optimal.
++  query_valid=False
++  if r.x is not None:
++   try:
++    integral=canonical_integral_solution(r.x,backend_rows)
++    query_valid=True
++   except ValueError:integral=None;record['invalid_query_point']=True
++  if query_valid:
++   full=np.zeros(n);full[keep]=integral[:len(keep)]
++   try:
++    witness=canonical_integral_solution(full,constraints)
++    if c@witness<=budget:
++     best=witness;record['valid_improved_integer_cost']=int(c@best)
++     if c@best==0.:record.update(proved=True,proof='EXACT_NONNEGATIVE_INTEGER_LEX_ATTAINED_ZERO',objective=0)
++     continue
++   except ValueError:record['query_point_outside_original_band']=True
++  bound=getattr(r,'mip_dual_bound',None)
++  if query_valid and r.status==0 and r.success and bound is not None and np.isfinite(bound):
++   # The solver supplies a global MIP bound (ordinary zero-gap acceptance).
++   # Directed conversion plus original row dot/tolerance guards is stricter
++   # than comparing the primal optimum with the nominal lower band.
++   upper=UP.add(D(float(-bound/scale)),dot_error(p,n));record['primary_global_upper']=str(upper);record['original_primary_lower_guard']=str(cutoff)
++   if upper<cutoff:
++    canonical_integral_solution(best,constraints)
++    record['proved']=True
++    return OptimizeResult(x=best,status=0,success=True,fun=float(c@best),message='EXACT_INTEGER_LEX_BUDGET_GLOBAL_PRIMARY_BOUND_BELOW_ORIGINAL_BAND')
++  record['proved']=False
++  return None
+--- /dev/null
++++ b/gpu_group_formulation.py
+@@ -0,0 +1,68 @@
++"""Bijection-preserving GPU-geometry binaries for the startup MIP.
++
++The flat model has thousands of auxiliary columns with the SAME job/GPU/
++placement startup cost. Introduce y_g=sum(x_i for i in g), binary because
++the original job row already permits at most one column. Move uniform rows
++(job/GPU capacity) and uniform startup coefficients onto y. CPU/RAM and
++nonuniform performance rows stay on x. No new allocation is expressible;
++no old binary allocation is removed; objective identity is exact.
++"""
++import numpy as np
++from scipy import sparse
++from scipy.optimize import LinearConstraint
++from joint_prototype.completion_continuity import canonical_integral_solution
++
++def secondary_phase(cost,constraints):
++ if len(constraints)!=2 or np.any(np.asarray(cost)<0):return False
++ row=constraints[1];lo=np.asarray(row.lb).reshape(-1);hi=np.asarray(row.ub).reshape(-1)
++ return len(lo)==len(hi)==1 and np.isfinite(lo[0]) and np.isfinite(hi[0]) and 0<=hi[0]-lo[0]<1e-6
++
++def prepare(self,cost,columns,constraints,enabled):
++ if not enabled or not getattr(self,'_repair_scope',False):return None
++ order=getattr(self,'_repair_job_order',None)
++ if not order:return None
++ jobs={j:i for i,j in enumerate(order)};base=sparse.csr_matrix(constraints[0].A);upper=np.broadcast_to(constraints[0].ub,(base.shape[0],));groups={};ids=[];first=[]
++ for i,c in enumerate(columns):
++  parts=c.column_id.split('|')
++  if c.job_id not in jobs:return None
++  # LOCK/unknown identifiers are SINGLETONS, never a grant of lock legality.
++  # Candidate/lock validity still comes from the current original constraints.
++  key=(c.job_id,parts[1],parts[4]) if len(parts)==5 else (c.job_id,'SINGLETON',i)
++  if key not in groups:groups[key]=len(groups);first.append(i)
++  ids.append(groups[key])
++ ids=np.asarray(ids,dtype=int);first=np.asarray(first,dtype=int);n=len(columns);g=len(first)
++ if g==n or not g:return None
++ c=np.asarray(cost,dtype=float);cg=c[first]
++ if not np.array_equal(c,cg[ids]):return None
++ # Prove group sums are binary from CURRENT original job rows, not labels.
++ for name,row in jobs.items():
++  own=np.asarray([i for i,v in enumerate(columns) if v.job_id==name],dtype=int)
++  if not len(own):continue
++  a=base.getrow(row)
++  if upper[row]>1. or np.any(a.data<0) or not np.all(a[:,own].toarray()==1.):return None
++ transformed=[]
++ for row in constraints:
++  A=sparse.csr_matrix(row.A);Y=A[:,first];diff=A-Y[:,ids];diff.eliminate_zeros();uniform=np.diff(diff.indptr)==0
++  X=A.multiply((~uniform)[:,None]);Y=Y.multiply(uniform[:,None])
++  transformed.append(LinearConstraint(sparse.hstack([X,Y]).tocsc(),row.lb,row.ub))
++ E=sparse.csc_matrix((np.ones(n),(ids,np.arange(n))),shape=(g,n))
++ transformed.append(LinearConstraint(sparse.hstack([E,-sparse.eye(g)]).tocsc(),np.zeros(g),np.zeros(g)))
++ return np.concatenate([np.zeros(n),cg]),transformed,E
++
++def solve(self,cost,columns,constraints,backend,enabled):
++ model=prepare(self,cost,columns,constraints,enabled)
++ if model is None:return backend(cost,constraints)
++ c,rows,E=model;result=backend(c,rows);n=len(columns)
++ self._repair_gpu_group_calls=getattr(self,'_repair_gpu_group_calls',0)+1;self._repair_gpu_group_peak=max(getattr(self,'_repair_gpu_group_peak',0),E.shape[0])
++ if result.x is not None:
++  original=np.asarray(result.x)[:n]
++  if result.status==0 and result.success:
++   try:
++    whole=canonical_integral_solution(result.x,rows);point=canonical_integral_solution(whole[:n],constraints)
++    if not np.array_equal(E@point,whole[n:]) or not np.array_equal(E.T@c[n:],np.asarray(cost)):raise ValueError('EXTENDED_OBJECTIVE_OR_LINK_MISMATCH')
++    original=point
++   except ValueError:
++    result.x=None;result.success=False;result.message=str(result.message)+'; EXTENDED_OPTIMUM_FAILED_ORIGINAL_CHECKS';return result
++  result.x=original;result.fun=float(np.asarray(cost)@original)
++ result.message=str(result.message)+f'; EXACT_GPU_GROUP_BINARIES={E.shape[0]}'
++ return result
+--- /dev/null
++++ b/incumbent_complement.py
+@@ -0,0 +1,49 @@
++"""Exact binary complement around a CURRENT validated feasible incumbent.
++
++x = anchor + (1-2*anchor)*v. Exact dyadic row offsets are decomposed into
++representable doubles on fixed-one variables, so original bounds/objective
++are not rounded or widened. v=0 is a feasible origin (after fixed-one vars).
++This is a bijection, not a policy fallback or an accepted unproved solution.
++"""
++from fractions import Fraction
++import numpy as np
++from scipy import sparse
++from scipy.optimize import LinearConstraint
++from joint_prototype.completion_continuity import canonical_integral_solution
++
++def components(value):
++ result=[]
++ while value:
++  v=float(value)
++  if not np.isfinite(v) or v==0.:raise ValueError('UNREPRESENTABLE_DYADIC_OFFSET')
++  result.append(v);value-=Fraction.from_float(v)
++ return result
++
++def prepare(cost,rows,anchor):
++ anchor=canonical_integral_solution(anchor,rows);n=len(anchor);selected=np.flatnonzero(anchor);sign=1.-2.*anchor;parts=[];width=0
++ for c in rows:
++  B=sparse.csr_matrix(c.A)[:,selected];bias=[]
++  for i in range(B.shape[0]):
++   val=sum((Fraction.from_float(float(x)) for x in B.data[B.indptr[i]:B.indptr[i+1]]),Fraction(0));p=components(val);bias.append(p);width=max(width,len(p))
++  parts.append(bias)
++ cp=components(sum((Fraction.from_float(float(cost[i])) for i in selected),Fraction(0)));width=max(width,len(cp),1);answer=[]
++ for c,bias in zip(rows,parts):
++  C=np.zeros((len(bias),width))
++  for i,v in enumerate(bias):C[i,:len(v)]=v
++  A=sparse.csr_matrix(c.A).multiply(sign[None,:]);answer.append(LinearConstraint(sparse.hstack([A,sparse.csc_matrix(C)]).tocsc(),c.lb,c.ub))
++ answer.append(LinearConstraint(sparse.hstack([sparse.csc_matrix((width,n)),sparse.eye(width)]).tocsc(),np.ones(width),np.ones(width)))
++ c=np.zeros(n+width);c[:n]=np.asarray(cost)*sign;c[n:n+len(cp)]=cp
++ return c,answer,anchor,sign
++
++def solve(cost,rows,anchor,backend):
++ c,transformed,a,sign=prepare(cost,rows,anchor);r=backend(c,transformed);n=len(a)
++ if r.x is not None:
++  point=a+sign*np.asarray(r.x)[:n]
++  if r.status==0 and r.success:
++   try:
++    v=canonical_integral_solution(r.x,transformed);point=canonical_integral_solution(a+sign*v[:n],rows)
++   except ValueError:
++    r.x=None;r.success=False;r.message=str(r.message)+'; COMPLEMENT_FAILED_ORIGINAL_ROWS';return r
++  r.x=point;r.fun=float(np.asarray(cost)@point)
++ r.message=str(r.message)+'; EXACT_CURRENT_INCUMBENT_COMPLEMENT'
++ return r
+--- /dev/null
++++ b/integer_row_lattice.py
+@@ -0,0 +1,50 @@
++"""Exact integer-row bounds, preserving both nominal and audit-feasible points.
++
++For an integral row and binary x, a*x is an exact multiple of gcd(a).
++Replace a bound by the nearest inward lattice bound, only if the original
++validator's tolerance accepts exactly the same lattice values. Fraction uses
++the actual binary input floats; no decimal rounding, grid/weight changes or
++new tolerance. Fractional rows remain untouched. Original rows are always
++revalidated before a solver answer is accepted.
++"""
++import math
++from fractions import Fraction
++import numpy as np
++from scipy import sparse
++from scipy.optimize import LinearConstraint
++
++def tighten_integer_rows(constraints):
++ result=[];records=[]
++ for ci,c in enumerate(constraints):
++  if sparse.issparse(c.A) and not getattr(c.A,'has_canonical_format',False):
++   result.append(c);continue  # Do not reinterpret duplicate fractional entries.
++  A=c.A.tocsr(copy=True) if sparse.issparse(c.A) else np.atleast_2d(np.asarray(c.A,dtype=float))
++  if sparse.issparse(A):A.sum_duplicates();A.eliminate_zeros()
++  lo=np.broadcast_to(c.lb,(A.shape[0],)).copy();hi=np.broadcast_to(c.ub,(A.shape[0],)).copy()
++  changed=False
++  for i in range(A.shape[0]):
++   row=A.data[A.indptr[i]:A.indptr[i+1]] if sparse.issparse(A) else A[i]
++   row=row[row!=0.]
++   if (not len(row) or not np.all(np.isfinite(row)) or
++       not np.array_equal(row,np.rint(row)) or sum(abs(int(v)) for v in row)>2**52):continue
++   g=math.gcd(*(int(v) for v in row))
++   lower=float(lo[i]);upper=float(hi[i])
++   if math.isnan(lower) or math.isnan(upper):continue
++   # Exactly the frozen original-row validator's tolerance, not a new option.
++   tol=1e-10 if math.isfinite(lower) and math.isfinite(upper) and upper-lower<1e-6 else 1e-7
++   def lower_value(v):return math.ceil(Fraction.from_float(v)/g)*g
++   def upper_value(v):return math.floor(Fraction.from_float(v)/g)*g
++   l=lower_value(lower) if math.isfinite(lower) else lower
++   u=upper_value(upper) if math.isfinite(upper) else upper
++   # If audit tolerance changes which integer is allowed, leave the row alone.
++   if math.isfinite(lower) and l!=lower_value(lower-tol):continue
++   if math.isfinite(upper) and u!=upper_value(upper+tol):continue
++   if l>u:continue  # Keep existing infeasibility handling, never forge a point.
++   if l==lower and u==upper:continue
++   if (math.isfinite(l) and abs(l)>2**52) or (math.isfinite(u) and abs(u)>2**52):continue
++   lo[i]=l;hi[i]=u;changed=True
++   records.append(dict(constraint=ci,row=i,gcd=g,old_lower=lower,old_upper=upper,new_lower=l,new_upper=u,
++    proof='EXACT_BINARY_INTEGER_ROW_LATTICE',original_audit_tolerance=tol,audit_domain_unchanged=True))
++  # Do not mutate either bounds or coefficient storage in the input model.
++  result.append(LinearConstraint(c.A,lo,hi) if changed else c)
++ return result,records
+--- /dev/null
++++ b/primary_band_presolve.py
+@@ -0,0 +1,123 @@
++"""Safe reduced-cost elimination implied by the already fixed primary band.
++
++For min c*x on [0,1], any y<=0 for A*x<=b proves
++ B=b*y+sum(min(0,c-A.T*y)). With x_i=1 the bound is
++ B+max(c_i-A_i.T*y,0). Here c=-primary and its upper cutoff is
++ minus the ORIGINAL primary lower bound. A variable is removed only if
++ that conditional lower bound exceeds the cutoff. This is feasibility
++ presolve, not a new objective or approximate search domain.
++
++Directed Decimal bounds include original validation tolerance and a generous
++ floating dot-product error bound. No LP solution is submitted to training.
++"""
++import time,hashlib
++from decimal import Context,Decimal,ROUND_CEILING,ROUND_FLOOR
++import numpy as np
++from scipy import sparse
++from scipy.optimize import linprog
++from dual_certificate import dual_interval
++
++UP=Context(prec=80,rounding=ROUND_CEILING)
++DOWN=Context(prec=80,rounding=ROUND_FLOOR)
++D=Decimal.from_float
++
++def dot_error(row,n):
++ data=np.asarray(row,dtype=float)
++ if np.array_equal(data,np.rint(data)) and sum(abs(int(x)) for x in data)<=2**52:return Decimal(0)
++ total=Decimal(0)
++ for v in data:total=UP.add(total,D(abs(float(v))))
++ unit=D(2.**-53)
++ nu=UP.multiply(Decimal(n),unit)
++ if nu>=1:raise ValueError('DOT_ERROR_BOUND_SCOPE')
++ gamma=UP.divide(nu,DOWN.subtract(Decimal(1),nu))
++ return UP.multiply(gamma,total)
++
++def upper_float(x):
++ v=float(x)
++ return np.nextafter(v,np.inf) if D(v)<x else v
++
++def expanded_inequalities(rows,n):
++ matrices=[];bounds=[]
++ for c in rows:
++  a=sparse.csr_matrix(c.A);lo=np.broadcast_to(c.lb,(a.shape[0],));hi=np.broadcast_to(c.ub,(a.shape[0],))
++  for i in range(a.shape[0]):
++   v=a.getrow(i);l=float(lo[i]);h=float(hi[i]);tol=1e-10 if np.isfinite(l) and np.isfinite(h) and h-l<1e-6 else 1e-7
++   error=UP.add(D(tol),dot_error(v.data,n))
++   if np.isfinite(h):matrices.append(v);bounds.append(upper_float(UP.add(D(h),error)))
++   if np.isfinite(l):matrices.append(-v);bounds.append(upper_float(UP.add(D(l).copy_negate(),error)))
++ return sparse.vstack(matrices).tocsc(),np.asarray(bounds)
++
++def primary_certificate(constraints,n):
++ if len(constraints)<2:return None
++ if any(sparse.issparse(c.A) and not getattr(c.A,'has_canonical_format',False) for c in constraints[:3]):return None
++ target=constraints[1];a=sparse.csr_matrix(target.A)
++ if a.shape!=(1,n):return None
++ lo=float(np.asarray(target.lb).reshape(-1)[0]);hi=float(np.asarray(target.ub).reshape(-1)[0])
++ if not np.isfinite(lo) or not np.isfinite(hi) or not 0<=hi-lo<1e-6 or not a.nnz:return None
++ # Resource/job and the fixed primary band exist before startup minimization.
++ # Include the startup optimum only AFTER it has actually been fixed.
++ # Dropping later geometry masks is a conservative relaxation;
++ # the certificate remains valid when those masks are subsequently appended.
++ other=[constraints[0]]+([constraints[2]] if len(constraints)>=3 else [])
++ cost=-a.toarray().reshape(-1);A,b=expanded_inequalities(other,n)
++ cutoff=UP.add(UP.add(D(lo).copy_negate(),D(1e-10)),dot_error(a.data,n))
++ start=time.perf_counter();lp=linprog(cost,A_ub=A,b_ub=b,bounds=(0.,1.),method='highs',options={'time_limit':30.})
++ record=dict(variables=n,seconds=time.perf_counter()-start,lp_status=int(lp.status),removed=0,
++  proof='PRIMARY_BAND_DIRECTED_WEAK_DUALITY_CONDITIONAL_BOUND',cutoff=str(cutoff))
++ y=getattr(getattr(lp,'ineqlin',None),'marginals',None)
++ if lp.status!=0 or y is None or not np.all(np.isfinite(y)):return np.arange(n),record
++ bound,residual=dual_interval(cost,A,b,y)
++ eliminated=[i for i,r in enumerate(residual) if DOWN.add(bound,max(r,Decimal(0)))>cutoff]
++ keep=np.ones(n,dtype=bool);keep[eliminated]=False
++ record.update(lower_bound=str(bound),removed=len(eliminated),original_primary_band=[lo,hi],tolerance_and_roundoff_included=True)
++ return np.flatnonzero(keep),record
++
++def allowed(self,columns,constraints,incumbent=None,cache_token=None):
++ if not getattr(self,'_repair_scope',False) or len(constraints)<2:return None
++ token=tuple(constraints[:3] if cache_token is None else cache_token);old=getattr(self,'_repair_primary_domain_cache',None)
++ from scale_storage import matrix_bytes
++ h=hashlib.sha256()
++ for c in token:
++  for part in (c.A,c.lb,c.ub):h.update(matrix_bytes(part))
++ signature=h.hexdigest()
++ if old is None or old[0] is not columns or any(a is not b for a,b in zip(old[1],token)) or old[2]!=signature:
++  proof=primary_certificate(constraints,len(columns))
++  if proof is None:return None
++  keep,record=proof
++  self._repair_primary_domain_cache=(columns,token,signature,keep)
++  record['model_prefix_sha256']=signature
++  self._repair_primary_band_lp_calls=getattr(self,'_repair_primary_band_lp_calls',0)+1
++  self._repair_primary_band_lp_seconds=getattr(self,'_repair_primary_band_lp_seconds',0.)+record['seconds']
++  self._repair_primary_band_variables_removed=max(getattr(self,'_repair_primary_band_variables_removed',0),record['removed'])
++  if not hasattr(self,'_repair_primary_certificates'):self._repair_primary_certificates=[]
++  if len(self._repair_primary_certificates)<16:self._repair_primary_certificates.append(record)
++ else:keep=old[3]
++ if incumbent is not None:
++  lost=np.ones(len(columns),dtype=bool);lost[keep]=False
++  if np.any(np.asarray(incumbent)[lost]!=0.):raise RuntimeError('PRIMARY_PRESOLVE_CONTRADICTS_CURRENT_VALID_INCUMBENT')
++ return keep
++
++def certificate_on_domain(cost,constraints,incumbent,keep):
++ """Run the existing objective proof on the already certified feasible domain.
++
++ Lift reduced-cost/support indices back to the ORIGINAL variable numbering.
++ Removed variables are proved zero at this primary band, so padding their
++ residuals by zero and using the remaining cost lattice is valid on the full
++ feasible set. The LP primal is never an execution allocation.
++ """
++ from dual_certificate import certificate
++ from scipy.optimize import LinearConstraint
++ if keep is None or len(keep)==len(cost):return certificate(cost,constraints,incumbent)
++ keep=np.asarray(keep,dtype=int);mask=np.ones(len(cost),dtype=bool);mask[keep]=False
++ if np.any(np.asarray(incumbent)[mask]!=0.):raise ValueError('INCUMBENT_OUTSIDE_CERTIFIED_DOMAIN')
++ rows=[LinearConstraint(c.A[:,keep] if sparse.issparse(c.A) else np.atleast_2d(c.A)[:,keep],c.lb,c.ub) for c in constraints]
++ proof=certificate(np.asarray(cost)[keep],rows,np.asarray(incumbent)[keep])
++ if proof is None:return None
++ proof=dict(proof,certified_domain_variables=len(keep),original_variables=len(cost))
++ if '_residuals' in proof:
++  values=[Decimal(0)]*len(cost)
++  for i,v in zip(keep,proof['_residuals']):values[int(i)]=v
++  proof['_residuals']=values
++  proof['_lp_support']=[int(keep[i]) for i in proof.get('_lp_support',[])]
++  proof['fix_zero']=[int(keep[i]) for i in proof.get('fix_zero',[])]
++ return proof
+--- /dev/null
++++ b/sia-simulator/tests/test_capacity_cover_repair.py
+@@ -0,0 +1,35 @@
++import sys,unittest,itertools,json,gzip
++from pathlib import Path
++from types import SimpleNamespace
++from unittest.mock import patch
++import numpy as np
++from scipy import sparse
++from scipy.optimize import LinearConstraint,OptimizeResult
++ROOT=Path(__file__).resolve().parents[2];sys.path.insert(0,str(ROOT))
++from engineering_repair import repair_context
++from joint_prototype.completion_continuity import NumericalAdmission,canonical_integral_solution
++from joint_prototype import adaptive_service
++
++class CapacityCoverTests(unittest.TestCase):
++ def test_backend_receives_valid_capacity_clique_cut(self):
++  cols=[SimpleNamespace(job_id='a',column_id='a'),SimpleNamespace(job_id='b',column_id='b')]
++  a=NumericalAdmission(300,250,60);a.numerical_solver_retries=[];a._repair_scope=True;a._repair_job_order=['a','b']
++  rows=[LinearConstraint(sparse.csc_matrix([[1.,0.],[0.,1.],[1.,1.],[7.,8.],[10.,10.]]),[0.,0.,-np.inf,-np.inf,-np.inf],[1.,1.,2.,12.,100.])]
++  def backend(**kw):
++   c=kw['constraints'][0];self.assertGreater(c.A.shape[0],5,'Fractional capacity relaxation must be strengthened')
++   self.assertTrue(any(np.array_equal(x,[1.,1.]) and u==1. for x,u in zip(c.A.toarray()[5:],np.asarray(c.ub)[5:])))
++   return OptimizeResult(x=np.array([1.,0.]),status=0,success=True,message='global optimum')
++  with repair_context(None),patch.object(adaptive_service,'milp',side_effect=backend):r=a._milp(np.array([0.,1.]),cols,rows)
++  canonical_integral_solution(r.x,rows)
++ def test_all_original_binary_points_survive_cuts_with_capacity_tolerance(self):
++  from capacity_cover import strengthen
++  cols=[SimpleNamespace(job_id=j,column_id=j) for j in ('a','b','c','d')]
++  for cap in (12.,12.-5e-8):
++   rows=[LinearConstraint(sparse.csc_matrix(np.vstack([np.eye(4),[1.,1.,1.,1.],[7.,8.,5.,6.],[10.,50.,60.,20.]])),[0.]*4+[-np.inf]*3,[1.]*4+[4.,cap,100.])]
++   result=strengthen(SimpleNamespace(_repair_scope=True,_repair_job_order=['a','b','c','d']),cols,rows)
++   for x in itertools.product([0.,1.],repeat=4):
++    try:canonical_integral_solution(x,rows)
++    except ValueError:continue
++    canonical_integral_solution(x,result)
++
++if __name__=='__main__':unittest.main()
+--- /dev/null
++++ b/sia-simulator/tests/test_epsilon_lex_repair.py
+@@ -0,0 +1,87 @@
++"""Exact secondary proof must not require a hairline primary equality MIP."""
++import sys,unittest,itertools
++from pathlib import Path
++from types import SimpleNamespace
++from unittest.mock import patch
++import numpy as np
++from scipy import sparse
++from scipy.optimize import LinearConstraint,OptimizeResult
++ROOT=Path(__file__).resolve().parents[2];sys.path[:0]=[str(ROOT),str(ROOT/'sia-simulator')]
++from joint_prototype.completion_continuity import NumericalAdmission,canonical_integral_solution
++from engineering_repair import repair_context
++
++class EpsilonBackendRegression(unittest.TestCase):
++ def test_startup_uses_equivalent_budget_proof_before_hairline_native(self):
++  a=NumericalAdmission(300,250,60);a.numerical_solver_retries=[];a._repair_scope=True;a._repair_job_order=['a']
++  cols=[SimpleNamespace(job_id='a',column_id='a|g:1:1|3|10|g:0=1'),SimpleNamespace(job_id='a',column_id='a|g:1:2|3|10|g:0=2')]
++  rows=[LinearConstraint(sparse.csc_matrix([[1.,1.],[1.,2.],[3.,6.],[10.,20.]]),[1.,-np.inf,-np.inf,-np.inf],[1.,2.,6.,20.]),LinearConstraint(sparse.csc_matrix([[.5,.4]]),.5-1e-9,.5+1e-9)]
++  a._repair_last_columns=cols;a._repair_last_x=np.array([1.,0.])
++  with repair_context(None),patch('primary_band_presolve.certificate_on_domain',return_value=None),patch('epsilon_lex_repair.solve',return_value=OptimizeResult(x=np.array([1.,0.]),status=0,success=True,fun=5.,message='EXACT_STARTUP_BUDGET_CERTIFICATE')) as proof:
++   result=a._milp(np.array([5.,0.]),cols,rows)
++  proof.assert_called_once();self.assertEqual(result.fun,5.);canonical_integral_solution(result.x,rows)
++
++class EpsilonProofTests(unittest.TestCase):
++ def model(self):
++  cols=[SimpleNamespace(job_id='a',column_id='a|g:1:1|'+str(i)+'|10|g:0=1') for i in range(3)]
++  rows=[LinearConstraint(sparse.csc_matrix([[1.,1.,1.],[1.,1.,1.],[1.,2.,3.],[10.,10.,10.]]),[1.,-np.inf,-np.inf,-np.inf],[1.,1.,3.,10.]),LinearConstraint(sparse.csc_matrix([[.7,.7,.4]]),.7-1e-9,.7+1e-9)]
++  return cols,rows,np.array([10.,5.,0.]),np.array([1.,0.,0.])
++ def test_monotone_witness_then_global_bound_matches_exhaustive(self):
++  from epsilon_lex_repair import solve
++  cols,rows,c,x=self.model();a=SimpleNamespace(_repair_scope=True,_repair_job_order=['a'])
++  r=solve(a,c,cols,rows,x,None);self.assertIsNotNone(r);self.assertEqual(r.fun,5.)
++  feasible=[]
++  for v in itertools.product([0.,1.],repeat=3):
++   try:canonical_integral_solution(v,rows);feasible.append(c@v)
++   except ValueError:pass
++  self.assertEqual(r.fun,min(feasible));self.assertEqual([t['budget'] for t in a._repair_epsilon_trace],[5,0]);self.assertTrue(a._repair_epsilon_trace[-1]['proved'])
++ def test_timeout_without_improving_witness_cannot_prove_optimal(self):
++  from epsilon_lex_repair import solve
++  cols,rows,c,x=self.model();a=SimpleNamespace(_repair_scope=True,_repair_job_order=['a'])
++  with patch('joint_prototype.adaptive_service.milp',return_value=OptimizeResult(status=1,success=False,x=None,message='timeout',mip_dual_bound=0.)):
++   self.assertIsNone(solve(a,c,cols,rows,x,None))
++  self.assertFalse(a._repair_epsilon_trace[-1]['proved'])
++ def test_fractional_fake_optimum_cannot_be_used_as_proof(self):
++  from epsilon_lex_repair import solve
++  cols,rows,c,x=self.model();a=SimpleNamespace(_repair_scope=True,_repair_job_order=['a'])
++  def bad(**kw):return OptimizeResult(status=0,success=True,x=np.full(len(kw['c']),.5),message='fault',mip_dual_bound=0.)
++  with patch('joint_prototype.adaptive_service.milp',side_effect=bad):self.assertIsNone(solve(a,c,cols,rows,x,None))
++  self.assertTrue(a._repair_epsilon_trace[-1]['invalid_query_point'])
++ def test_scope_and_nonintegral_cost_are_not_reinterpreted(self):
++  from epsilon_lex_repair import solve
++  cols,rows,c,x=self.model()
++  self.assertIsNone(solve(SimpleNamespace(_repair_scope=False),c,cols,rows,x,None));self.assertIsNone(solve(SimpleNamespace(_repair_scope=True),c+.1,cols,rows,x,None))
++ def test_lost_or_invalid_current_incumbent_is_not_accepted(self):
++  from epsilon_lex_repair import solve
++  cols,rows,c,x=self.model();a=SimpleNamespace(_repair_scope=True,_repair_job_order=['a'])
++  with self.assertRaisesRegex(RuntimeError,'LOST_VALID_INCUMBENT'):solve(a,c,cols,rows,x,np.array([1,2]))
++  with self.assertRaises(ValueError):solve(a,c,cols,rows,np.zeros(3),None)
++ def test_outer_rows_keep_all_original_accepted_binary_points(self):
++  from epsilon_lex_repair import outer_rows
++  rows=[LinearConstraint([[1.,1.,0.],[.1,.2,.3]],[0.,.1],[1.,.30000000001])];outer=outer_rows(rows,3)
++  for v in itertools.product([0.,1.],repeat=3):
++   try:canonical_integral_solution(v,rows)
++   except ValueError:continue
++   canonical_integral_solution(v,outer)
++
++class ExtendedGroupTests(unittest.TestCase):
++ def test_binary_extension_is_bijective_and_preserves_objective(self):
++  from gpu_group_formulation import prepare
++  cols,rows,c,x=EpsilonProofTests().model();c=np.array([5.,5.,5.]);a=SimpleNamespace(_repair_scope=True,_repair_job_order=['a'])
++  ce,re,E=prepare(a,c,cols,rows,True)
++  for v in itertools.product([0.,1.],repeat=3):
++   try:original=canonical_integral_solution(v,rows)
++   except ValueError:continue
++   extended=np.concatenate([original,E@original]);canonical_integral_solution(extended,re);self.assertEqual(c@original,ce@extended)
++
++class CapturedStartup42(unittest.TestCase):
++ def test_real_failure42_global_startup_225_with_unchanged_solver_options(self):
++  import gzip,json,hashlib
++  from primary_band_presolve import allowed
++  from epsilon_lex_repair import solve
++  path=Path(__file__).parent/'fixtures/core80_full_startup_step42.json.gz';before=hashlib.sha256(path.read_bytes()).hexdigest();d=json.loads(gzip.decompress(path.read_bytes()));rows=[]
++  for r in d['model']['constraints']:
++   q=r['A'];A=sparse.coo_matrix((q['data'],(q['row'],q['col'])),shape=q['shape']).tocsc() if isinstance(q,dict) else np.atleast_2d(q);rows.append(LinearConstraint(A,r['lb'],r['ub']))
++  cols=[SimpleNamespace(**q) for q in d['model']['columns']];B=rows[0].A.tocsr();nj=B.shape[0]-9;names=[cols[B.indices[B.indptr[i]]].job_id for i in range(nj)];a=SimpleNamespace(_repair_scope=True,_repair_job_order=names);c=np.asarray(d['model']['c']);x=np.asarray(d['last_valid_x']);keep=allowed(a,cols,rows,x)
++  ans=solve(a,c,cols,rows,x,keep);self.assertIsNotNone(ans);self.assertEqual(ans.fun,225.);canonical_integral_solution(ans.x,rows);self.assertTrue(a._repair_epsilon_trace[-1]['proved']);self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(),before)
++
++if __name__=='__main__':unittest.main()
+--- /dev/null
++++ b/sia-simulator/tests/test_integer_lex_epsilon_repair.py
+@@ -0,0 +1,41 @@
++"""Later integer lex phases must preserve ALL earlier fixed constraints."""
++import sys,unittest,gzip,json,hashlib
++from pathlib import Path
++from types import SimpleNamespace
++from fractions import Fraction
++import numpy as np
++from scipy import sparse
++from scipy.optimize import LinearConstraint
++ROOT=Path(__file__).resolve().parents[2];sys.path[:0]=[str(ROOT),str(ROOT/'sia-simulator')]
++from epsilon_lex_repair import solve
++from joint_prototype.completion_continuity import canonical_integral_solution
++
++class GeneralIntegerLexTests(unittest.TestCase):
++ def test_zero_integer_cost_is_a_real_global_lower_bound_not_a_timeout_promotion(self):
++  cols=[SimpleNamespace(job_id='a',column_id='a|g:1:1|'+str(i)+'|10|g:0=1') for i in range(3)]
++  rows=[LinearConstraint(sparse.csc_matrix([[1,1,1],[1,1,1],[1,1,1],[10,10,10]]),[1,-np.inf,-np.inf,-np.inf],[1,1,3,10]),LinearConstraint([[.7,.7,.4]],.7-1e-9,.7+1e-9)]
++  c=np.array([5.,0,0]);x=np.array([1.,0,0]);a=SimpleNamespace(_repair_scope=True,_repair_job_order=['a']);r=solve(a,c,cols,rows,x,None)
++  self.assertEqual(r.fun,0.);canonical_integral_solution(r.x,rows);self.assertTrue(a._repair_epsilon_trace[-1]['proved']);self.assertEqual(a._repair_epsilon_trace[-1]['proof'],'EXACT_NONNEGATIVE_INTEGER_LEX_ATTAINED_ZERO')
++ def test_rank_preserves_fixed_startup_and_earlier_job_geometry(self):
++  cols=[SimpleNamespace(job_id=j,column_id=j+'|g:1:1|'+str(i)+'|10|g:0=1') for i,j in enumerate(['a','a','a','b','b'])]
++  rows=[LinearConstraint(sparse.csc_matrix([[1,1,1,0,0],[0,0,0,1,1],[1,1,1,1,1],[1,2,3,1,2],[10,10,10,10,10]]),[1,1,-np.inf,-np.inf,-np.inf],[1,1,2,10,50]),LinearConstraint([[.5,.5,.3,.2,.2]],.7-1e-9,.7+1e-9),LinearConstraint([[25,0,25,25,50]],50-1e-9,50+1e-9),LinearConstraint([[0,0,0,1,0]],1,1)]
++  c=np.array([5.,0,0,0,0]);x=np.array([1.,0,0,1,0]);a=SimpleNamespace(_repair_scope=True,_repair_job_order=['a','b']);r=solve(a,c,cols,rows,x,None)
++  self.assertIsNotNone(r);self.assertEqual(r.fun,5.);canonical_integral_solution(r.x,rows);self.assertTrue(a._repair_epsilon_trace[-1]['proved'])
++ def test_cutoff_is_directed_downward_at_long_binary_fraction_boundary(self):
++  from epsilon_lex_repair import lower_primary_cutoff
++  from primary_band_presolve import dot_error
++  p=np.array([.12345678912345678,.2345678912345679,.3456789123456789]);L=.7037035927037036
++  actual=lower_primary_cutoff(L,p,3);exact=Fraction.from_float(L)-Fraction.from_float(1e-10)-Fraction(dot_error(p,3))
++  self.assertLessEqual(Fraction(actual),exact)
++
++class CapturedRank42(unittest.TestCase):
++ def test_real_failure42_later_rank_has_proof_without_dropping_earlier_masks(self):
++  from primary_band_presolve import allowed
++  path=Path(__file__).parent/'fixtures/core80_full_rank_step42.json.gz';before=hashlib.sha256(path.read_bytes()).hexdigest();d=json.loads(gzip.decompress(path.read_bytes()));rows=[]
++  for r in d['model']['constraints']:
++   q=r['A'];A=sparse.coo_matrix((q['data'],(q['row'],q['col'])),shape=q['shape']).tocsc() if isinstance(q,dict) else np.atleast_2d(q);rows.append(LinearConstraint(A,r['lb'],r['ub']))
++  cols=[SimpleNamespace(**q) for q in d['model']['columns']];B=rows[0].A.tocsr();nj=B.shape[0]-9;names=[cols[B.indices[B.indptr[i]]].job_id for i in range(nj)];a=SimpleNamespace(_repair_scope=True,_repair_job_order=names);c=np.asarray(d['model']['c']);x=np.asarray(d['last_valid_x']);keep=allowed(a,cols,rows,x)
++  result=solve(a,c,cols,rows,x,keep);self.assertIsNotNone(result);canonical_integral_solution(result.x,rows);self.assertLessEqual(result.fun,8186.);self.assertTrue(a._repair_epsilon_trace[-1]['proved']);self.assertEqual(before,hashlib.sha256(path.read_bytes()).hexdigest())
++  print('RANK42_CERTIFICATE='+json.dumps(dict(objective=result.fun,trace=a._repair_epsilon_trace),ensure_ascii=False),flush=True)
++
++if __name__=='__main__':unittest.main()
+--- /dev/null
++++ b/sia-simulator/tests/test_rank_lattice_repair.py
+@@ -0,0 +1,148 @@
++"""Original-row and backend-contract regressions for exact lattice rows."""
++import sys,unittest,itertools,gzip,json
++from pathlib import Path
++from types import SimpleNamespace
++from unittest.mock import patch
++import numpy as np
++from scipy import sparse
++from scipy.optimize import LinearConstraint,OptimizeResult
++ROOT=Path(__file__).resolve().parents[2];sys.path.insert(0,str(ROOT))
++from engineering_repair import repair_context
++from joint_prototype.completion_continuity import NumericalAdmission,canonical_integral_solution
++from joint_prototype import adaptive_service
++
++class RankLatticeBackendTests(unittest.TestCase):
++ def test_integer_startup_band_is_exact_before_backend(self):
++  a=NumericalAdmission(300,250,60);a.numerical_solver_retries=[];a._repair_scope=True
++  rows=[LinearConstraint(sparse.csc_matrix([[1.,1.]]),1.,1.),LinearConstraint(sparse.csc_matrix([[25.,50.]]),25.-1e-9,25.+1e-9)]
++  before=[(np.array(c.lb,copy=True),np.array(c.ub,copy=True)) for c in rows]
++  def solve(**kw):
++   r=kw['constraints'][1]
++   self.assertEqual(float(np.asarray(r.lb).item()),25.)
++   self.assertEqual(float(np.asarray(r.ub).item()),25.)
++   self.assertEqual(kw['options'],{'time_limit':30.,'mip_rel_gap':0.})
++   return OptimizeResult(x=np.array([1.,0.]),status=0,success=True,message='proved optimum')
++  with repair_context(None),patch.object(adaptive_service,'milp',side_effect=solve) as call:
++   ans=a._milp(np.array([0.,1.]),[SimpleNamespace(job_id='a',column_id='0'),SimpleNamespace(job_id='a',column_id='1')],rows)
++  self.assertEqual(call.call_count,1);canonical_integral_solution(ans.x,rows)
++  for c,(lo,hi) in zip(rows,before):np.testing.assert_array_equal(c.lb,lo);np.testing.assert_array_equal(c.ub,hi)
++
++class LatticeRepresentationTests(unittest.TestCase):
++ def test_dense_and_sparse_exhaustive_binary_domains_identical(self):
++  from integer_row_lattice import tighten_integer_rows
++  for A,lo,hi in [([[25.,50.,120.]],74.999999999,75.000000001),([[-10.,15.,25.]],-5.,31.),([[.25,.5,.75]],.49,.76)]:
++   for mat in (np.array(A),sparse.csc_matrix(A)):
++    original=[LinearConstraint(mat,lo,hi)];rows,_=tighten_integer_rows(original)
++    for v in itertools.product([0.,1.],repeat=3):
++     def accepts(c):
++      try:canonical_integral_solution(v,c);return True
++      except ValueError:return False
++     self.assertEqual(accepts(original),accepts(rows))
++ def test_fractional_rows_are_not_rounded(self):
++  from integer_row_lattice import tighten_integer_rows
++  c=LinearConstraint([[.25,.5]],.25-1e-9,.25+1e-9);r,p=tighten_integer_rows([c]);self.assertIs(r[0],c);self.assertEqual(p,[])
++ def test_tolerance_boundary_conflict_is_left_unchanged(self):
++  from integer_row_lattice import tighten_integer_rows
++  c=LinearConstraint([[1.,1.]],1.+5e-11,2.);r,p=tighten_integer_rows([c]);self.assertIs(r[0],c);self.assertEqual(p,[])
++ def test_oversized_integer_sum_is_not_transformed(self):
++  from integer_row_lattice import tighten_integer_rows
++  c=LinearConstraint([[2.**52,2.**52]],0.,1e20);r,p=tighten_integer_rows([c]);self.assertIs(r[0],c);self.assertEqual(p,[])
++ def test_noncanonical_fractional_duplicates_are_not_reinterpreted(self):
++  from integer_row_lattice import tighten_integer_rows
++  from primary_band_presolve import primary_certificate
++  A=sparse.csr_matrix((np.array([.1,.9]),np.array([0,0]),np.array([0,2])),shape=(1,2))
++  self.assertFalse(A.has_canonical_format)
++  c=LinearConstraint(A,1.-1e-9,1.+1e-9);r,p=tighten_integer_rows([c]);self.assertIs(r[0],c);self.assertEqual(p,[])
++  self.assertIsNone(primary_certificate([LinearConstraint([[1.,1.]],1.,1.),c,LinearConstraint([[25.,25.]],25.,25.)],2))
++
++class PrimaryBandPresolveTests(unittest.TestCase):
++ def model(self):
++  return [LinearConstraint(sparse.csc_matrix([[1.,1.,0.,0.],[0.,0.,1.,1.]]),[1.,1.],[1.,1.]),LinearConstraint([[.5,.3,.2,.1]],.7-1e-9,.7+1e-9),LinearConstraint([[25.,25.,50.,50.]],75.-1e-9,75.+1e-9)]
++ def test_primary_band_alone_prunes_before_startup_is_optimized(self):
++  from primary_band_presolve import allowed
++  for halfband in (1e-9,0.):
++   rows=self.model()[:2];rows[1]=LinearConstraint([[.5,.3,.2,.1]],.7-halfband,.7+halfband)
++   keep=allowed(SimpleNamespace(_repair_scope=True),[None]*4,rows,np.array([1.,0.,1.,0.]))
++   self.assertIsNotNone(keep);np.testing.assert_array_equal(keep,[0,2])
++ def test_current_cost_certificate_uses_certified_feasible_domain_first(self):
++  import dual_certificate
++  original=dual_certificate.certificate
++  def prove(cost,rows,x):
++   self.assertEqual(len(cost),2,'Impossible columns must be removed before current-cost LP')
++   return original(cost,rows,x)
++  a=NumericalAdmission(300,250,60);a.numerical_solver_retries=[];a._repair_scope=True;a._repair_job_order=['a','b']
++  cols=[SimpleNamespace(job_id=j,column_id=str(i)) for i,j in enumerate(['a','a','b','b'])];a._repair_last_columns=cols;a._repair_last_x=np.array([1.,0.,1.,0.])
++  with repair_context(None),patch('dual_certificate.certificate',side_effect=prove):ans=a._milp(np.array([9.,5.,4.,0.]),cols,self.model())
++  self.assertEqual(ans.fun,13.);canonical_integral_solution(ans.x,self.model())
++ def test_noncontiguous_domain_lifts_support_residuals_and_lattice(self):
++  from primary_band_presolve import certificate_on_domain
++  from dual_certificate import refresh_incumbent
++  cost=np.array([5.,1.,10.,2.]);x=np.array([1.,0.,1.,0.]);keep=np.array([0,2]);p=certificate_on_domain(cost,self.model(),x,keep)
++  self.assertTrue(p['proved']);self.assertEqual(p['gcd'],5);self.assertEqual(len(p['_residuals']),4);self.assertTrue(set(p['_lp_support'])<=set(keep));self.assertTrue(set(p['fix_zero'])<=set(keep));self.assertTrue(refresh_incumbent(p,cost,x)['proved'])
++  with self.assertRaisesRegex(ValueError,'OUTSIDE_CERTIFIED_DOMAIN'):certificate_on_domain(cost,self.model(),np.array([0.,1.,1.,0.]),keep)
++ def test_exhaustive_keeps_every_original_feasible_binary_point(self):
++  from primary_band_presolve import primary_certificate
++  rows=self.model();keep,proof=primary_certificate(rows,4);self.assertGreater(proof['removed'],0)
++  for v in itertools.product([0.,1.],repeat=4):
++   try:canonical_integral_solution(v,rows)
++   except ValueError:continue
++   self.assertTrue(set(np.flatnonzero(v))<=set(keep))
++ def test_future_geometry_masks_reuse_only_same_prefix(self):
++  from primary_band_presolve import allowed
++  a=SimpleNamespace(_repair_scope=True);cols=[None]*4;rows=self.model();keep=allowed(a,cols,rows)
++  allowed(a,cols,rows+[LinearConstraint([[1.,0.,0.,0.]],1.,1.)]);self.assertEqual(a._repair_primary_band_lp_calls,1)
++  rows[1].lb=np.array([.4-1e-9]);rows[1].ub=np.array([.4+1e-9]);allowed(a,cols,rows);self.assertEqual(a._repair_primary_band_lp_calls,2)
++ def test_scope_and_missing_primary_do_not_prune(self):
++  from primary_band_presolve import allowed
++  self.assertIsNone(allowed(SimpleNamespace(_repair_scope=False),[None]*4,self.model()))
++  self.assertIsNone(allowed(SimpleNamespace(_repair_scope=True),[None]*4,self.model()[:1]))
++ def test_corrupt_elimination_cannot_discard_valid_incumbent(self):
++  from primary_band_presolve import allowed
++  a=SimpleNamespace(_repair_scope=True);record=dict(seconds=0.,removed=3)
++  with patch('primary_band_presolve.primary_certificate',return_value=(np.array([1]),record)):
++   with self.assertRaisesRegex(RuntimeError,'CONTRADICTS_CURRENT_VALID_INCUMBENT'):
++    allowed(a,[None]*4,self.model(),np.array([1.,0.,1.,0.]))
++ def test_mixed_sign_primary_preserves_all_original_points(self):
++  from primary_band_presolve import primary_certificate
++  rows=self.model();rows[1]=LinearConstraint([[-.5,.3,.2,-.1]],-.3-1e-9,-.3+1e-9);keep,_=primary_certificate(rows,4)
++  found=0
++  for v in itertools.product([0.,1.],repeat=4):
++   try:canonical_integral_solution(v,rows)
++   except ValueError:continue
++   found+=1;self.assertTrue(set(np.flatnonzero(v))<=set(keep))
++  self.assertGreater(found,0)
++ def test_lp_failure_keeps_all_variables(self):
++  from primary_band_presolve import primary_certificate
++  bad=OptimizeResult(status=1,message='injected timeout',ineqlin=None)
++  with patch('primary_band_presolve.linprog',return_value=bad):keep,p=primary_certificate(self.model(),4)
++  np.testing.assert_array_equal(keep,np.arange(4));self.assertEqual(p['removed'],0)
++ def test_roundoff_bounds_dominate_small_exact_binary_sums(self):
++  from primary_band_presolve import dot_error
++  from decimal import Decimal
++  a=np.array([.1,.2,.3,.4]);error=dot_error(a,len(a))
++  for x in itertools.product([0.,1.],repeat=4):
++   exact=sum((Decimal.from_float(float(v)) for v,s in zip(a,x) if s),Decimal(0));actual=Decimal.from_float(float(a@x));self.assertLessEqual(abs(actual-exact),error)
++
++class CapturedRankRegressionTests(unittest.TestCase):
++ def test_real_step37_startup_optimum_with_only_primary_fixed(self):
++  src=Path(__file__).parent/'fixtures/core80_full_startup_step37.json.gz';d=json.loads(gzip.decompress(src.read_bytes()));rows=[]
++  for r in d['model']['constraints']:
++   v=r['A'];A=sparse.coo_matrix((v['data'],(v['row'],v['col'])),shape=v['shape']).tocsc() if isinstance(v,dict) else np.atleast_2d(v);rows.append(LinearConstraint(A,r['lb'],r['ub']))
++  self.assertEqual(len(rows),2)
++  cols=[SimpleNamespace(**q) for q in d['model']['columns']];a=NumericalAdmission(300,250,60);a.numerical_solver_retries=[];a._repair_scope=True;a._repair_allow_cbc=True;a._repair_last_columns=cols;a._repair_last_x=np.rint(d['last_valid_x'])
++  B=rows[0].A.tocsr();a._repair_job_order=[cols[B.indices[B.indptr[i]]].job_id for i in range(B.shape[0]-9)];cost=np.asarray(d['model']['c'])
++  with repair_context(None):r=a._milp(cost,cols,rows)
++  self.assertEqual(r.status,0);self.assertTrue(r.success);self.assertEqual(float(cost@canonical_integral_solution(r.x,rows)),250.)
++  self.assertGreater(a._repair_primary_band_variables_removed,150000)
++ def test_real_step19_model_global_rank_optimum_with_original_rows(self):
++  src=Path(__file__).parent/'fixtures/core80_full_rank_step19.json.gz';d=json.loads(gzip.decompress(src.read_bytes()));rows=[]
++  for r in d['model']['constraints']:
++   v=r['A'];A=sparse.coo_matrix((v['data'],(v['row'],v['col'])),shape=v['shape']).tocsc() if isinstance(v,dict) else np.atleast_2d(v);rows.append(LinearConstraint(A,r['lb'],r['ub']))
++  cols=[SimpleNamespace(**q) for q in d['model']['columns']];a=NumericalAdmission(300,250,60);a.numerical_solver_retries=[];a._repair_scope=True;a._repair_allow_cbc=True;a._repair_last_columns=cols;a._repair_last_x=np.rint(d['last_valid_x'])
++  B=rows[0].A.tocsr();a._repair_job_order=[cols[B.indices[B.indptr[i]]].job_id for i in range(B.shape[0]-9)]
++  cost=np.array(d['model']['c'])
++  with repair_context(None):r=a._milp(cost,cols,rows)
++  self.assertEqual(r.status,0);self.assertTrue(r.success);self.assertEqual(float(cost@canonical_integral_solution(r.x,rows)),5.)
++  self.assertGreater(a._repair_primary_band_variables_removed,100000)
++
++if __name__=='__main__':unittest.main()

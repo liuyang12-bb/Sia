@@ -1,0 +1,1 @@
+本轮授权：纠正事件选择＋后续持续执行的机会验收，冻结后只读核验旧完整日志。通过后按相同输入、算法、响应、训练量和参数完成原六格（6job Medium/Neutral、8job Medium，均FO→FULL）。不调参，不覆盖旧结果。执行入口pipeline.py；每格独立进程，2GiB内存/5GiB磁盘，60秒/6000轮。源码cc-joint-recovery-equivalent-v1完整344文件哈希校验；禁止重复启动。结束后summarize.py独立复算，report.py分析资源释放、受损任务与完整JCT。

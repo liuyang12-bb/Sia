@@ -1,0 +1,212 @@
+--- a/sia-simulator/joint_prototype/bundle_adaptation.py
++++ b/sia-simulator/joint_prototype/bundle_adaptation.py
+@@ -143,6 +143,13 @@
+         elif not eligible:comparison['skip_reason']='INCUMBENT_OUTSIDE_CURRENT_ELIGIBILITY_DOMAIN'
+         elif not audit['valid']:comparison['skip_reason']='INCUMBENT_PHYSICALLY_INVALID'
+         release = result.audit.get('release_completion', {})
++        hypothetical = release.get('status') == 'HYPOTHETICAL_INITIAL'
++        if hypothetical:
++            from .policy_rollout import validate_hypothetical
++            validate_hypothetical(getattr(self,'_prediction_only',False),
++                s.audit(list(result.selected.values())),
++                {j:c.column_id for j,c in result.selected.items()} == release['columns'])
++            comparison['acceptance_rule']='PREDICTION_ONLY_LEGAL_INITIAL_INTERVENTION_NO_OBJECTIVE_CLAIM'
+         new_objective = release.get('status') == 'OK'
+         if new_objective:
+             expected = next(v['columns'] for v in release['plans'] if v['name']==release['selected_plan'])
+@@ -152,7 +159,7 @@
+                 raise RuntimeError('RELEASE_OBJECTIVE_GUARD_FAILED')
+             comparison['legacy_utility_is_not_primary_objective'] = True
+             comparison['acceptance_rule'] = 'CURRENT_RELEASE_EVALUATOR_WITH_ALL_CURRENT_JOBS'
+-        if (not new_objective and comparison['comparable'] and
++        if (not new_objective and not hypothetical and comparison['comparable'] and
+                 result.scheduling_objective+1e-7<comparison['baseline_objective']):
+             error=RuntimeError('GLOBAL_BUNDLE_OBJECTIVE_REGRESSION')
+             error.solver_diagnostics=dict(comparison=comparison,serial_stages=serial,
+--- a/sia-simulator/joint_prototype/release_evaluation.py
++++ b/sia-simulator/joint_prototype/release_evaluation.py
+@@ -195,6 +195,9 @@
+                 if spent>limit+1e-9:raise RuntimeError('ROLLOUT_INITIAL_BUDGET')
+                 context[j]=dict(spent=spent,limit=limit,frozen=frozen,
+                     costs=self.delay_costs[j],known=[k for k,v in self.profile_sources.get(j,{}).items() if v in ('direct_profile','projected_profile')])
++            evaluator=getattr(self,'evaluate_completion_plan',None)
++            if evaluator is not None:
++                return evaluator(s,columns,scores,bundle,queue,self.interval,context)
+             return evaluate_reconfig_plan(s,columns,scores,bundle,queue,self.interval,context)
+         evaluated=evaluate(legacy)
+         evidence=dict(version='RELEASE_RECONFIG_EVALUATION_V2',status=evaluated['status'],
+--- a/sia-simulator/joint_prototype/policy_rollout.py
++++ b/sia-simulator/joint_prototype/policy_rollout.py
+@@ -0,0 +1,138 @@
++"""Current-model forecast using the ACTUAL scheduler and cost/lock state machine.
++
++Never calls Job.step/Cluster.step, true throughput, or future gradient data.
++The proposed initial assignment is a hypothetical, independently legal boundary
++intervention. All subsequent decisions use the unmodified parent FO/FULL path.
++Only already-arrived, unfinished jobs are copied. Learned models stay frozen.
++"""
++import contextvars,copy,math
++from types import SimpleNamespace
++from dataclasses import asdict
++from .completion_time import predict_job
++from .joint_profile import GpuConfig
++from .neutral_liveness import geometry
++from .release_evaluation import ReleaseEvaluationMixin,evaluate_plan
++
++CURRENT=contextvars.ContextVar('current_policy_rollout_cluster',default=None)
++
++def validate_hypothetical(prediction_only,audit,columns_match):
++    if not prediction_only:raise RuntimeError('HYPOTHETICAL_NOT_PREDICTION')
++    if not audit.get('valid') or not columns_match:raise RuntimeError('HYPOTHETICAL_INVALID_INITIAL')
++    return True
++
++def advance_model(cluster,interval):
++    start=cluster.current_time;events=[]
++    for j in cluster.jobs:
++        j.joint_step_segments=[]
++        if j.completion_time is not None:continue
++        if j.submission_time>start:raise ValueError('FUTURE_JOB_IN_PREDICTION')
++        j.current_time=start+interval
++        if not j.placement:continue
++        delay=min(interval,j.rescale_time);j.rescale_time-=delay
++        j.attained_service+=delay*sum(j.placement);j.wasted_gpu_seconds+=delay*sum(j.placement)
++        time_left=interval-delay
++        if not time_left:
++            events.append(dict(job=j.name,time=start,checkpoint=delay,training=0.,raw_rate=None,rho=None));continue
++        resource=cluster.policy.current_resources[j.name]
++        typ,nn,g=resource['config_id'].split(':')
++        config=SimpleNamespace(config_id=resource['config_id'],gpu_type=typ,num_nodes=int(nn),gpus=int(g))
++        pred=predict_job(j,config);raw=pred['raw_rate'];rho=resource['rho']
++        if raw is None:raise ValueError('UNKNOWN_MODEL_IN_PREDICTION')
++        if not math.isfinite(raw*rho) or raw*rho<=0:raise ValueError('INVALID_PREDICTION_RATE')
++        work=max(0.,cluster.policy.declared_work[j.name]['total_progress']-j.progress)
++        train=min(time_left,work/(raw*rho));j.progress+=train*raw*rho;j.execution_time+=train
++        j.attained_service+=train*sum(j.placement);j.used_gpu_seconds+=train*sum(j.placement)
++        j.joint_step_segments=[dict(seconds=train,raw_rate_before_rho=raw,rho=rho,effective_rate=raw*rho)]
++        if work<=time_left*raw*rho+1e-8:j.completion_time=start+delay+train
++        events.append(dict(job=j.name,time=start,checkpoint=delay,training=train,raw_rate=raw,rho=rho,
++                           work_remaining=max(0.,work-train*raw*rho),completion=j.completion_time))
++    cluster.current_time+=interval
++    return events
++
++def clone_current(cluster):
++    # Applications contain immutable offline tables. Sharing them saves memory;
++    # no forecasting path is allowed to query their future training throughput.
++    memo={id(app):app for j in cluster.jobs for app in j.applications.values()}
++    v=copy.deepcopy(cluster,memo)
++    v.jobs=[j for j in v.jobs if j.submission_time<=v.current_time and j.completion_time is None]
++    for name in ('logs','joint_round_logs','rescale_events','migrate_events'):setattr(v,name,[])
++    base=cluster.policy.liveness._rollout_base_class
++    v.policy.liveness.__class__=base
++    v.policy.liveness._prediction_only=True
++    return v,base
++
++def predict_with_policy(cluster,initial,interval):
++    v,base=clone_current(cluster);origin=v.current_time
++    initial_keys={c.job_id:geometry(c) for c in initial}
++    initial_fingerprint={j.name:(j.progress,j.execution_time,j.rescale_time) for j in cluster.jobs}
++    def force(self,s,columns,legacy,now):
++        if not getattr(self,'_initial_pending',False):return legacy,None
++        selected=[next(c for c in columns if geometry(c)==key) for key in self._initial_keys.values()]
++        validate_hypothetical(self._prediction_only,s.audit(selected),
++            {c.job_id for c in selected}=={c.job_id for c in legacy})
++        self._initial_pending=False
++        return selected,dict(status='HYPOTHETICAL_INITIAL',columns={c.job_id:c.column_id for c in selected})
++    v.policy.liveness.__class__=type('HypotheticalInitial'+base.__name__,(base,),{'refine_completion_bundle':force})
++    v.policy.liveness._initial_pending=True;v.policy.liveness._initial_keys=initial_keys
++    traces=[]
++    def decide():
++        # Outer real optimize already owns the identical sparse/engineering
++        # adapters. Re-entering their global patch stack would inspect a
++        # patched function as source. Reuse that active stack, not a new one.
++        from core80 import EfficientTraceMixin
++        token=CURRENT.set(v)
++        try:super(EfficientTraceMixin,v).optimize_policy()
++        finally:CURRENT.reset(token)
++        d=v.policy.last_decision;a=d['result']['audit']
++        if not a['valid']:raise RuntimeError('PREDICTED_COMMIT_INVALID')
++        for j,ledger in a.get('service_delay_ledgers',{}).items():
++            limit=v.policy.liveness.delay_bound+a.get('tail_grants',{}).get(j,{}).get('extra_budget',0.)
++            if ledger['delay_charged']>limit+1e-7:raise RuntimeError('PREDICTED_BUDGET_INVALID')
++        traces.append(dict(time=v.current_time-origin,selected=copy.deepcopy(d['result']['selected']),
++            recovery=copy.deepcopy(a.get('tail_recoveries',[])),locks=a.get('checkpoint_locks',[]),
++            eligibility=copy.deepcopy(a.get('shared_eligibility',{})),
++            ledgers=copy.deepcopy(a.get('service_delay_ledgers',{})),tail_grants=copy.deepcopy(a.get('tail_grants',{}))))
++    decide();executions=[]
++    # The same absolute 6000-round observation window; no extrapolated JCT.
++    remaining=max(0,6000-int(origin/interval))
++    for _ in range(remaining):
++        executions.extend(advance_model(v,interval))
++        if all(j.completion_time is not None for j in v.jobs):break
++        decide()
++        v.logs.clear();v.joint_round_logs.clear();v.rescale_events.clear();v.migrate_events.clear()
++    if not all(j.completion_time is not None for j in v.jobs):return dict(status='PREDICTION_CENSORED')
++    assert initial_fingerprint=={j.name:(j.progress,j.execution_time,j.rescale_time) for j in cluster.jobs}
++    done={j.name:j.completion_time-origin for j in v.jobs}
++    return dict(status='OK',sum_completion=sum(done.values()),completion_times=done,events=traces,
++        model_execution=executions,continuation='ACTUAL_PARENT_FO_FULL_OPTIMIZE_POLICY',
++        shared_candidate_lock_budget_rules=True,future_arrivals_read=False,
++        future_profile_observations_read=False,learned_rate_model='FROZEN_CURRENT_PARAMETERS',global_optimum=False)
++
++class PolicyRolloutMixin(ReleaseEvaluationMixin):
++    def evaluate_completion_plan(self,s,columns,scores,bundle,queue,interval,context):
++        checked=evaluate_plan(s,columns,scores,bundle,queue,interval)
++        if checked['status']!='OK':return checked
++        cluster=CURRENT.get()
++        if cluster is None:raise RuntimeError('MISSING_LIVE_CLUSTER_CONTEXT')
++        key=tuple(sorted(geometry(c) for c in bundle))
++        if key not in self._rollout_cache:self._rollout_cache[key]=predict_with_policy(cluster,bundle,interval)
++        return copy.deepcopy(self._rollout_cache[key])
++    def refine_completion_bundle(self,*args):
++        self._rollout_cache={}
++        try:
++            selected,evidence=super().refine_completion_bundle(*args)
++            evidence['version']='SHARED_POLICY_COMPLETION_ROLLOUT_V3'
++            return selected,evidence
++        finally:self._rollout_cache={}
++
++def install(cluster):
++    base=cluster.policy.liveness.__class__
++    cluster.policy.liveness.__class__=type('PolicyRollout'+base.__name__,(PolicyRolloutMixin,base),{'_rollout_base_class':base})
++    old=cluster.__class__
++    class ContextCluster(old):
++        def optimize_policy(self):
++            token=CURRENT.set(self)
++            try:return super().optimize_policy()
++            finally:CURRENT.reset(token)
++    cluster.__class__=ContextCluster
++    return cluster
+--- a/sia-simulator/tests/test_policy_rollout.py
++++ b/sia-simulator/tests/test_policy_rollout.py
+@@ -0,0 +1,31 @@
++import unittest
++from types import SimpleNamespace as S
++from unittest.mock import patch
++from joint_prototype.policy_rollout import advance_model,validate_hypothetical
++
++class PolicyRolloutTests(unittest.TestCase):
++ def case(self,delay=10.,rho=3.):
++  j=S(name='x',current_cluster='aws',placement=(1,),submission_time=0.,completion_time=None,
++      progress=0.,rescale_time=delay,execution_time=0.,attained_service=0.,wasted_gpu_seconds=0.,used_gpu_seconds=0.,current_time=0.,joint_step_segments=[])
++  c=S(current_time=0.,jobs=[j],policy=S(current_resources={'x':{'config_id':'aws:1:1','rho':rho}},declared_work={'x':{'total_progress':100.}}))
++  return c,j
++ def test_delay_does_not_train_and_completion_releases_exactly(self):
++  c,j=self.case()
++  with patch('joint_prototype.policy_rollout.predict_job',return_value={'raw_rate':2.}):ev=advance_model(c,30.)
++  self.assertAlmostEqual(j.completion_time,10+100/6);self.assertAlmostEqual(j.execution_time,100/6)
++  self.assertEqual(j.rescale_time,0.);self.assertEqual(c.current_time,30.)
++  self.assertEqual(ev[0]['checkpoint'],10.);self.assertAlmostEqual(ev[0]['raw_rate']*ev[0]['rho']*ev[0]['training'],100.)
++ def test_full_checkpoint_cannot_gain_progress(self):
++  c,j=self.case(delay=90.)
++  with patch('joint_prototype.policy_rollout.predict_job',side_effect=AssertionError('checkpoint must not query training')):advance_model(c,60.)
++  self.assertEqual(j.progress,0.);self.assertEqual(j.rescale_time,30.)
++ def test_unknown_rate_is_explicit(self):
++  c,j=self.case(delay=0.)
++  with patch('joint_prototype.policy_rollout.predict_job',return_value={'raw_rate':None}):
++   with self.assertRaisesRegex(ValueError,'UNKNOWN'):advance_model(c,60.)
++ def test_hypothetical_initial_does_not_disable_real_guards(self):
++  with self.assertRaisesRegex(RuntimeError,'NOT_PREDICTION'):validate_hypothetical(False,{'valid':True},True)
++  with self.assertRaisesRegex(RuntimeError,'INVALID'):validate_hypothetical(True,{'valid':False},True)
++  with self.assertRaisesRegex(RuntimeError,'INVALID'):validate_hypothetical(True,{'valid':True},False)
++  self.assertTrue(validate_hypothetical(True,{'valid':True},True))
++if __name__=='__main__':unittest.main()

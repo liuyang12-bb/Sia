@@ -1,0 +1,21 @@
+{
+  "label": "tests",
+  "command": [
+    "D:\\科研启航\\Sia\\.venv-sia-baseline\\Scripts\\python.exe",
+    "-X",
+    "utf8",
+    "-B",
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    "tests",
+    "-p",
+    "test_*.py",
+    "-v"
+  ],
+  "cwd": "D:\\科研启航\\Sia\\cc-joint\\sia-simulator",
+  "exit_code": 0,
+  "seconds": 56.564549684524536,
+  "log_sha256": "EEE999296C910CC97E394D8F629968B74AED3218F6C0EB9A7AE1EAD6AD83E9F9"
+}

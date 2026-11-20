@@ -1,0 +1,75 @@
+{
+  "average_jct_hours": 0.5781406250000001,
+  "average_jct_seconds": 2081.30625,
+  "average_jct_seconds_per_type": {
+    "bert": 1126.8333333333333,
+    "cifar10": 834.0298507462686,
+    "deepspeech2": 2460.4,
+    "imagenet": 31723.333333333332,
+    "yolov3": 13530.57142857143
+  },
+  "average_restarts_per_job": 4.24375,
+  "average_restarts_per_type": {
+    "bert": 1.8333333333333333,
+    "cifar10": 3.574626865671642,
+    "deepspeech2": 6.2,
+    "imagenet": 14.666666666666666,
+    "yolov3": 11.857142857142858
+  },
+  "capacity_violation_count": 0,
+  "capacity_violations": [],
+  "completed_jobs": 160,
+  "contention_max": 23,
+  "contention_mean": 7.048284625158831,
+  "gpu_hours_mean_per_job": 3.8229166666666763,
+  "gpu_hours_per_job_type_and_gpu": {
+    "bert": {
+      "aws": 0.024999999999999998,
+      "dgx-ext": 0.6888888888888888,
+      "rtx": 0.024999999999999998
+    },
+    "cifar10": {
+      "aws": 0.06853233830845781,
+      "dgx-ext": 0.4945273631840797,
+      "rtx": 0.18818407960198957
+    },
+    "deepspeech2": {
+      "aws": 1.2883333333333324,
+      "dgx-ext": 0.6416666666666668,
+      "rtx": 4.579999999999996
+    },
+    "imagenet": {
+      "aws": 24.45555555555555,
+      "dgx-ext": 38.622222222222454,
+      "rtx": 39.694444444444635
+    },
+    "yolov3": {
+      "aws": 11.521428571428654,
+      "dgx-ext": 1.2999999999999985,
+      "rtx": 6.199999999999987
+    }
+  },
+  "jobs": 160,
+  "makespan_hours": 13.004444444444445,
+  "makespan_seconds": 46816.0,
+  "maximum_allocated_gpus": {
+    "aws": 24,
+    "dgx-ext": 16,
+    "rtx": 24
+  },
+  "p99_jct_hours_official_index": 8.579722222222221,
+  "p99_jct_seconds_official_index": 30887.0,
+  "queue_max": 0,
+  "queue_mean": 0,
+  "queue_median": 0,
+  "records": 787,
+  "scheduling_time": {
+    "policy_rounds_measured": 780,
+    "policy_time_mean_ms": 39.42366666666667,
+    "policy_time_total_seconds": 30.750460000000007,
+    "solver_rounds_measured": 780,
+    "solver_time_mean_ms": 26.025179487179486,
+    "solver_time_p99_ms": 65.67,
+    "solver_time_total_seconds": 20.299640000000007
+  }
+}

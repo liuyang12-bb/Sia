@@ -1,0 +1,19 @@
+﻿{
+    "command":  [
+                    "D:\\科研启航\\Sia\\.venv-sia-baseline\\Scripts\\python.exe",
+                    "-m",
+                    "unittest",
+                    "discover",
+                    "-s",
+                    "sia-simulator/tests",
+                    "-p",
+                    "test_sia_las.py",
+                    "-v"
+                ],
+    "working_directory":  "D:\\科研启航\\Sia\\sia-experiments",
+    "start_time":  "2026-10-23T11:17:58.8654645+08:00",
+    "end_time":  "2026-10-23T11:18:01.4561464+08:00",
+    "elapsed_seconds":  2.5789495,
+    "exit_code":  0,
+    "stdout_stderr_log":  "D:\\科研启航\\Sia\\research_notes\\run_logs\\sia_las_unit_tests.stdout.log"
+}

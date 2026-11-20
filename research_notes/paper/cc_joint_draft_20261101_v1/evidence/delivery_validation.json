@@ -1,0 +1,45 @@
+{
+  "status": "PASS",
+  "scope": "writing package; no new simulations",
+  "pdf_pages": 14,
+  "equations": 10,
+  "figures": 6,
+  "experiment_tables": 4,
+  "references": 13,
+  "local_public_pdfs": 11,
+  "historical_cells_recomputed": 42,
+  "source_archives_verified": [
+    {
+      "dataset": "clean_ab",
+      "source_archive": "D:/科研启航/Sia/research_runs/sia_synergy/cc_clean_ab_20261030_run3/frozen_source_snapshot.zip",
+      "sha256": "8770EB20738816816900B4E8C37C9F4A98EA542454188CC1C94683D344B805A0",
+      "matches": true
+    },
+    {
+      "dataset": "arrival18",
+      "source_archive": "D:/科研启航/Sia/research_runs/sia_synergy/cc_arrival_pressure18_20261030_run1/source_snapshot.zip",
+      "sha256": "95CFA594EC87C9A09F89B60EE33A8E7FE5058B466807D7721322DFCCA8FFD508",
+      "matches": true
+    },
+    {
+      "dataset": "core80",
+      "source_archive": "D:/科研启航/Sia/research_runs/sia_synergy/cc_core80_full_lex_repair_20261031_run5/source_snapshot.zip",
+      "sha256": "B0DCAEB4A5A205B6CA27893F3ACFE1F43C3F850CA8AF6E5BC79B15029518D6EB",
+      "matches": true
+    },
+    {
+      "dataset": "mixed12",
+      "source_archive": "D:/科研启航/Sia/research_runs/sia_synergy/cc_full_fo_event_gate_experiment_20261101_run1/source_snapshot.zip",
+      "sha256": "5607D48277F808DEB7EA9E036E2D29E079FA33DC115DCBEEB9E8A16CEA8FE99B",
+      "matches": true
+    }
+  ],
+  "missing_local_links": [],
+  "text_margin_exceptions": 0,
+  "visual_review": "All 14 final rendered pages manually inspected; no overlap or clipping observed.",
+  "limitations": [
+    "RAP and Nexus full text not obtained",
+    "Synthetic cross-hardware response; no target-platform calibration",
+    "Historical versions remain separate evidence groups"
+  ]
+}

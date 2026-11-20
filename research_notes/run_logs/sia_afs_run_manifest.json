@@ -1,0 +1,106 @@
+{
+  "date": "2026-10-23",
+  "timezone": "Asia/Shanghai",
+  "python": "D:\\科研启航\\Sia\\.venv-sia-baseline\\Scripts\\python.exe",
+  "common_environment": {
+    "OPENBLAS_NUM_THREADS": "1",
+    "OMP_NUM_THREADS": "1",
+    "MKL_NUM_THREADS": "1",
+    "NUMEXPR_NUM_THREADS": "1"
+  },
+  "runs": [
+    {
+      "name": "unit_tests",
+      "command": "python -m unittest discover -s sia-simulator/tests -p test_sia_afs.py -v",
+      "exit_code": 0,
+      "elapsed_seconds": 2.609,
+      "stdout": "research_notes/run_logs/sia_afs_unit_tests.stdout.log"
+    },
+    {
+      "name": "smoke_sia",
+      "policy": "sia",
+      "trace": "research_runs/sia_afs/traces/workload-1-first20.csv",
+      "exit_code": 0,
+      "elapsed_seconds": 40.993,
+      "output": "research_runs/sia_afs/smoke/sia/workload-1-first20.log",
+      "stdout": "research_notes/run_logs/sia_afs_smoke_sia.stdout.log"
+    },
+    {
+      "name": "smoke_sia_afs_final",
+      "policy": "sia_afs",
+      "trace": "research_runs/sia_afs/traces/workload-1-first20.csv",
+      "afs_processor_share_unit_seconds": 7200,
+      "afs_seed": 0,
+      "exit_code": 0,
+      "elapsed_seconds": 43.107,
+      "output": "research_runs/sia_afs/smoke/sia_afs_reuse_final/workload-1-first20.log",
+      "stdout": "research_notes/run_logs/sia_afs_smoke_afs_reuse_final.stdout.log"
+    },
+    {
+      "name": "full_sia_workload1",
+      "policy": "sia",
+      "trace": "official-artifacts/sia-simulator/workloads/saturn/workload-1.csv",
+      "available_memory_gib_at_start": 2.203,
+      "exit_code": 0,
+      "elapsed_seconds": 309.692,
+      "output": "research_runs/sia_afs/full/sia/workload-1.log",
+      "stdout": "research_notes/run_logs/sia_afs_full_sia_workload1.stdout.log"
+    },
+    {
+      "name": "full_sia_workload5",
+      "policy": "sia",
+      "trace": "official-artifacts/sia-simulator/workloads/saturn/workload-5.csv",
+      "available_memory_gib_at_start": 2.623,
+      "exit_code": 0,
+      "elapsed_seconds": 275.742,
+      "output": "research_runs/sia_afs/full/sia/workload-5.log",
+      "stdout": "research_notes/run_logs/sia_afs_full_sia_workload5.stdout.log"
+    },
+    {
+      "name": "full_sia_workload10",
+      "policy": "sia",
+      "trace": "official-artifacts/sia-simulator/workloads/saturn/workload-10.csv",
+      "available_memory_gib_at_start": 2.671,
+      "exit_code": 0,
+      "elapsed_seconds": 316.044,
+      "output": "research_runs/sia_afs/full/sia/workload-10.log",
+      "stdout": "research_notes/run_logs/sia_afs_full_sia_workload10.stdout.log"
+    },
+    {
+      "name": "full_sia_afs_workload1",
+      "policy": "sia_afs",
+      "trace": "official-artifacts/sia-simulator/workloads/saturn/workload-1.csv",
+      "available_memory_gib_at_start": 2.194,
+      "afs_processor_share_unit_seconds": 7200,
+      "afs_seed": 0,
+      "exit_code": 0,
+      "elapsed_seconds": 710.423,
+      "output": "research_runs/sia_afs/full/sia_afs/workload-1.log",
+      "stdout": "research_notes/run_logs/sia_afs_full_afs_workload1.stdout.log"
+    },
+    {
+      "name": "full_sia_afs_workload5",
+      "policy": "sia_afs",
+      "trace": "official-artifacts/sia-simulator/workloads/saturn/workload-5.csv",
+      "available_memory_gib_at_start": 2.036,
+      "afs_processor_share_unit_seconds": 7200,
+      "afs_seed": 0,
+      "exit_code": 0,
+      "elapsed_seconds": 726.296,
+      "output": "research_runs/sia_afs/full/sia_afs/workload-5.log",
+      "stdout": "research_notes/run_logs/sia_afs_full_afs_workload5.stdout.log"
+    },
+    {
+      "name": "full_sia_afs_workload10",
+      "policy": "sia_afs",
+      "trace": "official-artifacts/sia-simulator/workloads/saturn/workload-10.csv",
+      "available_memory_gib_at_start": 2.194,
+      "afs_processor_share_unit_seconds": 7200,
+      "afs_seed": 0,
+      "exit_code": 0,
+      "elapsed_seconds": 695.745,
+      "output": "research_runs/sia_afs/full/sia_afs/workload-10.log",
+      "stdout": "research_notes/run_logs/sia_afs_full_afs_workload10.stdout.log"
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "scope": "B3_W10_LATE_MEDIUM_2X2_MECHANISM_ABLATION",
+  "disclaimer": "SYNTHETIC CROSS-HARDWARE TRANSFER — NOT REAL SATURN PERFORMANCE",
+  "cohort": "w10_late",
+  "job_ids": "140-159",
+  "policies": ["b1", "b4", "b3_prop", "b3"],
+  "policy_execution_order": "B1, B4, B3-PROP, B3; one fresh Python process per policy",
+  "factors": {
+    "gpu_choice": ["original_sia", "b3_joint_candidate_choice"],
+    "auxiliary_choice": ["deterministic_proportional", "optimized_cpu_ram_and_placement"]
+  },
+  "cells": {
+    "b1": ["original_sia", "deterministic_proportional"],
+    "b4": ["original_sia", "optimized_cpu_ram_and_placement"],
+    "b3_prop": ["b3_joint_candidate_choice", "deterministic_proportional"],
+    "b3": ["b3_joint_candidate_choice", "optimized_cpu_ram_and_placement"]
+  },
+  "b3_prop_rule": "For every legal GPU configuration and legal placement, allocate max(node CPU/GPU ratio, minimum profile CPU/GPU) and max(node RAM/GPU ratio, minimum profile RAM/GPU). Generate exactly one auxiliary point per GPU-config/placement column; expose no other CPU/RAM choice to the optimizer.",
+  "source_config_sha256": "667D7717CF8FF09EEE6A82C9979180615B58B92670BF91A5D4E5728F4218DE03",
+  "source_workload_sha256": "719267711948607055CAD9BA3F5966D63C65B4913693375D21B5F4E1F3675949",
+  "response_manifest_sha256": "A46B5443F515DECA8FD992A7894BF67C1F93DFD7293AD6E985A7F395D5659DE5",
+  "response": "medium",
+  "response_exponent_alpha": 0.5,
+  "capacity": "cpu_constrained",
+  "interval_seconds": 60,
+  "max_rounds": 6000,
+  "minimum_available_memory_gib": 2.0,
+  "interaction_gain_definition": "(JCT_B3_PROP - JCT_B3) - (JCT_B1 - JCT_B4) = JCT_B3_PROP + JCT_B4 - JCT_B3 - JCT_B1; positive means auxiliary optimization saves more JCT when joint GPU choice is enabled than under original Sia GPU choice.",
+  "hypotheses": [
+    "No directional winner is assumed for either factor.",
+    "The primary result includes all 20 jobs.",
+    "Removing deepspeech2-159 is diagnostic only and cannot replace the primary result.",
+    "No parameter may be changed after freezing based on observed JCT."
+  ]
+}

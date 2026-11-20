@@ -1,0 +1,21 @@
+--- D:\科研启航\Sia\sia-joint-scale-check\sia-simulator\joint_prototype\adaptive_service.py
++++ D:\科研启航\Sia\sia-joint-budgeted-adaptation\sia-simulator\joint_prototype\adaptive_service.py
+@@ -45,6 +45,10 @@
+         if not math.isfinite(value) or value <= 0:
+             raise RuntimeError(f'INVALID_PREDICTED_RATE: {column.job_id}')
+         return value
++
++    def _secondary_tie(self, scheduler, columns, required, constraints, call, chosen):
++        """Historical modes retain their original lexicographic tie rule."""
++        return chosen
+ 
+     def eligible_held_columns(self, scheduler, job, service, columns, productive, now):
+         """Return current-round eligible columns plus explicit filter evidence.
+@@ -203,6 +207,7 @@
+             if tie:
+                 optimum = sum(c.scheduling_utility for c in chosen)
+                 constraints.append(LinearConstraint(weights, optimum - 1e-9, optimum + 1e-9))
++                chosen = self._secondary_tie(s, columns, required, constraints, call, chosen)
+                 for name in sorted(required):
+                     cost = np.zeros(len(columns))
+                     candidates = [i for i, c in enumerate(columns) if c.job_id == name]

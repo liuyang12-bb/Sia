@@ -1,0 +1,108 @@
+diff --git a/sia-simulator/cluster.py b/sia-simulator/cluster.py
+index e7b8719..534d8ff 100644
+--- a/sia-simulator/cluster.py
++++ b/sia-simulator/cluster.py
+@@ -11,6 +11,30 @@ from sia_fix import SiaFixPolicy
+ from utils import JobInfo, NodeInfo
+ import simulator_config as sim_config
+ 
++
++def get_preemption_audit_job_state(job):
++    """Return read-only execution state for preemption-event auditing."""
++    if job.completion_time is not None:
++        phase = "complete"
++    elif not job.placement:
++        phase = "waiting"
++    elif job.rescale_time > 0:
++        phase = "checkpoint_restore"
++    else:
++        phase = "training"
++    return {
++        "phase": phase,
++        "rescale_time_remaining": job.rescale_time,
++        "attained_service_gpu_seconds": job.attained_service,
++        "used_gpu_seconds": job.used_gpu_seconds,
++        "wasted_gpu_seconds": job.wasted_gpu_seconds,
++        "execution_time_seconds": job.execution_time,
++        "cluster": job.current_cluster,
++        "placement": job.placement,
++        "num_restarts": job.num_restarts,
++    }
++
++
+ class Cluster(object):
+     # num_nodes, ngpus_per_node are dicts with key=cluster_name
+     def __init__(self, workload, policy, num_nodes, ngpus_per_node, max_physical_nodes):
+@@ -24,6 +48,9 @@ class Cluster(object):
+         self.clusters = list(self.num_nodes.keys())
+         self.max_physical_nodes = max_physical_nodes
+         self.rescale_events, self.migrate_events = [], []
++        # Opt-in observability only. The default log schema and scheduling path
++        # remain byte-for-byte compatible with the original artifact.
++        self.log_preemption_audit = False
+ 
+         # create inverse map like {app-name: {cluster_name: cluster_app}}
+         self.cluster_applications = dict()
+@@ -131,7 +158,7 @@ class Cluster(object):
+         # log cluster state and metrics
+         self.rescale_events.append(step_rescale_events)
+         self.migrate_events.append(step_migrate_events)
+-        self.step_log()
++        self.step_log(step_rescale_events, step_migrate_events)
+ 
+     def step_jobs_sequential(self, seconds=60):
+         # interference check disabled
+@@ -303,7 +330,7 @@ class Cluster(object):
+             print(f"min-GPU throughputs: {self.cluster_throughputs}")
+ 
+ 
+-    def step_log(self):
++    def step_log(self, step_rescale_events=None, step_migrate_events=None):
+         def get_bsz(job):
+             ngpus = int(sum(job.placement))
+             num_replicas = ngpus
+@@ -335,6 +362,16 @@ class Cluster(object):
+                 for job in self.jobs if job.submission_time <= self.current_time
+             ],
+         }
++        if self.log_preemption_audit:
++            step_log["preemption_audit"] = {
++                "rescale_events": step_rescale_events or [],
++                "migrate_events": step_migrate_events or [],
++                "jobs": {
++                    job.name: get_preemption_audit_job_state(job)
++                    for job in self.jobs
++                    if job.submission_time <= self.current_time
++                },
++            }
+         self.logs.append(step_log)
+ 
+     def get_job_infos(self):
+diff --git a/sia-simulator/multi_simulator.py b/sia-simulator/multi_simulator.py
+index 43cf050..1a229be 100644
+--- a/sia-simulator/multi_simulator.py
++++ b/sia-simulator/multi_simulator.py
+@@ -46,6 +46,7 @@ def multi_simulate(args):
+         cluster_populate_nnodes, sim_ngpus_per_node, sim_config.cluster_max_physical_nnodes)
+     cluster = Cluster(workload, policy, sim_config.cluster_nnodes, sim_ngpus_per_node,
+                       max_physical_nodes=sim_config.cluster_max_physical_nnodes)
++    cluster.log_preemption_audit = args.log_preemption_audit
+     if args.disable_bsz_tuning and args.policy == "sia":
+         print(f"Diabled bsz tuning for {args.policy} policy")
+         cluster.disable_bsz_tuning()
+@@ -152,6 +153,8 @@ if __name__ == "__main__":
+     parser.add_argument("--interval", type=int, default=60,
+                         help="scheduling interval in seconds")
+     parser.add_argument("--output", type=str, help="path to output logs")
++    parser.add_argument("--log_preemption_audit", action='store_true', default=False,
++                        help="append read-only checkpoint/restart audit state to JSONL")
+     parser.add_argument("--debug", action='store_true', default=False,
+                         help="DEBUG MODE: simulate a scheduling round, pause and wait for user input to simulate next round")
+ 
+@@ -184,4 +187,4 @@ if __name__ == "__main__":
+         with open(args.output + "/summary.json", "w") as f:
+             json.dump(summary, f, indent=4)
+     else:
+-        multi_simulate(args)
+\ No newline at end of file
++        multi_simulate(args)

@@ -1,0 +1,796 @@
+--- baseline/core80.py
++++ repaired/core80.py
+@@ -77,7 +77,10 @@
+                 if provider is None:del s.resource_point_provider
+                 else:s.resource_point_provider=provider
+         with ExitStack() as stack:
+-            stack.enter_context(storage_context(self.policy.oracle))
++            if getattr(self.policy,'_engineering_repair',False):
++                from engineering_repair import repair_context
++                stack.enter_context(repair_context(self.policy.oracle))
++            else:stack.enter_context(storage_context(self.policy.oracle))
+             stack.enter_context(patch.object(JointScheduler,'build_joint_columns',existing_cold_filter_early))
+             stack.enter_context(patch.object(EvidenceMixin,'optimize',efficient_evidence))
+             stack.enter_context(patch.object(exchange_netprogress,'asdict',compact_column))
+@@ -103,6 +106,7 @@
+         result=super().optimize(*args)
+         self.last_decision['shared_contract']['max_active_jobs']=80
+         self.last_decision['clean_contract']['resource_factor']=self.liveness.resource_factor
++        if hasattr(self,'_repair_factor_certificate'):self.last_decision['engineering_repair']=self._repair_factor_certificate
+         return result
+ 
+ def install80(c,method):
+@@ -141,7 +145,7 @@
+         evidence.append(dict(key=r['key'],template=r['template'],peak=peak,cpu_saturation=cpu,ram_saturation=ram,phi_c=r['phi_c'],phi_m=r['phi_m']))
+     return out,evidence
+ 
+-def build(method,response='medium',scenario='dual',workload_path=None,config_path=None,seed=True,efficient=True,topology=None):
++def build(method,response='medium',scenario='dual',workload_path=None,config_path=None,seed=True,efficient=True,topology=None,engineering=True):
+     import pandas as pd
+     if method not in METHODS or scenario not in ('dual','cpu_only','ram_only'):raise ValueError('UNREGISTERED_CORE80_CELL')
+     cfg=json.loads(Path(config_path or ROOT/'inputs/core80_config.json').read_text());cfg=copy.deepcopy(cfg)
+@@ -169,4 +173,5 @@
+         if not method.startswith('A'):install_breakpoints(c,'CC_FULL')
+         install80(c,method)
+     if efficient:c.__class__=type('Core80'+c.__class__.__name__,(EfficientTraceMixin,c.__class__),{})
++    c.policy._engineering_repair=bool(engineering)
+     return c
+--- baseline/dual_certificate.py
++++ repaired/dual_certificate.py
+@@ -0,0 +1,65 @@
++"""Exact weak-duality/lattice proof for an already valid integer incumbent.
++
++No LP primal is submitted. Any finite nonpositive inequality multipliers yield
++L = b*y + sum(min(0,c-A.T*y)) on the unit box. Directed Decimal intervals
++compute a LOWER bound on L from exact binary input floats. If c is integral
++with gcd g and L > incumbent-g, the original incumbent is globally optimal.
++Original rows are checked separately; proof rows are conservatively expanded
++by existing validation tolerances, never used as a new execution domain.
++"""
++import math,time
++from decimal import Context,Decimal,ROUND_CEILING,ROUND_FLOOR
++import numpy as np
++from scipy import sparse
++from scipy.optimize import linprog
++
++def dual_interval(cost,A,b,y):
++ up=Context(prec=80,rounding=ROUND_CEILING);down=Context(prec=80,rounding=ROUND_FLOOR)
++ D=Decimal.from_float;y=[D(float(min(0.,v))) for v in y]
++ base=Decimal(0)
++ for v,w in zip(b,y):base=down.add(base,down.multiply(D(float(v)),w))
++ A=A.tocsc();A.sum_duplicates();total=base;residuals=[]
++ for j,c in enumerate(cost):
++  dot=Decimal(0)
++  for k in range(A.indptr[j],A.indptr[j+1]):
++   v=y[A.indices[k]]
++   if v:dot=up.add(dot,up.multiply(D(float(A.data[k])),v))
++  residual=down.subtract(D(float(c)),dot)
++  residuals.append(residual)
++  if residual<0:total=down.add(total,residual)
++ return total,residuals
++
++def lower_bound(cost,A,b,y):return dual_interval(cost,A,b,y)[0]
++
++def refresh_incumbent(proof,cost,incumbent):
++ bound=proof['_bound'];residuals=proof['_residuals'];g=proof['gcd']
++ up=Context(prec=80,rounding=ROUND_CEILING);down=Context(prec=80,rounding=ROUND_FLOOR);objective=Decimal(0)
++ for i,v in enumerate(incumbent):
++  if v==1.:objective=up.add(objective,Decimal.from_float(float(cost[i])))
++ removed=[i for i,r in enumerate(residuals) if down.add(bound,max(r,Decimal(0)))>objective]
++ contradiction=bound>objective or any(incumbent[i]!=0. for i in removed)
++ return {**proof,'proved':not contradiction and bool(g) and bound>objective-Decimal(g),'objective':str(objective),'fix_zero':[] if contradiction else removed,'contradiction':contradiction}
++
++def public_proof(proof):return {k:v for k,v in proof.items() if not k.startswith('_')}
++
++def certificate(cost,constraints,incumbent):
++ c=np.asarray(cost,dtype=float)
++ if not np.all(np.isfinite(c)) or np.max(np.abs(c),initial=0)>2**40 or not np.any(c):return None
++ integral=np.array_equal(c,np.rint(c));values={int(x) for x in c if x} if integral else set();g=math.gcd(*values) if values else 0
++ A=[];b=[]
++ for row in constraints:
++  a=sparse.csr_matrix(np.atleast_2d(row.A)) if not sparse.issparse(row.A) else row.A.tocsr()
++  lo=np.broadcast_to(row.lb,(a.shape[0],));hi=np.broadcast_to(row.ub,(a.shape[0],))
++  narrow=np.isfinite(lo)&np.isfinite(hi)&(hi-lo>0)&(hi-lo<1e-6);tol=np.where(narrow,1e-10,1e-7)
++  upper=np.isfinite(hi);lower=np.isfinite(lo)
++  A.extend([a[upper],-a[lower]])
++  b.extend([np.nextafter(hi[upper]+tol[upper],np.inf),np.nextafter(-lo[lower]+tol[lower],np.inf)])
++ A=sparse.vstack(A).tocsc();b=np.concatenate(b);tick=time.perf_counter()
++ lp=linprog(c,A_ub=A,b_ub=b,bounds=(0.,1.),method='highs',options={'time_limit':30.})
++ if lp.status!=0 or lp.ineqlin.marginals is None or not np.all(np.isfinite(lp.ineqlin.marginals)):return dict(proved=False,lp_status=int(lp.status),seconds=time.perf_counter()-tick)
++ bound,residuals=dual_interval(c,A,b,lp.ineqlin.marginals)
++ # With x_i=1, the same box relaxation gains max(residual_i,0).
++ # Strictly worse than a currently feasible objective => x_i=0 in every
++ # minimizer. Apply only to this phase, never carry into a later lex cost.
++ proof=dict(_bound=bound,_residuals=residuals,_lp_support=np.flatnonzero(lp.x).tolist(),lower_bound=str(bound),gcd=g,lp_status=int(lp.status),seconds=time.perf_counter()-tick,proof='DIRECTED_DECIMAL_WEAK_DUALITY_LATTICE_AND_REDUCED_COST')
++ return refresh_incumbent(proof,c,incumbent)
+--- baseline/engineering_repair.py
++++ repaired/engineering_repair.py
+@@ -0,0 +1,32 @@
++"""Opt-in repair context; historical policy classes remain unchanged outside it."""
++import contextlib
++from unittest.mock import patch
++from scale_storage import storage_context
++from numeric_repair import canonical_bundle
++
++@contextlib.contextmanager
++def repair_context(oracle):
++ from joint_prototype import bundle_adaptation as ba
++ from core80 import Core80Admission
++ from core80 import Core80Policy
++ from factor_cache import fast_factor
++ old=Core80Admission._decide
++ old_factor=Core80Policy.factor_columns
++ def decide(self,*args):
++  ephemeral=('_repair_last_x','_repair_last_columns','_repair_grid_domain','_repair_scope','_repair_variables_removed','_repair_zero_variables_removed','_repair_bound_certificates','_repair_native_calls','_repair_native_seconds','_repair_lp_calls','_repair_lp_seconds','_repair_lp_variables_removed','_repair_support_trace','_repair_last_failure','_repair_job_specs','_repair_job_order')
++  for key in ephemeral:self.__dict__.pop(key,None)
++  self._repair_scope=True
++  self._repair_allow_cbc=True
++  self._repair_job_specs=args[0].job_map;self._repair_job_order=[j.job_id for j in args[0].jobs]
++  try:
++   r=old(self,*args)
++   r.audit['engineering_solver']={k:getattr(self,'_repair_'+k,0) for k in ('variables_removed','zero_variables_removed','bound_certificates','native_calls','native_seconds','lp_calls','lp_seconds','lp_variables_removed')}
++   r.audit['engineering_solver']['support_trace']=getattr(self,'_repair_support_trace',[])
++   return r
++  except Exception as error:
++   if not hasattr(error,'solver_diagnostics') and hasattr(self,'_repair_last_failure'):error.solver_diagnostics=self._repair_last_failure
++   raise
++  finally:
++   for key in ephemeral:self.__dict__.pop(key,None)
++   self.__dict__.pop('_repair_allow_cbc',None)
++ with storage_context(oracle),patch.object(ba.BundleAdmission,'_milp',canonical_bundle),patch.object(Core80Admission,'_decide',decide),patch.object(Core80Policy,'_repair_literal_factor',old_factor,create=True),patch.object(Core80Policy,'factor_columns',fast_factor):yield
+--- baseline/exact_grid_presolve.py
++++ repaired/exact_grid_presolve.py
+@@ -0,0 +1,64 @@
++"""Eliminate provably lexicographically dominated VARIABLES, not grid points.
++
++Same job/config/placement implies identical GPU use and startup cost. If a
++column uses no more CPU/RAM and has >= final utility, it can replace the other
++column in any admission set. On equal primary/startup values the lower quota
++also precedes the other in CleanCore's per-job geometry rank. Thus the removed
++variable cannot occur in the final canonical solution. Full columns remain
++available to the normalizer, candidate contract, records and precommit audit.
++Only initiated on the base resource/job rows before utility/rank bands exist.
++"""
++from collections import defaultdict
++import numpy as np
++from scipy.optimize import LinearConstraint
++
++def indices(columns):
++ groups=defaultdict(list)
++ for i,c in enumerate(columns):groups[c.job_id,c.config.config_id,c.placement.node_gpus].append(i)
++ keep=[]
++ for group in groups.values():
++  ram=sorted({columns[i].query.ram_gb_per_gpu for i in group});rank={r:i+1 for i,r in enumerate(ram)};tree=[None]*(len(ram)+1)
++  for i in sorted(group,key=lambda i:(columns[i].query.cpu_per_gpu,columns[i].query.ram_gb_per_gpu,-columns[i].scheduling_utility,i)):
++   c=columns[i];cpu=c.query.cpu_per_gpu;m=c.query.ram_gb_per_gpu;score=c.scheduling_utility;k=rank[m];best=None
++   while k:
++    if tree[k] is not None and (best is None or tree[k]>best):best=tree[k]
++    k-=k&-k
++   dominated=best is not None and (best[0]>score or best[0]==score and (-best[1]<cpu or -best[2]<m))
++   if not dominated:keep.append(i)
++   entry=(score,-cpu,-m);k=rank[m]
++   while k<len(tree):
++    if tree[k] is None or entry>tree[k]:tree[k]=entry
++    k+=k&-k
++ return np.asarray(sorted(keep),dtype=int)
++
++def reduced(self,cost,columns,constraints):
++ cache=getattr(self,'_repair_grid_domain',None)
++ if cache is None or cache[0] is not columns:
++  # Do not apply to arbitrary captured/helper MIPs or an already constrained
++  # primary/lex state. The actual Core80 controller supplies the scope token.
++  if (not getattr(self,'_repair_scope',False) or len(constraints)!=1 or not columns
++      or not all(hasattr(c,'config') and hasattr(c,'query') for c in columns)):
++   return cost,columns,constraints,None
++  kept=indices(columns);zero={}
++  if getattr(self,'factors',(0,))[0]==1:
++   by=defaultdict(list)
++   for i,c in enumerate(columns):by[c.job_id].append(i)
++   for name,own in by.items():
++    j=self._repair_job_specs[name]
++    if all(columns[i].scheduling_utility==0. and not(j.current_config_id==columns[i].config.config_id and j.current_placement==columns[i].placement.node_gpus) and self._delay(name,columns[i])>1e-7 for i in own):zero[name]=set(own)
++  cache=(columns,kept,[columns[i] for i in kept],zero);self._repair_grid_domain=cache
++ kept=cache[1]
++ # Existing zero-utility/positive-startup theorem, now applied to solver
++ # variables before solving rather than after the secondary optimum. Removing
++ # such an OPTIONAL job preserves primary value, lowers secondary startup,
++ # and cannot remove a canonical optimum. Every required FIFO/service/lock
++ # job is retained for this particular solve. No candidate/admission change.
++ lower=np.broadcast_to(constraints[0].lb,constraints[0].A.shape[0]);required={j for i,j in enumerate(self._repair_job_order) if lower[i]==1.}
++ if required and cache[3]:
++  removed=set().union(*(v for j,v in cache[3].items() if j not in required)) if any(j not in required for j in cache[3]) else set()
++  if removed:
++   kept=np.asarray([i for i in kept if i not in removed],dtype=int)
++   self._repair_zero_variables_removed=max(getattr(self,'_repair_zero_variables_removed',0),len(removed))
++ if len(kept)==len(columns):return cost,columns,constraints,None
++ self._repair_variables_removed=max(getattr(self,'_repair_variables_removed',0),len(columns)-len(kept))
++ return np.asarray(cost)[kept],[columns[i] for i in kept],[LinearConstraint(c.A[:,kept],c.lb,c.ub) for c in constraints],kept
+--- baseline/existing_cbc_retry.py
++++ repaired/existing_cbc_retry.py
+@@ -0,0 +1,22 @@
++"""Independently solve the SAME failed model with already-installed CBC.
++
++Only an explicit opt-in scope may call this after two undecided native solves.
++No gap, capacity or primary/lex row is relaxed; fractional/timeout output is
++never a successful result. The caller validates rounded original rows again.
++"""
++import time
++import numpy as np
++import cvxpy as cp
++from scipy.optimize import OptimizeResult
++def solve(cost,constraints):
++ tick=time.perf_counter();x=cp.Variable(len(cost),boolean=True);rules=[]
++ for c in constraints:
++  lo=np.broadcast_to(c.lb,(c.A.shape[0],));hi=np.broadcast_to(c.ub,(c.A.shape[0],))
++  good=np.isfinite(lo)
++  if np.any(good):rules.append(c.A[good]@x>=lo[good])
++  good=np.isfinite(hi)
++  if np.any(good):rules.append(c.A[good]@x<=hi[good])
++ problem=cp.Problem(cp.Minimize(np.asarray(cost)@x),rules)
++ problem.solve(solver=cp.CBC,maximumSeconds=30.,allowableFractionGap=0.,verbose=False)
++ okay=problem.status==cp.OPTIMAL
++ return OptimizeResult(status=0 if okay else 1,success=okay,x=np.asarray(x.value) if x.value is not None else None,fun=problem.value,message='EXISTING_CBC_'+str(problem.status),elapsed=time.perf_counter()-tick)
+--- baseline/factor_cache.py
++++ repaired/factor_cache.py
+@@ -0,0 +1,86 @@
++"""Exact full-universe normalizer; materialize only the declared quota factor."""
++from dataclasses import replace
++
++def full_max_rho(s,j,c,p):
++ from joint_prototype.joint_scheduler import _proportional_point
++ prop=_proportional_point(p,s.node_map);floor=s.allocation_floor(prop);a,b=s.resource_points(j,c,p)
++ cp=tuple(sorted(x for x in set(a+(floor[0],)) if x+1e-9>=s.minimum_cpu_per_gpu))
++ mp=tuple(sorted(x for x in set(b+(floor[1],)) if x+1e-9>=s.minimum_ram_gb_per_gpu))
++ key=(j.template_file,c.config_id,c.cpu_demand_scale,c.memory_demand_scale,p.node_gpus,cp,mp,tuple((n.node_id,n.gpus,n.cpu_cores,n.ram_gb) for n in s.nodes),s.oracle.response_exponent)
++ cache=getattr(s.oracle,'_repair_full_grid_rho',None)
++ if cache is None:cache={};s.oracle._repair_full_grid_rho=cache
++ if key not in cache:
++  best=None;count=0
++  for cpu in cp:
++   for ram in mp:
++    if not s._fits_column(s._node_usage(p,cpu,ram)):continue
++    q=s.oracle.query(j,c,cpu,ram,prop);count+=1
++    if best is None or q.rho>best:best=q.rho
++  cache[key]=(best,count)
++ return cache[key]
++
++def fast_factor(self,jobs,specs,s):
++ from joint_prototype.completion_time import predict_job,completion_cost
++ from joint_prototype.completion_continuity import completion_priority
++ from joint_prototype.joint_scheduler import enumerate_placements
++ if self.clean_group=='A':return self._repair_literal_factor(jobs,specs,s)
++ if s.enforce_floor:raise RuntimeError('UNEXPECTED_PROGRESS_FLOOR_IN_REPAIR_DOMAIN')
++ pred={(j.job_id,c.config_id):predict_job(self.completion_jobs[j.job_id],c) for j in specs for c in j.configs}
++ self.liveness.profile_sources={j:{c:v['goodput_source'] for c,v in r.items()} for j,r in self.probe_provenance.items()}
++ prop=s.build_proportional_columns();keys={(c.job_id,c.config.config_id,c.placement.node_gpus,c.query.cpu_per_gpu,c.query.ram_gb_per_gpu) for c in prop}
++ remaining={j.job_id:max(0.,self.declared_work[j.job_id]['total_progress']-self.completion_jobs[j.job_id].progress) for j in specs}
++ wait={};proposals={}
++ for j in specs:
++  estimates=[completion_cost(remaining[j.job_id],pred[c.job_id,c.config.config_id]['raw_rate'],c.query.rho,self.completion_delay_costs[j.job_id][c.config.gpu_type]) for c in prop if c.job_id==j.job_id and pred[c.job_id,c.config.config_id]['raw_rate'] is not None]
++  wait[j.job_id]=300.+min(estimates) if estimates else None
++  held=self.liveness.services.get(j.job_id)
++  if (held is not None and self.productive.get(j.job_id,0.)-held['productive_base']<self.liveness.quantum-1e-9) or s.lock_active(j):proposals[j.job_id]=j.current_config_id
++  else:
++   feasible={c.config.config_id for c in prop if c.job_id==j.job_id};cfg=[c for c in j.configs if c.config_id in feasible]
++   if cfg:proposals[j.job_id]=min(cfg,key=lambda c:(-c.sia_goodput*self._restart_factor(j.job_id,jobs[j.job_id],c.config_id,j.current_config_id),c.config_id)).config_id
++ factor=self.liveness.resource_factor;scale=0.;max_counts=0;known=set()
++ # For fixed job/config/placement, delay and work are quota-independent and
++ # 1/(delay+work/(raw*rho)) is monotone in rho. Exactly the same maximum.
++ for j in specs:
++  job=self.completion_jobs[j.job_id]
++  for c in j.configs:
++   pr=pred[j.job_id,c.config_id]
++   if pr['raw_rate'] is None or wait[j.job_id] is None:continue
++   placements=enumerate_placements(c,s.nodes) if c.legal else []
++   if s.lock_active(j):placements=[p for p in placements if c.config_id==j.current_config_id and p.node_gpus==j.current_placement]
++   for p in placements:
++    if s.lock_active(j):rho=s.locked_column(j).query.rho;count=1
++    else:rho,count=full_max_rho(s,j,c,p)
++    if rho is None:continue
++    known.add((j.job_id,c.config_id));same=j.current_config_id==c.config_id and j.current_placement==p.node_gpus
++    delay=float(job.rescale_time) if same else self.completion_delay_costs[j.job_id][c.gpu_type]
++    scale=max(scale,completion_priority(remaining[j.job_id],pr['raw_rate'],rho,delay));max_counts+=count
++ scale=scale or 1.;provider=getattr(s,'resource_point_provider',None)
++ def points(current,j,c,p):
++  from joint_prototype.joint_scheduler import _proportional_point
++  floor=current.allocation_floor(_proportional_point(p,current.node_map));a,b=provider(current,j,c,p) if provider else (current.aux_cpu_points,current.aux_ram_points)
++  if pred[j.job_id,c.config_id]['raw_rate'] is None or wait[j.job_id] is None:return (floor[0],),(floor[1],)
++  if factor in ('PROP','MEM'):a=tuple(x for x in a if abs(x-floor[0])<1e-8)
++  if factor in ('PROP','CPU'):b=tuple(x for x in b if abs(x-floor[1])<1e-8)
++  return a,b
++ s.resource_point_provider=points
++ try:columns=s.build_joint_columns()
++ finally:
++  if provider is None:del s.resource_point_provider
++  else:s.resource_point_provider=provider
++ by={j.job_id:j for j in specs};out=[];evidence=[]
++ for col in columns:
++  j=by[col.job_id];pr=pred[j.job_id,col.config.config_id];job=self.completion_jobs[j.job_id]
++  same=j.current_config_id==col.config.config_id and j.current_placement==col.placement.node_gpus
++  delay=float(job.rescale_time) if same else self.completion_delay_costs[j.job_id][col.config.gpu_type]
++  if pr['raw_rate'] is None or wait[j.job_id] is None:
++   if (j.job_id,col.config.config_id,col.placement.node_gpus,col.query.cpu_per_gpu,col.query.ram_gb_per_gpu) not in keys and not s.lock_active(j):continue
++   eta=None;priority=0.
++  else:eta=completion_cost(remaining[j.job_id],pr['raw_rate'],col.query.rho,delay);priority=completion_priority(remaining[j.job_id],pr['raw_rate'],col.query.rho,delay)
++  value=priority/scale;out.append(replace(col,scheduling_utility=value))
++  evidence.append(dict(job=j.job_id,column_id=col.column_id,raw_rate=pr['raw_rate'],rho=col.query.rho,delay=delay,remaining_work=remaining[j.job_id],estimated_completion=eta,
++   wait_cost=None,utility=value,prediction_source=pr['source'],atomic_bsz=pr['atomic_bsz'],accum_steps=pr['accum_steps'],historical_wait_reference_ignored=wait[j.job_id],completion_priority=priority,common_numerical_scale=scale))
++ self.completion_scores=evidence;self.continuity_scores=evidence;self.exchange_scores=[];self.exchange_columns=out
++ s.current_known_configs=known;s.current_completion_scores={x['column_id']:x for x in evidence}
++ self._repair_factor_certificate=dict(full_universe_scale=scale,full_grid_points_considered=max_counts,unknown_proportional_columns=sum(x['raw_rate'] is None for x in evidence),materialized_columns=len(out),factor=factor,normalizer='EXACT_FULL_GRID_MAX_MONOTONE_ETA')
++ return out,proposals
+--- baseline/numeric_repair.py
++++ repaired/numeric_repair.py
+@@ -0,0 +1,130 @@
++"""Canonical-first validation on original rows; existing solver settings only."""
++import hashlib,time
++import numpy as np
++from scipy.optimize import Bounds,OptimizeResult
++from scale_storage import matrix_bytes,matrix_payload
++
++def fingerprint(cost,constraints):
++ h=hashlib.sha256(np.asarray(cost,dtype=float).tobytes())
++ for c in constraints:
++  for x in (c.A,c.lb,c.ub):h.update(matrix_bytes(x))
++ return h.hexdigest()
++
++def canonical_bundle(self,cost,columns,constraints):
++ from joint_prototype.completion_continuity import canonical_integral_solution,condition_constraint_bands
++ from joint_prototype.bundle_adaptation import BundleAdmission
++ from joint_prototype import adaptive_service
++ previous=getattr(self,'_repair_last_x',None)
++ valid=None
++ if getattr(self,'_repair_last_columns',None) is columns and previous is not None:
++  try:
++   valid=canonical_integral_solution(previous,constraints);mins={}
++   required=set()
++   if getattr(self,'_repair_scope',False) and getattr(self,'_repair_job_order',None):
++    base=constraints[0];lo=np.broadcast_to(base.lb,(base.A.shape[0],))
++    required={j for i,j in enumerate(self._repair_job_order) if lo[i]==1.}
++   for c,v in zip(columns,cost):mins[c.job_id]=min(mins.get(c.job_id,float('inf') if c.job_id in required else 0.),float(v))
++   # Ignore capacities and all cross-job bands, retaining the actual mandatory
++   # one-choice job rows. Required jobs cannot take the optional zero cost.
++   # This strictly strengthens the same relaxation without changing any goal.
++   # Ignoring capacities gives a lower bound (at most one column/job). A
++   # current feasible vector attaining it is a proof, never a heuristic.
++   if float(np.dot(cost,valid))==sum(mins.values()):
++    self._repair_bound_certificates=getattr(self,'_repair_bound_certificates',0)+1
++    return OptimizeResult(x=valid,status=0,success=True,fun=float(np.dot(cost,valid)),message='CERTIFIED_ATTAINED_JOBWISE_LOWER_BOUND; all current original rows validated')
++  except ValueError:pass
++ if valid is not None and getattr(self,'_repair_scope',False):
++  from dual_certificate import certificate,refresh_incumbent,public_proof
++  proof=certificate(cost,constraints,valid)
++  if proof is not None:
++   self._repair_lp_calls=getattr(self,'_repair_lp_calls',0)+1
++   self._repair_lp_seconds=getattr(self,'_repair_lp_seconds',0.)+proof['seconds']
++   if not proof['proved'] and proof.get('_lp_support'):
++    support=np.asarray(sorted(set(proof['_lp_support'])|set(np.flatnonzero(valid))),dtype=int)
++    if len(support)<len(columns):
++     from scipy.optimize import LinearConstraint
++     rows=[LinearConstraint(c.A[:,support],c.lb,c.ub) for c in constraints]
++     tick=time.perf_counter();hint=adaptive_service.milp(c=np.asarray(cost)[support],integrality=np.ones(len(support)),bounds=Bounds(np.zeros(len(support)),np.ones(len(support))),constraints=rows,options={'time_limit':30.,'mip_rel_gap':0.})
++     elapsed=time.perf_counter()-tick
++     self._repair_native_calls=getattr(self,'_repair_native_calls',0)+1;self._repair_native_seconds=getattr(self,'_repair_native_seconds',0.)+elapsed
++     if not hasattr(self,'_repair_support_trace'):self._repair_support_trace=[]
++     trace=dict(status=int(hint.status),message=str(hint.message),variables=len(support),seconds=elapsed,used_as_upper_bound=False)
++     self._repair_support_trace.append(trace)
++     if hint.status==0 and hint.success and hint.x is not None:
++      hx=np.zeros(len(columns));hx[support]=hint.x
++      try:
++       hx=canonical_integral_solution(hx,constraints)
++       improved=refresh_incumbent(proof,cost,hx)
++       from decimal import Decimal
++       if not improved['contradiction'] and Decimal(improved['objective'])<Decimal(proof['objective']):valid=hx;proof=improved;trace['used_as_upper_bound']=True
++      except ValueError:trace['rejected_original_rows']=True
++   if proof['proved']:
++    self._repair_bound_certificates=getattr(self,'_repair_bound_certificates',0)+1
++    self._repair_last_x=valid.copy();self._repair_last_columns=columns
++    return OptimizeResult(x=valid,status=0,success=True,fun=float(np.dot(cost,valid)),message='CERTIFIED_DUAL_LATTICE_LOWER_BOUND; '+str({k:v for k,v in public_proof(proof).items() if k!='fix_zero'}))
++ before=fingerprint(cost,constraints)
++ # Keep the literal first solve. The preserved first-conditioned technical
++ # variant timed out on a later lex phase; use the existing reversible row
++ # representation only when numerical validation/infeasibility needs it.
++ narrow=any(np.any(np.isfinite(c.lb)&np.isfinite(c.ub)&(np.asarray(c.ub)-np.asarray(c.lb)>0)&(np.asarray(c.ub)-np.asarray(c.lb)<1e-6)) for c in constraints)
++ from exact_grid_presolve import reduced
++ small_cost,small_columns,small_rows,kept=reduced(self,cost,columns,constraints)
++ if valid is not None and getattr(self,'_repair_scope',False) and proof is not None and proof.get('fix_zero'):
++  from scipy.optimize import LinearConstraint
++  allowed=np.ones(len(columns),dtype=bool);allowed[proof['fix_zero']]=False
++  kept=np.flatnonzero(allowed) if kept is None else kept[allowed[kept]]
++  small_cost=np.asarray(cost)[kept];small_columns=[columns[i] for i in kept]
++  small_rows=[LinearConstraint(c.A[:,kept],c.lb,c.ub) for c in constraints]
++  self._repair_lp_variables_removed=max(getattr(self,'_repair_lp_variables_removed',0),len(proof['fix_zero']))
++ def lift(r):
++  if kept is not None and r.x is not None:
++   x=np.zeros(len(columns));x[kept]=r.x;r.x=x
++  return r
++ tick=time.perf_counter();result=lift(super(BundleAdmission,self)._milp(small_cost,small_columns,small_rows))
++ self._repair_native_seconds=getattr(self,'_repair_native_seconds',0.)+time.perf_counter()-tick;self._repair_native_calls=getattr(self,'_repair_native_calls',0)+1
++ if fingerprint(cost,constraints)!=before:raise RuntimeError('SOLVER_MUTATED_INPUT_MODEL')
++ def accept(r):
++  if r.status!=0 or not r.success or r.x is None:return None
++  try:v=canonical_integral_solution(r.x,constraints)
++  except ValueError:return None
++  delta=float(np.max(abs(np.asarray(r.x)-v)))
++  if delta:self.numerical_solver_retries.append(dict(reformulation='CANONICAL_BINARY_BEFORE_RETRY',max_integrality_error=delta,original_rows_validated=True,solver_status=int(r.status)))
++  self._repair_last_x=v.copy();self._repair_last_columns=columns
++  return OptimizeResult(x=v,status=0,success=True,fun=float(np.dot(cost,v)),message=str(r.message)+'; canonical first, all original rows validated')
++ approved=accept(result)
++ if approved is not None:return approved
++ needs_retry=(result.status==0 or result.status==2 and narrow or result.status==1 and getattr(self,'_repair_scope',False))
++ if not needs_retry:
++  if result.status!=2 and getattr(self,'_repair_scope',False):
++   self._repair_last_failure=dict(status=int(result.status),message=str(result.message),x=np.asarray(result.x).tolist() if result.x is not None else None,
++    model=dict(c=np.asarray(cost).tolist(),columns=[dict(job_id=c.job_id,column_id=c.column_id) for c in columns],constraints=[dict(A=matrix_payload(c.A),lb=np.asarray(c.lb).tolist(),ub=np.asarray(c.ub).tolist()) for c in constraints]))
++  self._repair_last_x=None;return result
++ conditioned,powers=condition_constraint_bands(constraints) if narrow else (constraints,[])
++ retry_rows=conditioned if narrow else constraints
++ if kept is not None:
++  from scipy.optimize import LinearConstraint
++  retry_rows=[LinearConstraint(c.A[:,kept],c.lb,c.ub) for c in retry_rows]
++ tick=time.perf_counter();retry=lift(adaptive_service.milp(c=small_cost,integrality=np.ones(len(small_columns)),bounds=Bounds(np.zeros(len(small_columns)),np.ones(len(small_columns))),constraints=retry_rows,options={'time_limit':30.,'mip_rel_gap':0.,'presolve':False}))
++ self._repair_native_seconds+=time.perf_counter()-tick;self._repair_native_calls+=1
++ if fingerprint(cost,constraints)!=before:raise RuntimeError('SOLVER_MUTATED_INPUT_MODEL')
++ record=dict(reformulation='FIXED_EXISTING_NO_PRESOLVE_RETRY',original_status=int(result.status),retry_status=int(retry.status),row_exponents=powers,solver_options={'time_limit':30.,'mip_rel_gap':0.,'presolve':False})
++ self.numerical_solver_retries.append(record);approved=accept(retry)
++ if approved is not None:return approved
++ if result.status==1 and retry.status==1 and getattr(self,'_repair_allow_cbc',False):
++  from existing_cbc_retry import solve as independent_solve
++  tick=time.perf_counter();safety=lift(independent_solve(small_cost,retry_rows))
++  self._repair_native_seconds+=time.perf_counter()-tick;self._repair_native_calls+=1
++  record['independent_cbc']=dict(status=int(safety.status),success=bool(safety.success),message=str(safety.message),options=dict(maximumSeconds=30.,allowableFractionGap=0.))
++  self.numerical_solver_retries.append(dict(independent_backend='EXISTING_CBC',**record['independent_cbc']))
++  approved=accept(safety)
++  if approved is not None:return approved
++  record['independent_cbc_x']=np.asarray(safety.x).tolist() if safety.x is not None else None
++ if retry.status==2 and result.status==2:
++  if previous is not None and getattr(self,'_repair_last_columns',None) is columns:
++   try:canonical_integral_solution(previous,constraints)
++   except ValueError:return retry
++  else:return retry
++ error=RuntimeError('REPAIRED_SOLVER_NO_VERIFIED_OPTIMUM')
++ error.solver_diagnostics=dict(**record,original_message=str(result.message),retry_message=str(retry.message),original_x=np.asarray(result.x).tolist() if result.x is not None else None,retry_x=np.asarray(retry.x).tolist() if retry.x is not None else None,last_valid_x=valid.tolist() if valid is not None else None,dual_proof=public_proof(proof) if valid is not None and getattr(self,'_repair_scope',False) and proof is not None else None,
++  model=dict(c=np.asarray(cost).tolist(),columns=[dict(job_id=c.job_id,column_id=c.column_id) for c in columns],constraints=[dict(A=matrix_payload(c.A),lb=np.asarray(c.lb).tolist(),ub=np.asarray(c.ub).tolist()) for c in constraints]))
++ raise error
+--- baseline/run_core80.py
++++ repaired/run_core80.py
+@@ -114,6 +114,8 @@
+   save(out/'summary.json',s);save(out/'output_hashes.json',{x.name:sha(x) for x in out.iterdir() if x.is_file()});print('RESULT',a.cell,s['termination'],s['completed'],s['mean_jct'],flush=True)
+  except Exception as e:
+   save(out/'failure.json',dict(error=repr(e),traceback=traceback.format_exc(),rounds=m.rounds if m else 0,time=c.current_time if c else None,last_decision=compact_decision(c.policy.last_decision) if c else None))
++  if getattr(e,'solver_diagnostics',None) is not None:
++   with gzip.open(out/'failure_solver_diagnostics.json.gz','xt',encoding='utf8') as f:json.dump(e.solver_diagnostics,f,default=encode)
+   raise
+ 
+ if __name__=='__main__':main()
+--- baseline/sia-simulator/joint_prototype/completion_time.py
++++ repaired/sia-simulator/joint_prototype/completion_time.py
+@@ -176,7 +176,8 @@
+             raise RuntimeError('OFFICIAL_INTENT_LOCK_CONFLICT')
+         fixed = {j: c.config.config_id for j, c in prop.selected.items()}
+         geometry = {j: c.placement.node_gpus for j, c in prop.selected.items()}
+-        columns = [c for c in scheduler.build_joint_columns()
++        allowed = {j.job_id: ((fixed[j.job_id],) if j.job_id in fixed else ()) for j in specs}
++        columns = [c for c in scheduler.build_joint_columns(allowed_configs=allowed)
+                    if c.config.config_id == fixed.get(c.job_id) and c.placement.node_gpus == geometry[c.job_id]]
+         columns, self.completion_scores = score_columns(self, specs, scheduler, columns)
+         self.actual_completion_columns = columns
+
+BINARY sia-simulator/tests/fixtures/core80_failed_startup_reduced.json.gz C85BAF3A18A281B8BFAF8C25D5E571F698502F3CC90E84EC6C840E3244074DE5
+
+BINARY sia-simulator/tests/fixtures/core80_full_step5.json.gz B562C3E7F7CB7D6F32B08F5E2F693084EAE4CFCA5DA2FC067C44F2D74323B67D
+--- baseline/sia-simulator/tests/test_dual_certificate.py
++++ repaired/sia-simulator/tests/test_dual_certificate.py
+@@ -0,0 +1,28 @@
++import itertools,sys,unittest
++from decimal import Decimal
++from pathlib import Path
++import numpy as np
++from scipy import sparse
++from scipy.optimize import LinearConstraint
++sys.path.insert(0,str(Path(__file__).resolve().parents[2]))
++from dual_certificate import lower_bound,certificate
++
++class DualProofTests(unittest.TestCase):
++ def test_arbitrary_dual_multipliers_never_overstate_exhaustive_optimum(self):
++  c=np.array([2.,3.,6.]);a=sparse.csc_matrix([[1.,1.,1.],[-1.,-1.,-1.],[1.,2.,0.]])
++  b=np.array([1.,-1.,1.]);opt=min(float(c@x) for bits in itertools.product((0.,1.),repeat=3) if np.all(a@(x:=np.asarray(bits))<=b))
++  for y in ([-1.,-2.,-3.],[1e20,-1e20,0.],[100.,-100.,-1e-30],[-.123,-.456,-.789]):
++   self.assertLessEqual(lower_bound(c,a,b,np.asarray(y)),Decimal.from_float(opt))
++ def test_suboptimal_incumbent_is_not_certified(self):
++  r=certificate(np.array([2.,6.]),[LinearConstraint([[1.,1.]],1.,1.)],np.array([0.,1.]))
++  self.assertFalse(r['proved']);self.assertGreater(float(r['objective']),float(r['lower_bound']))
++ def test_reduced_cost_keeps_every_competitive_exhaustive_solution(self):
++  a=np.array([[1.,1.,0.,0.],[0.,0.,1.,1.],[1.,0.,1.,0.]]);lo=np.array([1.,1.,-np.inf]);hi=np.array([1.,1.,1.]);x0=np.array([1.,0.,0.,1.])
++  for cost in (np.array([0.,1.,0.,10.]),np.array([-.3,-.1,-.4,.8]),np.array([.25,3.5,.5,1.5])):
++   r=certificate(cost,[LinearConstraint(a,lo,hi)],x0);removed=r.get('fix_zero',[])
++   for bits in itertools.product((0.,1.),repeat=4):
++    x=np.asarray(bits)
++    if np.all(a@x>=lo) and np.all(a@x<=hi) and cost@x<=cost@x0:
++     self.assertTrue(all(x[i]==0. for i in removed))
++
++if __name__=='__main__':unittest.main(verbosity=2)
+--- baseline/sia-simulator/tests/test_engineering_repair.py
++++ repaired/sia-simulator/tests/test_engineering_repair.py
+@@ -0,0 +1,130 @@
++import contextlib,gzip,io,json,sys,unittest
++from pathlib import Path
++from types import SimpleNamespace
++from unittest.mock import patch
++import numpy as np
++from scipy.optimize import LinearConstraint,OptimizeResult
++from scipy import sparse
++ROOT=Path(__file__).resolve().parents[2];sys.path.insert(0,str(ROOT))
++from engineering_repair import repair_context
++from joint_prototype.bundle_adaptation import BundleAdmission
++from joint_prototype.adaptive_service import AdaptiveAdmission
++from joint_prototype.completion_continuity import NumericalAdmission
++from joint_prototype import adaptive_service
++
++class EngineeringNumericTests(unittest.TestCase):
++ def fixture(self):
++  path=Path(__file__).parent/'fixtures/core80_full_step5.json.gz'
++  def hook(x):return float(x['nonfinite']) if set(x)=={'nonfinite'} else x
++  d=json.load(gzip.open(path,'rt',encoding='utf8'),object_hook=hook);cs=[]
++  for q in d['model']['constraints']:
++   a=q['A'];a=sparse.coo_matrix((a['data'],(a['row'],a['col'])),shape=a['shape']).tocsc() if isinstance(a,dict) else np.atleast_2d(a)
++   cs.append(LinearConstraint(a,q['lb'],q['ub']))
++  return d,cs,[SimpleNamespace(job_id=x.get('job_id',x.get('job')),column_id=x['column_id']) for x in d['model']['columns']]
++ def controller(self):
++  a=NumericalAdmission(300,250,60);a.numerical_solver_retries=[];a._diagnostic_job_order=[];return a
++ def test_captured_optimal_near_binary_validated_before_retry(self):
++  d,cs,columns=self.fixture();first=OptimizeResult(x=np.asarray(d['original_x']),status=0,success=True,message='captured optimal')
++  retry=OptimizeResult(x=np.asarray(d['retry_x']),status=1,success=False,message='captured timeout')
++  with repair_context(None),patch.object(adaptive_service,'milp',side_effect=[first,retry]) as call:
++   answer=self.controller()._milp(np.asarray(d['model']['c']),columns,cs)
++  self.assertEqual(call.call_count,1);np.testing.assert_array_equal(answer.x,np.rint(first.x))
++ def test_narrow_band_false_infeasible_rechecked_without_relaxation(self):
++  cs=[LinearConstraint(np.array([[1.,1.]]),1.,1.),LinearConstraint(np.array([[.3,.4]]),.3-1e-9,.3+1e-9)]
++  no=OptimizeResult(x=None,status=2,success=False,message='numerical infeasible')
++  yes=OptimizeResult(x=np.array([1.,0.]),status=0,success=True,message='conditioned optimal')
++  with repair_context(None),patch.object(adaptive_service,'milp',side_effect=[no,yes]) as call:
++   ans=self.controller()._milp(np.array([0.,1.]),[SimpleNamespace(job_id='a',column_id='a'),SimpleNamespace(job_id='b',column_id='b')],cs)
++  self.assertEqual(ans.status,0);np.testing.assert_array_equal(ans.x,[1,0]);self.assertEqual(call.call_count,2)
++  self.assertEqual(call.call_args.kwargs['options'],{'time_limit':30.,'mip_rel_gap':0.,'presolve':False})
++ def test_invalid_rounded_capacity_and_primary_band_never_accepted(self):
++  c=[LinearConstraint([[1.,1.]],1.,1.),LinearConstraint([[.3,.4]],.3-1e-9,.3+1e-9)]
++  bad=OptimizeResult(x=np.array([0.,1.]),status=0,success=True,message='invalid primary')
++  with repair_context(None),patch.object(adaptive_service,'milp',return_value=bad):
++   with self.assertRaises(RuntimeError):self.controller()._milp(np.array([0.,1.]),[SimpleNamespace(job_id='a',column_id='a'),SimpleNamespace(job_id='b',column_id='b')],c)
++ def test_timeout_incumbent_is_not_promoted_to_optimal(self):
++  bad=OptimizeResult(x=np.array([1.]),status=1,success=False,message='timeout')
++  with repair_context(None),patch.object(adaptive_service,'milp',return_value=bad):
++   r=self.controller()._milp(np.array([1.]),[SimpleNamespace(job_id='a',column_id='a')],[LinearConstraint([[1.]],1.,1.)])
++  self.assertEqual(r.status,1);self.assertFalse(r.success)
++ def test_scoped_timeout_one_fixed_retry_requires_new_optimal_result(self):
++  a=self.controller();a._repair_scope=True;col=[SimpleNamespace(job_id='a',column_id='a')]
++  no=OptimizeResult(x=np.array([1.]),status=1,success=False,message='timeout incumbent')
++  yes=OptimizeResult(x=np.array([1.]),status=0,success=True,message='independently solved retry optimal')
++  with repair_context(None),patch.object(adaptive_service,'milp',side_effect=[no,yes]) as call:
++   r=a._milp(np.array([1.]),col,[LinearConstraint([[1.]],1.,1.)])
++  self.assertEqual(r.status,0);self.assertEqual(call.call_count,2)
++  self.assertEqual(call.call_args.kwargs['options'],{'time_limit':30.,'mip_rel_gap':0.,'presolve':False})
++ def test_scoped_repeated_timeout_stops_with_model_not_incumbent_commit(self):
++  a=self.controller();a._repair_scope=True;no=OptimizeResult(x=np.array([1.]),status=1,success=False,message='timeout')
++  with repair_context(None),patch.object(adaptive_service,'milp',return_value=no) as call:
++   with self.assertRaises(RuntimeError) as caught:a._milp(np.array([1.]),[SimpleNamespace(job_id='a',column_id='a')],[LinearConstraint([[1.]],1.,1.)])
++  self.assertEqual(call.call_count,2);self.assertEqual(caught.exception.solver_diagnostics['retry_status'],1)
++ def test_required_job_positive_cost_lower_bound_is_exact_certificate(self):
++  a=self.controller();col=[SimpleNamespace(job_id='head',column_id='cheap'),SimpleNamespace(job_id='head',column_id='costly')]
++  a._repair_scope=True;a._repair_job_order=['head'];a._repair_last_columns=col;a._repair_last_x=np.array([1.,0.])
++  with repair_context(None),patch.object(adaptive_service,'milp',side_effect=RuntimeError('RED: unnecessary backend call')) as call:
++   r=a._milp(np.array([120.,125.]),col,[LinearConstraint([[1.,1.]],1.,1.)])
++  self.assertEqual(call.call_count,0);self.assertEqual(r.fun,120.);np.testing.assert_array_equal(r.x,[1.,0.])
++ def test_capacity_coupled_integer_cost_dual_certificate_skips_mip(self):
++  a=self.controller();col=[SimpleNamespace(job_id=j,column_id=str(i)) for i,j in enumerate(['a','a','b','b'])]
++  a._repair_scope=True;a._repair_job_order=['a','b'];a._repair_last_columns=col;a._repair_last_x=np.array([1.,0.,0.,1.])
++  rows=[LinearConstraint([[1.,1.,0.,0.],[0.,0.,1.,1.],[1.,0.,1.,0.]], [1.,1.,-np.inf],[1.,1.,1.])]
++  with repair_context(None),patch.object(adaptive_service,'milp',side_effect=RuntimeError('RED: unnecessary integer solve')) as call:
++   r=a._milp(np.array([0.,10.,0.,10.]),col,rows)
++  self.assertEqual(call.call_count,0);self.assertEqual(r.fun,10.);self.assertIn('DUAL',r.message)
++ def test_lp_reduced_cost_discards_only_objective_worse_variables(self):
++  a=self.controller();col=[SimpleNamespace(job_id='a',column_id=str(i)) for i in range(4)]
++  a._repair_scope=True;a._repair_job_order=['a'];a._repair_last_columns=col;a._repair_last_x=np.array([0.,1.,0.,0.])
++  def backend(**args):
++   self.assertEqual(len(args['c']),2)
++   return OptimizeResult(x=np.array([1.,0.]),status=0,success=True,message='optimal reduced exact model')
++  with repair_context(None),patch.object(adaptive_service,'milp',side_effect=backend):
++   r=a._milp(np.array([0.,10.,20.,30.]),col,[LinearConstraint([[1.,1.,1.,1.]],1.,1.)])
++  np.testing.assert_array_equal(r.x,[1.,0.,0.,0.])
++ def test_lp_support_integer_candidate_is_only_used_with_global_proof(self):
++  a=self.controller();col=[SimpleNamespace(job_id='a',column_id=str(i)) for i in range(3)]
++  a._repair_scope=True;a._repair_job_order=['a'];a._repair_last_columns=col;a._repair_last_x=np.array([0.,0.,1.])
++  def backend(**args):
++   self.assertEqual(len(args['c']),2)
++   return OptimizeResult(x=np.array([1.,0.]),status=0,success=True,message='optimal restricted model, not yet globally proved')
++  with repair_context(None),patch.object(adaptive_service,'milp',side_effect=backend) as call:
++   r=a._milp(np.array([0.,10.,20.]),col,[LinearConstraint([[1.,1.,1.]],1.,1.)])
++  self.assertEqual(call.call_count,1);self.assertEqual(r.fun,0.);self.assertIn('CERTIFIED',r.message);np.testing.assert_array_equal(r.x,[1.,0.,0.])
++ def test_restricted_infeasibility_or_invalid_vector_does_not_fail_full_model(self):
++  for hint in (OptimizeResult(x=None,status=2,success=False,message='restricted infeasible'),OptimizeResult(x=np.array([1.,1.]),status=0,success=True,message='invalid restricted vector')):
++   a=self.controller();col=[SimpleNamespace(job_id='a',column_id=str(i)) for i in range(3)]
++   a._repair_scope=True;a._repair_job_order=['a'];a._repair_last_columns=col;a._repair_last_x=np.array([0.,0.,1.])
++   good=OptimizeResult(x=np.array([1.,0.,0.]),status=0,success=True,message='full verified optimum')
++   with repair_context(None),patch.object(adaptive_service,'milp',side_effect=[hint,good]) as call:
++    r=a._milp(np.array([0.,10.,20.]),col,[LinearConstraint([[1.,1.,1.]],1.,1.)])
++   self.assertEqual(call.call_count,2);self.assertEqual(r.fun,0.)
++ def test_restricted_optimum_is_not_promoted_without_global_bound(self):
++  import dual_certificate
++  a=self.controller();col=[SimpleNamespace(job_id='a',column_id=str(i)) for i in range(3)]
++  a._repair_scope=True;a._repair_job_order=['a'];a._repair_last_columns=col;a._repair_last_x=np.array([0.,0.,1.]);cost=np.array([0.,10.,20.]);rows=[LinearConstraint([[1.,1.,1.]],1.,1.)]
++  evidence=dual_certificate.certificate(cost,rows,a._repair_last_x);evidence['_lp_support']=[1]
++  def backend(**args):return OptimizeResult(x=np.array([1.,0.]),status=0,success=True,message='restricted-or-full optimum')
++  with repair_context(None),patch.object(dual_certificate,'certificate',return_value=evidence),patch.object(adaptive_service,'milp',side_effect=backend) as call:
++   r=a._milp(cost,col,rows)
++  self.assertEqual(call.call_count,2);self.assertEqual(r.fun,0.);np.testing.assert_array_equal(r.x,[1.,0.,0.])
++ def test_explicit_safety_backend_must_independently_prove_optimality(self):
++  a=self.controller();a._repair_scope=True;a._repair_allow_cbc=True
++  no=OptimizeResult(x=None,status=1,success=False,message='native timeout without incumbent')
++  with repair_context(None),patch.object(adaptive_service,'milp',return_value=no):
++   r=a._milp(np.array([1.]),[SimpleNamespace(job_id='a',column_id='a')],[LinearConstraint([[1.]],1.,1.)])
++  self.assertEqual(r.status,0);self.assertIn('CBC',r.message);np.testing.assert_array_equal(r.x,[1.])
++ def test_safety_backend_timeout_is_not_a_global_optimum(self):
++  import existing_cbc_retry
++  a=self.controller();a._repair_scope=True;a._repair_allow_cbc=True;no=OptimizeResult(x=np.array([1.]),status=1,success=False,message='timeout incumbent')
++  with repair_context(None),patch.object(adaptive_service,'milp',return_value=no),patch.object(existing_cbc_retry,'solve',return_value=no):
++   with self.assertRaises(RuntimeError) as c:a._milp(np.array([1.]),[SimpleNamespace(job_id='a',column_id='a')],[LinearConstraint([[1.]],1.,1.)])
++  self.assertEqual(c.exception.solver_diagnostics['independent_cbc']['status'],1)
++ def test_safety_backend_invalid_optimal_vector_is_rejected(self):
++  import existing_cbc_retry
++  a=self.controller();a._repair_scope=True;a._repair_allow_cbc=True;no=OptimizeResult(x=None,status=1,success=False,message='timeout');bad=OptimizeResult(x=np.array([0.]),status=0,success=True,message='invalid alleged optimal')
++  with repair_context(None),patch.object(adaptive_service,'milp',return_value=no),patch.object(existing_cbc_retry,'solve',return_value=bad):
++   with self.assertRaises(RuntimeError) as c:a._milp(np.array([1.]),[SimpleNamespace(job_id='a',column_id='a')],[LinearConstraint([[1.]],1.,1.)])
++  self.assertEqual(c.exception.solver_diagnostics['independent_cbc_x'],[0.])
++
++if __name__=='__main__':unittest.main(verbosity=2)
+--- baseline/sia-simulator/tests/test_exact_grid_presolve.py
++++ repaired/sia-simulator/tests/test_exact_grid_presolve.py
+@@ -0,0 +1,56 @@
++import contextlib,itertools,sys,unittest
++from pathlib import Path
++from dataclasses import replace
++ROOT=Path(__file__).resolve().parents[2];sys.path.insert(0,str(ROOT))
++from exact_grid_presolve import indices
++from engineering_repair import repair_context
++from core80 import Core80Admission
++from test_clean_ablation import controller,state
++from test_adaptive_service import spec,current
++from joint_prototype.joint_profile import NodeSpec
++from joint_prototype.neutral_liveness import geometry
++
++class ExactGridPresolveTests(unittest.TestCase):
++ def make(self):
++  js=[spec('a'),spec('b',index=1)];s=state(js,[NodeSpec('aws:0','aws',2,6.,125.)]);s.enforce_floor=False
++  points={(1.,20.83),(2.,20.83),(3.,62.5),(4.,62.5),(6.,125.)}
++  cols=[replace(c,scheduling_utility=.5 if c.query.cpu_per_gpu>=3 and c.query.ram_gb_per_gpu>=62.5 else .3) for c in s.build_joint_columns() if(c.query.cpu_per_gpu,c.query.ram_gb_per_gpu) in points]
++  return js,s,cols
++ def test_removed_variables_cannot_change_canonical_optimum(self):
++  js,s,cols=self.make();keep=indices(cols);self.assertLess(len(keep),len(cols))
++  def exhaustive(domain):
++   domains=[[c for c in domain if c.job_id==j.job_id] for j in js]
++   feasible=[x for x in itertools.product(*domains) if s.audit(x)['valid']]
++   return min(feasible,key=lambda x:(-sum(c.scheduling_utility for c in x),tuple(geometry(c) for c in x)))
++  self.assertEqual([geometry(c) for c in exhaustive(cols)],[geometry(c) for c in exhaustive([cols[i] for i in keep])])
++ def test_full_native_controller_matches_literal_allocation(self):
++  runs=[]
++  for fast in (False,True):
++   with (repair_context(None) if fast else contextlib.nullcontext()):
++    js,s,cols=self.make();x=controller(js,aux='opt');x.__class__=Core80Admission;x.resource_factor='FULL'
++    r=x.decide(s,cols,0.,{})
++   self.assertTrue(r.audit['valid']);runs.append({j:geometry(c) for j,c in r.selected.items()})
++   self.assertFalse(any(k.startswith('_repair_') for k in x.__dict__))
++   if fast:self.assertGreater(r.audit['engineering_solver']['variables_removed'],0)
++  self.assertEqual(runs[0],runs[1])
++ def test_tradeoff_points_are_kept(self):
++  js,s,cols=self.make();a=[c for c in cols if c.job_id=='a']
++  # Better utility with greater quota is a true tradeoff, never removed.
++  a=[replace(c,scheduling_utility=c.query.cpu_per_gpu) for c in a]
++  self.assertEqual(len(indices(a)),len(a))
++ def test_zero_optional_variable_certificate_preserves_head_and_checkpoint(self):
++  js=[spec('a'),spec('b',index=1)];tracks=[]
++  for fast in (False,True):
++   with (repair_context(None) if fast else contextlib.nullcontext()):
++    s=state(js,[NodeSpec('aws:0','aws',2,6.,125.)]);s.enforce_floor=False
++    cols=[replace(c,scheduling_utility=0.) for c in s.build_joint_columns()]
++    x=controller(js,aux='opt');x.__class__=Core80Admission;x.resource_factor='FULL';x.factors=(1,1,1)
++    first=x.decide(s,cols,0.,{});self.assertEqual(set(first.selected),{'a'})
++    if fast:self.assertGreater(first.audit['engineering_solver']['zero_variables_removed'],0)
++    s=state([current(js[0],first.selected,locked=True),js[1]],s.nodes);s.enforce_floor=False
++    cols=[replace(c,scheduling_utility=0.) for c in s.build_joint_columns()]
++    second=x.decide(s,cols,60.,{});self.assertEqual(set(second.selected),{'a','b'})
++    tracks.append(({j:geometry(c) for j,c in first.selected.items()},{j:geometry(c) for j,c in second.selected.items()}))
++  self.assertEqual(tracks[0],tracks[1])
++
++if __name__=='__main__':unittest.main(verbosity=2)
+--- baseline/sia-simulator/tests/test_existing_cbc_repair.py
++++ repaired/sia-simulator/tests/test_existing_cbc_repair.py
+@@ -0,0 +1,24 @@
++import gzip,json,sys,unittest
++from pathlib import Path
++import numpy as np
++from scipy import sparse
++from scipy.optimize import LinearConstraint
++sys.path.insert(0,str(Path(__file__).resolve().parents[2]))
++from existing_cbc_retry import solve
++from scale_storage import sparse_condition
++from joint_prototype.completion_continuity import canonical_integral_solution
++
++class CapturedCBCRegression(unittest.TestCase):
++ def test_captured_full_step10_original_rows_and_startup_optimum(self):
++  f=Path(__file__).parent/'fixtures/core80_failed_startup_reduced.json.gz'
++  with gzip.open(f,'rt',encoding='utf8') as stream:d=json.load(stream)
++  rows=[]
++  for c in d['constraints']:
++   a=c['A'];a=sparse.coo_matrix((a['data'],(a['row'],a['col'])),shape=a['shape']).tocsc();rows.append(LinearConstraint(a,c['lb'],c['ub']))
++  conditioned,_=sparse_condition(rows);result=solve(d['cost'],conditioned)
++  self.assertEqual(result.status,0);self.assertTrue(result.success)
++  x=canonical_integral_solution(result.x,rows)
++  self.assertEqual(float(np.dot(d['cost'],x)),d['expected_startup'])
++  self.assertEqual(d['original_variables'],121133)
++
++if __name__=='__main__':unittest.main(verbosity=2)
+--- baseline/sia-simulator/tests/test_factor_cache_repair.py
++++ repaired/sia-simulator/tests/test_factor_cache_repair.py
+@@ -0,0 +1,62 @@
++"""Same-state score-vector, domain, execution and normalization equivalence."""
++import contextlib,copy,dataclasses,io,sys,tempfile,unittest
++from pathlib import Path
++import pandas as pd
++ROOT=Path(__file__).resolve().parents[2];sys.path.insert(0,str(ROOT))
++from core80 import build
++
++def retained(policy,columns):
++ mode=policy.liveness.resource_factor
++ if mode=='PROP':return [c for c in columns if abs(c.query.cpu_per_gpu-c.proportional_cpu_per_gpu)<1e-8 and abs(c.query.ram_gb_per_gpu-c.proportional_ram_per_gpu)<1e-8 or c.candidate_kind=='locked']
++ if mode=='CPU':return [c for c in columns if abs(c.query.ram_gb_per_gpu-c.proportional_ram_per_gpu)<1e-8 or c.candidate_kind=='locked']
++ if mode=='MEM':return [c for c in columns if abs(c.query.cpu_per_gpu-c.proportional_cpu_per_gpu)<1e-8 or c.candidate_kind=='locked']
++ return columns
++
++class FactorCacheRepairTests(unittest.TestCase):
++ def test_real_same_state_all_factor_scores_and_training(self):
++  data=pd.read_csv(ROOT/'inputs/core80_workload.csv').iloc[[0,3,4]].copy();data.time=0
++  with tempfile.TemporaryDirectory() as d:
++   path=Path(d)/'three.csv';data.to_csv(path,index=False)
++   for method in ('PROP','CPU','MEM','FULL','FO'):
++    traces=[]
++    for enabled in (False,True):
++     with contextlib.redirect_stdout(io.StringIO()):
++      c=build(method,workload_path=path,topology={'aws':2,'dgx-ext':2},engineering=enabled);trace=[]
++      for _ in range(5):
++       c.step(60)
++       cols=retained(c.policy,c.policy.exchange_columns)
++       trace.append((copy.deepcopy(c.allocations),[(j.progress,j.epoch,j.rescale_time,j.num_restarts,j.completion_time) for j in c.jobs],
++            [dataclasses.asdict(x) for x in cols],set(c.policy.liveness.previous_known_configs)))
++      if enabled:
++       cert=c.policy._repair_factor_certificate
++       self.assertGreaterEqual(cert['full_grid_points_considered']+cert['unknown_proportional_columns'],cert['materialized_columns'])
++     traces.append(trace)
++    self.assertEqual(traces[0],traces[1],method)
++ def test_reference_max_cache_key_changes_with_capacity(self):
++  from factor_cache import full_max_rho
++  from test_clean_ablation import state
++  from test_adaptive_service import spec,cfg
++  from joint_prototype.joint_scheduler import enumerate_placements
++  from joint_prototype.joint_profile import NodeSpec
++  s=state([spec('a')],[NodeSpec('aws:0','aws',2,6.,125.)]);j=s.jobs[0];c=j.configs[0];p=enumerate_placements(c,s.nodes)[0]
++  full_max_rho(s,j,c,p);n=len(s.oracle._repair_full_grid_rho);full_max_rho(s,j,c,p);self.assertEqual(len(s.oracle._repair_full_grid_rho),n)
++  s2=state([j],[NodeSpec('aws:0','aws',2,12.,125.)]);s2.oracle=s.oracle;full_max_rho(s2,j,c,p)
++  self.assertEqual(len(s.oracle._repair_full_grid_rho),n+1)
++ def test_real_unseeded_bert_full_checkpoint_training_next_optimization(self):
++  data=pd.read_csv(ROOT/'inputs/core80_workload.csv').iloc[[4]].copy();data.time=17
++  with tempfile.TemporaryDirectory() as d:
++   path=Path(d)/'bert.csv';data.to_csv(path,index=False)
++   for method in ('SIA_P','SIA_AUX','FULL'):
++    tracks=[]
++    for enabled in (False,True):
++     with contextlib.redirect_stdout(io.StringIO()):
++      c=build(method,workload_path=path,topology={'aws':2,'dgx-ext':2},seed=False,engineering=enabled);track=[]
++      for _ in range(12):
++       c.step(60);j=c.jobs[0]
++       self.assertTrue(c.policy.last_decision['result']['audit']['valid'])
++       track.append((copy.deepcopy(c.allocations),j.progress,j.epoch,j.rescale_time,j.num_restarts,j.completion_time,j.first_allocation_time,j.first_productive_training_time,c.joint_round_logs[-1]['execution'][0]['waiting_seconds']))
++      self.assertGreater(j.progress,0.);self.assertIsNotNone(j.first_productive_training_time)
++     tracks.append(track)
++    self.assertEqual(tracks[0],tracks[1],method)
++
++if __name__=='__main__':unittest.main(verbosity=2)

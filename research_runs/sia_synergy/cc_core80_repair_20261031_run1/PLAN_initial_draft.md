@@ -1,0 +1,24 @@
+# Core80 engineering repair protocol (before formal outcomes)
+
+SYNTHETIC CROSS-HARDWARE TRANSFER — NOT REAL SATURN PERFORMANCE
+
+## Immutable science
+Restore all302files from the previous sealed executable snapshot. Changes are isolated in cc-joint-core80-repair; old trees/runs/reports and official repositories remain untouched. Same80declarations (48CF/16DS/16BERT), batches, full public work, controlled0/600/1200 arrivals; one4/8/8GPU node/type, synthetic12/24/24CPU and250/500/500GB. Same R0 registry/application mapping, E-legacy, alpha0/.5, seed_profiles(1,8),60sec/6000rounds, model/gradient/Goodput and startup/lock/service rules. No new grid, weights, bonus, bootstrap or scheduling target.
+
+## Numerical repair
+Retain existing near-integer1e-6 guard; canonical binary vectors must satisfy ORIGINAL capacity/admission/utility/mask rows (narrow-row1e-10; ordinary1e-7). Do this before the old broad1e-7 raw-vector rejection. No status1 incumbent becomes Optimal. Existing reversible power-of-two row units are applied before the first narrow-band solve, rather than only after an invalid solve. Bounds/coefficient bit round-trip and original rows are checked; primary/secondary bands remain +/-1e-9. Native options stay time_limit30, mip_rel_gap0; existing presolve=False retry retained. A feasible last vector is reused only if it attains a proven one-choice-per-job objective lower bound; otherwise it is NOT promoted to an optimum/fallback. All ephemeral vectors/domain caches cleared at each real decision.
+
+## Equivalent computation
+The shared objective is priority_i,c =1/(delay_i,c+remaining_i/(current_raw_i,c*rho_i,c)), divided by the maximum over the SAME full registered universe. For fixed current job/config/placement, work/raw/delay are quota-independent and priority is monotone in rho. Enumerate the immutable response grid once per template/config/phi/capacity/point-key to cache max-rho, but recompute current raw/work/delay/normalizer every decision. CPU/MEM/PROP materialize only the points already admitted by their existing post-score filters, retaining1e-8 factor equality behavior. Unknown ETA still uses EXACT old proportional bootstrap; no future runtime or new admission.
+
+The solver may substitute zero for a variable lexicographically dominated within the same job/config/placement: no greater CPU/RAM, no smaller final utility, same GPU/startup, and earlier geometric rank on equal utilities. Any feasible service set and canonical primary/secondary/per-job lex optimum is retained; full grid remains in oracle/normalizer/audit. This is an exact variable presolve, not grid coarsening or a new allocation policy. An independent exhaustive small instance and real-score/execution bridges must verify it. Genuine tradeoff points remain.
+
+SIA_AUX calls official Sia unchanged. Its original immediately-discarded off-intent columns are excluded before materialization, while the full proportional wait reference remains unchanged. The selected fixed GPU/placement domain, ECT objective and mandatory service set stay the same. Historical policies opt out of the repair context.
+
+## Acceptance and execution
+Retain276tests, add captured-model red/green, conditioned infeasibility, invalid-capacity/primary and timeout rejection, exact-presolve/exhaustive tests, all-factor same-state score/normalizer/actual-execution equivalence. Real80 FULL8boundaries and A10first20boundaries test old failure sites; real unseededBERT/full optimize_policy and originalSia bounded regression remain mandatory. No formal run starts before full suite/source freeze.
+
+Run all11 original CORE cells with one repaired source in NEW directories, to avoid mixed-version paired means. The prior5complete cells are historical regression references, not alternate results to choose from. No optional4,104,160 or new response/pressure cases. Fix order and operational watchdogs before launch; no choice based on JCT. Each worker is independent and serial;2GiB/5GiB launch gates. Solver failures preserve model/status/incumbent/trace immediately. All calculations use every declared task; incomplete jobs get no imputed JCT. If implementation failure requires a further repair, retain the failed attempt and rerun affected complete pairs in a new version, never best-select.
+
+## Analysis
+Independent event-integral recomputation of JCT, exclusive wait/checkpoint/productive time, resource-hours through actual completion, progress/rho once, full locks, officialSia GPU intent, scalar normalizer/factor contracts, fallback/status and clipping. Describe CPU-only/MEM-only and FULL versus PROP/FO/Sia. Service2x2 main effects/interactions require all4valid; effects across service fairness and resource completion objectives are not additive. Report regressions and tail losses, no requirement to win.

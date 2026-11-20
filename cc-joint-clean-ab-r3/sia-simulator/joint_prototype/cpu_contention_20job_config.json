@@ -1,0 +1,104 @@
+{
+  "resource_model_type": "synthetic_cross_hardware_transfer",
+  "experiment_scope": "TWENTY_JOB_STABILITY_AND_MECHANISM_SMOKE_NOT_PERFORMANCE_EVALUATION",
+  "preregistration_note": "Frozen before any 20-job policy run; no parameter, template, workload, or topology selection may use observed scheduler results.",
+  "cohort_rule": "The 20 consecutive source rows with numeric job IDs 20 through 39 inclusive from official Saturn workload-1; this contains the previously frozen four-job cohort 28 through 31.",
+  "source_workload": "workloads/saturn/workload-1.csv",
+  "workload_rows": [
+    "cifar10-20", "deepspeech2-21", "cifar10-22", "imagenet-23", "cifar10-24",
+    "cifar10-25", "cifar10-26", "cifar10-27", "bert-28", "cifar10-29",
+    "deepspeech2-30", "deepspeech2-31", "cifar10-32", "yolov3-33", "cifar10-34",
+    "cifar10-35", "cifar10-36", "bert-37", "cifar10-38", "cifar10-39"
+  ],
+  "cluster": {
+    "nnodes": {"aws": 1, "dgx-ext": 1, "rtx": 1},
+    "ngpus_per_node": {"aws": 4, "dgx-ext": 8, "rtx": 8},
+    "max_physical_nodes": {"aws": 1, "dgx-ext": 1, "rtx": 1},
+    "capacity_scenarios": {
+      "cpu_constrained": {
+        "aws": {"cpu_cores": 4.0, "ram_gb": 500.0},
+        "dgx-ext": {"cpu_cores": 8.0, "ram_gb": 1000.0},
+        "rtx": {"cpu_cores": 6.0, "ram_gb": 1000.0}
+      }
+    },
+    "scenario_intent": {
+      "cpu_constrained": "Same constrained topology used in the four-job validation: RTX exposes 8 GPUs but only 6 minimum legal CPU shares, so CPU can force GPU idle time."
+    },
+    "capacity_source": "Pre-registered synthetic capacities; not AWS, DGX, or RTX host specifications."
+  },
+  "response": {
+    "mapping_mode": "pre_registered_application_to_template_map",
+    "application_template_rule": {
+      "cifar10": "alexnet_1.py",
+      "deepspeech2": "deepspeech_1.py",
+      "imagenet": "res50_1.py",
+      "bert": "bert_1.py",
+      "yolov3": "mobilenet_1.py"
+    },
+    "template_map": {
+      "cifar10-20": "alexnet_1.py", "deepspeech2-21": "deepspeech_1.py",
+      "cifar10-22": "alexnet_1.py", "imagenet-23": "res50_1.py",
+      "cifar10-24": "alexnet_1.py", "cifar10-25": "alexnet_1.py",
+      "cifar10-26": "alexnet_1.py", "cifar10-27": "alexnet_1.py",
+      "bert-28": "bert_1.py", "cifar10-29": "alexnet_1.py",
+      "deepspeech2-30": "deepspeech_1.py", "deepspeech2-31": "deepspeech_1.py",
+      "cifar10-32": "alexnet_1.py", "yolov3-33": "mobilenet_1.py",
+      "cifar10-34": "alexnet_1.py", "cifar10-35": "alexnet_1.py",
+      "cifar10-36": "alexnet_1.py", "bert-37": "bert_1.py",
+      "cifar10-38": "alexnet_1.py", "cifar10-39": "alexnet_1.py"
+    },
+    "mapping_warning": "Every application-to-template association is a deterministic synthetic cross-hardware transfer. Matrix cells are official Synergy data, but no mapping is a Saturn CPU/RAM measurement.",
+    "normalization_mode": "fixed_reference",
+    "fixed_reference": {"cpu_per_gpu": 3.0, "ram_gb_per_gpu": 62.5},
+    "minimum_legal_profile_point": {"cpu_per_gpu": 1.0, "ram_gb_per_gpu": 20.83},
+    "aux_cpu_points": [1.0, 2.0, 3.0, 4.0, 6.0, 9.0, 12.0, 24.0],
+    "aux_ram_points": [20.83, 62.5, 125.0, 187.5, 250.0],
+    "response_settings": {
+      "neutral": {"exponent": 0.0, "basis": "rho identically one"},
+      "medium": {"exponent": 0.5, "basis": "Pre-registered sensitivity level; registered but not run in this memory-constrained first smoke."}
+    },
+    "transfer_warning": "Matrix cells are official Synergy data; mapping, normalization, phi scaling, interpolation, and multiplication with Sia Goodput are synthetic."
+  },
+  "synergy_adaptation": {
+    "scheduler": "FIFO_SYNERGY_TUNE",
+    "fixed_gpu_type_rule": "If workload GPU demand <= 6 use rtx; if demand == 8 use dgx-ext; if demand >= 10 use aws for even numeric job IDs and dgx-ext for odd IDs. This load-spreading rule is frozen, deterministic, and independent of CPU/RAM response and JCT.",
+    "fixed_gpu_type_map": {
+      "cifar10-20": "aws", "deepspeech2-21": "dgx-ext", "cifar10-22": "aws",
+      "imagenet-23": "dgx-ext", "cifar10-24": "rtx", "cifar10-25": "dgx-ext",
+      "cifar10-26": "aws", "cifar10-27": "dgx-ext", "bert-28": "aws",
+      "cifar10-29": "rtx", "deepspeech2-30": "aws", "deepspeech2-31": "rtx",
+      "cifar10-32": "rtx", "yolov3-33": "rtx", "cifar10-34": "rtx",
+      "cifar10-35": "dgx-ext", "cifar10-36": "dgx-ext", "bert-37": "dgx-ext",
+      "cifar10-38": "aws", "cifar10-39": "dgx-ext"
+    },
+    "fixed_gpu_demand_map": {
+      "cifar10-20": 10, "deepspeech2-21": 8, "cifar10-22": 12,
+      "imagenet-23": 10, "cifar10-24": 4, "cifar10-25": 8,
+      "cifar10-26": 10, "cifar10-27": 12, "bert-28": 12,
+      "cifar10-29": 6, "deepspeech2-30": 12, "deepspeech2-31": 6,
+      "cifar10-32": 6, "yolov3-33": 4, "cifar10-34": 4,
+      "cifar10-35": 10, "cifar10-36": 8, "bert-37": 16,
+      "cifar10-38": 10, "cifar10-39": 12
+    },
+    "gpu_demand_rule": "Workload demand clipped to the largest legal Sia configuration not above demand on the frozen GPU type.",
+    "mapping_uses_cpu_ram_response": false
+  },
+  "simulation": {
+    "interval_seconds": 60,
+    "max_rounds": 5000,
+    "seed_profiles_num_nodes": 1,
+    "seed_profiles_num_replicas": 8,
+    "p_fairness": -0.5,
+    "lambda_a": 0.01,
+    "lambda_n": 1.1,
+    "project_throughputs": false,
+    "share_max_replicas": false,
+    "disable_batch_size_tuning": false,
+    "minimum_available_memory_gib": 2.0
+  },
+  "planned_runs": {
+    "formal_first_smoke": {"capacities": ["cpu_constrained"], "responses": ["neutral"], "policies": ["b1", "sy", "b4", "b5", "b3"]},
+    "deferred_sensitivity": {"responses": ["medium"], "reason": "Optional in task specification; deferred before observing results because initial available-memory headroom above 2 GiB was narrow."}
+  },
+  "disclaimer": "SYNTHETIC CROSS-HARDWARE TRANSFER — NOT REAL SATURN PERFORMANCE"
+}

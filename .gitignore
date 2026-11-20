@@ -1,0 +1,7 @@
+/.venv*/
+**/__pycache__/
+*.pyc
+/maintenance/github_backup_20261120/
+/research_runs/
+/_archive/
+/tmp/

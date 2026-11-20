@@ -1,0 +1,37 @@
+{
+  "experiment_id": "b3_medium_w10_late_6000_followup_v1",
+  "scope": "W10_LATE_MEDIUM_FIVE_POLICY_UNIFORM_6000_ROUND_FOLLOWUP",
+  "disclaimer": "SYNTHETIC CROSS-HARDWARE TRANSFER — NOT REAL SATURN PERFORMANCE",
+  "cohort_id": "w10_late",
+  "policies": ["b1", "sy", "b4", "b5", "b3"],
+  "policy_execution_order": "B1, SY adapted, B4, B5, B3; one fresh Python process per policy",
+  "capacity": "cpu_constrained",
+  "response": "medium",
+  "response_exponent_alpha": 0.5,
+  "original_max_rounds": 5000,
+  "followup_max_rounds": 6000,
+  "interval_seconds": 60,
+  "minimum_available_memory_gib": 2.0,
+  "source_config_sha256": "A2DA69825FCE7122815CB2481E3362A4610C763676620B406C6AC3CA5167DB64",
+  "source_workload_sha256": "719267711948607055CAD9BA3F5966D63C65B4913693375D21B5F4E1F3675949",
+  "response_manifest_sha256": "A46B5443F515DECA8FD992A7894BF67C1F93DFD7293AD6E985A7F395D5659DE5",
+  "medium_preregistration_sha256": "9A2F49964F09B523BF28F2B3B64D3B5930922A4943F215B4EA65B81228CE2353",
+  "allowed_config_difference": {
+    "path": "simulation.max_rounds",
+    "old": 5000,
+    "new": 6000
+  },
+  "frozen_response_rule": "Reuse the existing fixed-reference alpha=0.5 Medium response manifest without modification.",
+  "completion_rule": "A policy is complete only when all 20 jobs have completion events before or at 6000 rounds.",
+  "censoring_rule": "If any policy is incomplete at 6000 rounds, preserve it as censored; do not extend, estimate, or impute JCT.",
+  "aggregation_rule": "Only if all five policies complete 20/20 may this follow-up replace w10_late in a new nine-cohort aggregate; all other eight cohort artifacts remain unchanged.",
+  "prohibited": [
+    "algorithm modification",
+    "response or template modification",
+    "capacity or topology modification",
+    "solver parameter modification",
+    "post-result round-limit modification",
+    "Low or High response experiments",
+    "160-job experiments"
+  ]
+}

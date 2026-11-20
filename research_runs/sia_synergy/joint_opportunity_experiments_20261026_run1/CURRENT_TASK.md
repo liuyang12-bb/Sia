@@ -1,0 +1,1 @@
+COMPLETED. All 18 preregistered cells finished all jobs; independent_audit.json validates raw events, time/resource integrals, locks, progress and rho. See EXPERIMENT_REPORT.md and verification.json. No policy changes. Full160 remains paused. Do not restart this batch or overwrite any cells. Source/input snapshot and all failed relocated-test evidence preserved.

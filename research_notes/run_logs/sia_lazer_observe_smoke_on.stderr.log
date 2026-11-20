@@ -1,0 +1,8 @@
+D:\科研启航\Sia\sia-lazer-observe\sia-simulator\applications.py:282: FutureWarning: The frame.append method is deprecated and will be removed from pandas in a future version. Use pandas.concat instead.
+  df = df.append(self.scalability, ignore_index=True)
+D:\科研启航\Sia\sia-lazer-observe\sia-simulator\applications.py:282: FutureWarning: The frame.append method is deprecated and will be removed from pandas in a future version. Use pandas.concat instead.
+  df = df.append(self.scalability, ignore_index=True)
+D:\科研启航\Sia\sia-lazer-observe\sia-simulator\applications.py:282: FutureWarning: The frame.append method is deprecated and will be removed from pandas in a future version. Use pandas.concat instead.
+  df = df.append(self.scalability, ignore_index=True)
+D:\科研启航\Sia\sia-lazer-observe\sia-simulator\applications.py:282: FutureWarning: The frame.append method is deprecated and will be removed from pandas in a future version. Use pandas.concat instead.
+  df = df.append(self.scalability, ignore_index=True)

@@ -1,0 +1,1 @@
+Verification-only proportional canonicalization repair; six AMPLE cells. Same source/work/capacity/response/solver. Independent processes serial2GiB/5GiB. Preserve parent failure. Audit together with accepted30 parent cells, then stop.

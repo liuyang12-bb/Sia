@@ -1,0 +1,234 @@
+--- a/sia-simulator/joint_prototype/policy_rollout.py
++++ b/sia-simulator/joint_prototype/policy_rollout.py
+@@ -14,6 +14,7 @@
+ from .release_evaluation import ReleaseEvaluationMixin,evaluate_plan
+ 
+ CURRENT=contextvars.ContextVar('current_policy_rollout_cluster',default=None)
++RATE_FACTORS=contextvars.ContextVar('prediction_rate_factors',default=None)
+ 
+ def validate_hypothetical(prediction_only,audit,columns_match):
+     if not prediction_only:raise RuntimeError('HYPOTHETICAL_NOT_PREDICTION')
+@@ -38,13 +39,19 @@
+         config=SimpleNamespace(config_id=resource['config_id'],gpu_type=typ,num_nodes=int(nn),gpus=int(g))
+         pred=predict_job(j,config);raw=pred['raw_rate'];rho=resource['rho']
+         if raw is None:raise ValueError('UNKNOWN_MODEL_IN_PREDICTION')
++        from .uncertainty import calibration_key
++        key=calibration_key(j,config,pred)
++        factors=RATE_FACTORS.get()
++        if factors is not None:
++            if key not in factors:raise ValueError('UNCOVERED_SCENARIO_KEY '+key)
++            raw*=factors[key]
+         if not math.isfinite(raw*rho) or raw*rho<=0:raise ValueError('INVALID_PREDICTION_RATE')
+         work=max(0.,cluster.policy.declared_work[j.name]['total_progress']-j.progress)
+         train=min(time_left,work/(raw*rho));j.progress+=train*raw*rho;j.execution_time+=train
+         j.attained_service+=train*sum(j.placement);j.used_gpu_seconds+=train*sum(j.placement)
+         j.joint_step_segments=[dict(seconds=train,raw_rate_before_rho=raw,rho=rho,effective_rate=raw*rho)]
+         if work<=time_left*raw*rho+1e-8:j.completion_time=start+delay+train
+-        events.append(dict(job=j.name,time=start,checkpoint=delay,training=train,raw_rate=raw,rho=rho,
++        events.append(dict(job=j.name,time=start,checkpoint=delay,training=train,raw_rate=raw,rho=rho,calibration_key=key,
+                            work_remaining=max(0.,work-train*raw*rho),completion=j.completion_time))
+     cluster.current_time+=interval
+     return events
+@@ -54,6 +61,8 @@
+     # no forecasting path is allowed to query their future training throughput.
+     memo={id(app):app for j in cluster.jobs for app in j.applications.values()}
+     v=copy.deepcopy(cluster,memo)
++    original_policy=getattr(v.policy,'_uncertainty_base_policy',None)
++    if original_policy is not None:v.policy.__class__=original_policy
+     v.jobs=[j for j in v.jobs if j.submission_time<=v.current_time and j.completion_time is None]
+     for name in ('logs','joint_round_logs','rescale_events','migrate_events'):setattr(v,name,[])
+     base=cluster.policy.liveness._rollout_base_class
+--- a/sia-simulator/tests/test_policy_rollout.py
++++ b/sia-simulator/tests/test_policy_rollout.py
+@@ -5,13 +5,13 @@
+ 
+ class PolicyRolloutTests(unittest.TestCase):
+  def case(self,delay=10.,rho=3.):
+-  j=S(name='x',current_cluster='aws',placement=(1,),submission_time=0.,completion_time=None,
++  j=S(name='x',app_name='test',epoch=0,current_cluster='aws',placement=(1,),submission_time=0.,completion_time=None,
+       progress=0.,rescale_time=delay,execution_time=0.,attained_service=0.,wasted_gpu_seconds=0.,used_gpu_seconds=0.,current_time=0.,joint_step_segments=[])
+   c=S(current_time=0.,jobs=[j],policy=S(current_resources={'x':{'config_id':'aws:1:1','rho':rho}},declared_work={'x':{'total_progress':100.}}))
+   return c,j
+  def test_delay_does_not_train_and_completion_releases_exactly(self):
+   c,j=self.case()
+-  with patch('joint_prototype.policy_rollout.predict_job',return_value={'raw_rate':2.}):ev=advance_model(c,30.)
++  with patch('joint_prototype.policy_rollout.predict_job',return_value={'raw_rate':2.,'atomic_bsz':1,'accum_steps':0}):ev=advance_model(c,30.)
+   self.assertAlmostEqual(j.completion_time,10+100/6);self.assertAlmostEqual(j.execution_time,100/6)
+   self.assertEqual(j.rescale_time,0.);self.assertEqual(c.current_time,30.)
+   self.assertEqual(ev[0]['checkpoint'],10.);self.assertAlmostEqual(ev[0]['raw_rate']*ev[0]['rho']*ev[0]['training'],100.)
+--- a/sia-simulator/joint_prototype/uncertainty.py
++++ b/sia-simulator/joint_prototype/uncertainty.py
+@@ -0,0 +1,125 @@
++"""Pre-decision residual envelope and paired endpoint stress screen.
++
++An empirical screen, NOT a confidence interval or global robust guarantee.
++Missing support never becomes a factor of one. Actual execution is unchanged.
++"""
++import copy,itertools,json,math
++from types import SimpleNamespace
++from .completion_time import predict_job
++from .policy_rollout import PolicyRolloutMixin,CURRENT,RATE_FACTORS,predict_with_policy
++
++def calibration_key(job,config,pred):
++    return json.dumps([job.app_name,config.config_id,int(pred['atomic_bsz']),int(pred['accum_steps']),int(job.epoch)],separators=(',',':'))
++
++class ResidualBank:
++    def __init__(self):self.rows=[];self.identities=set()
++    def add(self,key,origin,end,ratio,now,job):
++        if not origin<end<=now or not math.isfinite(ratio) or ratio<=0:raise ValueError('INVALID_OR_FUTURE_LABEL')
++        identity=(job,origin)
++        if identity in self.identities:raise ValueError('DUPLICATE_CALIBRATION_INTERVAL')
++        self.identities.add(identity);self.rows.append(dict(key=key,origin=origin,observed_end=end,observed_at=now,ratio=ratio,job=job))
++    def bounds(self,key,now):
++        rows=[r for r in self.rows if r['key']==key and r['observed_end']<=now and r['observed_at']<=now]
++        origins={r['origin'] for r in rows}
++        if len(origins)<2:return None
++        return dict(low=min([1.]+[r['ratio'] for r in rows]),high=max([1.]+[r['ratio'] for r in rows]),
++                    count=len(rows),distinct_intervals=len(origins),latest_observation=max(r['observed_end'] for r in rows))
++
++def endpoint_screen(bounds,evaluate):
++    keys=sorted(bounds);checked=[];worst=math.inf
++    for values in itertools.product(*(sorted({bounds[k]['low'],bounds[k]['high']}) for k in keys)):
++        world=dict(zip(keys,values))
++        try:gain=evaluate(world)
++        except (ValueError,RuntimeError) as e:
++            return dict(accepted=False,reason=str(e),worlds=len(checked),checked=checked)
++        checked.append(dict(factors=world,gain=gain));worst=min(worst,gain)
++        if not math.isfinite(gain) or gain<=1e-7:
++            return dict(accepted=False,reason='NONPOSITIVE_ENDPOINT_GAIN',worlds=len(checked),checked=checked)
++    return dict(accepted=True,reason='ALL_EMPIRICAL_ENDPOINTS_POSITIVE',worlds=len(checked),worst_gain=worst,checked=checked)
++
++def prepare(cluster):
++    pending={}
++    for j in cluster.jobs:
++        resource=cluster.policy.current_resources.get(j.name)
++        if j.completion_time is not None or not j.placement or resource is None:continue
++        typ,nn,g=resource['config_id'].split(':');cfg=SimpleNamespace(config_id=resource['config_id'],gpu_type=typ,num_nodes=int(nn),gpus=int(g))
++        pred=predict_job(j,cfg)
++        if pred['raw_rate'] is None:continue
++        if pred['atomic_bsz']!=j.atomic_bsz or pred['accum_steps']!=j.accum_steps:continue
++        pending[j.name]=dict(key=calibration_key(j,cfg,pred),origin=cluster.current_time,epoch=j.epoch,raw=pred['raw_rate'])
++    return pending
++
++def observe(cluster):
++    pending=getattr(cluster,'_calibration_pending',None)
++    if pending is None:return
++    for j in cluster.jobs:
++        p=pending.get(j.name);segments=j.joint_step_segments
++        if not p or not segments:continue
++        seg=segments[0]
++        if seg['epoch_before']!=p['epoch'] or seg['seconds']<=0:continue
++        cluster._residual_bank.add(p['key'],p['origin'],seg['start_time']+seg['seconds'],
++            seg['raw_rate_before_rho']/p['raw'],cluster.current_time,j.name)
++        cluster._residual_bank.rows[-1].update(predicted_raw=p['raw'],observed_raw=seg['raw_rate_before_rho'],
++            observed_at=cluster.current_time,epoch_before=seg['epoch_before'],segment_start=seg['start_time'],
++            source='PRE_INTERVAL_MODEL_AND_FIRST_REAL_TRAINING_SEGMENT')
++    cluster._calibration_pending=None
++
++class ReliableMixin(PolicyRolloutMixin):
++    def refine_completion_bundle(self,s,columns,legacy,now):
++        try:chosen,ev=super().refine_completion_bundle(s,columns,legacy,now)
++        except (ValueError,RuntimeError) as error:
++            if not s.audit(legacy)['valid']:raise
++            return legacy,dict(version='PREDECISION_EMPIRICAL_UNCERTAINTY_V4',status='PREDICTION_FAILURE_KEEP_LEGACY',
++                selected_plan='LEGACY',uncertainty=dict(accepted=False,reason='POINT_FORECAST_FAILURE',error=repr(error)))
++        ev['version']='PREDECISION_EMPIRICAL_UNCERTAINTY_V4'
++        if ev['status']!='OK':
++            ev['uncertainty']=dict(reason='UNKNOWN_POINT_MODEL',accepted=False);return chosen,ev
++        if ev['selected_plan']=='LEGACY':
++            ev['uncertainty']=dict(reason='POINT_PREFERS_LEGACY',accepted=False);return chosen,ev
++        owner=CURRENT.get();bank=owner._residual_bank
++        alternative=ev['selected'];baseline=ev['baseline']
++        keys=sorted({e['calibration_key'] for plan in (baseline,alternative) for e in plan['model_execution'] if e['raw_rate'] is not None})
++        bounds={k:bank.bounds(k,now) for k in keys};missing=[k for k,v in bounds.items() if v is None]
++        if missing:screen=dict(accepted=False,reason='MISSING_PREDECISION_SUPPORT',missing=missing,worlds=0)
++        else:
++            def evaluate(world):
++                token=RATE_FACTORS.set(world)
++                try:a=predict_with_policy(owner,legacy,self.interval);b=predict_with_policy(owner,chosen,self.interval)
++                finally:RATE_FACTORS.reset(token)
++                if a['status']!='OK' or b['status']!='OK':raise ValueError('UNCERTAINTY_PREDICTION_CENSORED')
++                return a['sum_completion']-b['sum_completion']
++            screen=endpoint_screen(bounds,evaluate)
++        ev['uncertainty']=dict(**screen,bounds=bounds,decision_time=now,available_observations=len(bank.rows),
++            point_selected_plan=ev['selected_plan'],point_gain=ev['predicted_sum_completion_saved'],confidence_guarantee=False)
++        if screen['accepted']:return chosen,ev
++        ev['selected_plan']='LEGACY';ev['selected']=baseline;ev['predicted_sum_completion_saved']=0.
++        ev['per_job_predicted_saved']={j:0. for j in s.job_map};ev['receiver_gain']=ev['donor_loss']=0.
++        return legacy,ev
++
++def install(cluster):
++    from .policy_rollout import install as install_policy
++    install_policy(cluster)
++    original=cluster.policy.liveness._rollout_base_class
++    cluster.policy.liveness.__class__=type('Reliable'+original.__name__,(ReliableMixin,original),{'_rollout_base_class':original})
++    cluster._residual_bank=ResidualBank();cluster._calibration_pending=None
++    base=cluster.__class__
++    class ObservedCluster(base):
++        def step(self,seconds=60):
++            self._calibration_pending=prepare(self)
++            return super().step(seconds)
++        def optimize_policy(self):
++            observe(self)
++            return super().optimize_policy()
++    cluster.__class__=ObservedCluster
++    old_policy=cluster.policy.__class__
++    class ReliablePolicy(old_policy):
++        _uncertainty_base_policy=old_policy
++        def optimize(self,*args):
++            answer=super().optimize(*args);ev=self.last_decision['result']['audit'].get('release_completion')
++            if ev is None:return answer
++            self.last_decision['shared_contract'].update(policy_version='PREDECISION_UNCERTAINTY_V4',objective='EMPIRICAL_ENDPOINT_SCREENED_COMPLETION_GAIN',admission_and_service_unchanged=True)
++            self.last_decision['legacy_utility_field_is_diagnostic_only']=True
++            self.last_decision['result']['status']='UNCERTAINTY_'+ev.get('uncertainty',{}).get('reason',ev['status'])
++            return answer
++    cluster.policy.__class__=ReliablePolicy
++    return cluster
+--- a/sia-simulator/tests/test_uncertainty.py
++++ b/sia-simulator/tests/test_uncertainty.py
+@@ -0,0 +1,45 @@
++import unittest
++from types import SimpleNamespace as S
++from unittest.mock import patch
++from joint_prototype.uncertainty import ResidualBank,endpoint_screen,observe,calibration_key,ReliableMixin
++class UncertaintyTests(unittest.TestCase):
++ def bank(self):
++  b=ResidualBank()
++  for origin,ratio in [(0,.8),(60,1.2)]:b.add('k',origin,origin+30,ratio,origin+60,'x')
++  return b
++ def test_missing_is_not_one(self):self.assertIsNone(self.bank().bounds('missing',120))
++ def test_future_labels_are_excluded(self):
++  b=self.bank();self.assertIsNone(b.bounds('k',59))
++  self.assertEqual(b.bounds('k',120)['low'],.8)
++  with self.assertRaises(ValueError):b.add('k',120,150,1.,140,'x')
++ def test_two_distinct_origins_required(self):
++  b=ResidualBank();b.add('k',0,30,.8,60,'a');b.add('k',0,40,1.2,60,'b')
++  self.assertIsNone(b.bounds('k',60))
++ def test_bad_endpoint_rejects_positive_point_gain(self):
++  result=endpoint_screen({'k':self.bank().bounds('k',120)},lambda w:1 if w['k']>1 else -1)
++  self.assertFalse(result['accepted'])
++ def test_all_endpoints_beneficial_can_accept(self):
++  result=endpoint_screen({'k':self.bank().bounds('k',120)},lambda w:10*w['k'])
++  self.assertTrue(result['accepted']);self.assertEqual(result['worlds'],2)
++ def test_new_key_or_censor_rejects(self):
++  def unknown(w):raise ValueError('UNCOVERED_SCENARIO_KEY')
++  result=endpoint_screen({'k':self.bank().bounds('k',120)},unknown)
++  self.assertFalse(result['accepted']);self.assertIn('UNCOVERED',result['reason'])
++ def test_checkpoint_does_not_create_error_label(self):
++  c=S(current_time=60.,jobs=[S(name='x',joint_step_segments=[])],_residual_bank=ResidualBank(),
++      _calibration_pending={'x':dict(key='k',origin=0.,epoch=0,raw=2.)})
++  observe(c);self.assertEqual(c._residual_bank.rows,[])
++ def test_app_batch_and_epoch_are_not_pooled(self):
++  j=S(app_name='bert',epoch=0);cfg=S(config_id='aws:1:1');a={'atomic_bsz':12,'accum_steps':0}
++  k=calibration_key(j,cfg,a);b=self.bank();self.assertIsNone(b.bounds(k,120))
++  j.epoch=1;self.assertNotEqual(k,calibration_key(j,cfg,a))
++  j.epoch=0;self.assertNotEqual(k,calibration_key(j,cfg,dict(a,atomic_bsz=24)))
++ def test_delayed_observation_not_available_at_segment_end(self):
++  b=ResidualBank();b.add('k',0,30,.8,120,'a');b.add('k',60,90,1.2,120,'a')
++  self.assertIsNone(b.bounds('k',100));self.assertIsNotNone(b.bounds('k',120))
++ def test_forecast_failure_keeps_audited_original(self):
++  controller=ReliableMixin();s=S(audit=lambda bundle:{'valid':True});legacy=['original']
++  with patch('joint_prototype.policy_rollout.PolicyRolloutMixin.refine_completion_bundle',side_effect=RuntimeError('injected')):
++   selected,ev=controller.refine_completion_bundle(s,[],legacy,60.)
++  self.assertEqual(selected,legacy);self.assertEqual(ev['status'],'PREDICTION_FAILURE_KEEP_LEGACY')
++if __name__=='__main__':unittest.main()

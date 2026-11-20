@@ -1,0 +1,32 @@
+import unittest
+from types import SimpleNamespace
+import numpy as np
+from scipy.optimize import milp,Bounds,LinearConstraint
+from joint_prototype.bundle_adaptation import BundleAdmission
+
+class AmpleLexIdentity(unittest.TestCase):
+ def exercise(self,duplicate_count):
+  a=BundleAdmission(300.,250.,60.);a.delay_costs={'a':{'aws':50.}}
+  c=SimpleNamespace(job_id='a',config=SimpleNamespace(config_id='aws:1:1',gpu_type='aws'),placement=SimpleNamespace(node_gpus=(('aws:0',1),)))
+  scheduler=SimpleNamespace(job_map={'a':SimpleNamespace(current_config_id=None,current_placement=())})
+  cols=[c]*duplicate_count;rows=[LinearConstraint(np.ones((1,len(cols))),1.,1.)]
+  def call(cost):
+   r=milp(c=cost,integrality=np.ones(len(cols)),bounds=Bounds(0,1),constraints=rows,options={'time_limit':30.,'mip_rel_gap':0.})
+   if r.status==2:return None
+   self.assertEqual(r.status,0);return [v for v,x in zip(cols,r.x) if x>.5]
+  chosen=a._secondary_tie(scheduler,cols,{'a'},rows,call,[c])
+  self.assertEqual(a.secondary_startup_cost['minimum_actual_delay'],50.)
+  self.assertEqual(len(chosen),1)
+  self.assertIsNotNone(call(np.arange(len(cols),dtype=float)))
+  self.assertAlmostEqual(float(rows[-1].lb[0]),50.-1e-9)
+ def test_alias_twice_counts_selected_task_once(self):self.exercise(2)
+ def test_alias_many_times_counts_selected_task_once(self):self.exercise(10)
+ def test_nonaliased_historical_secondary_objective_unchanged(self):self.exercise(1)
+ def test_distinct_same_label_columns_are_not_both_charged(self):
+  a=BundleAdmission(300.,250.,60.);a.delay_costs={'a':{'aws':50.}}
+  c=SimpleNamespace(job_id='a',config=SimpleNamespace(config_id='aws:1:1',gpu_type='aws'),placement=SimpleNamespace(node_gpus=(('aws:0',1),)))
+  d=SimpleNamespace(**vars(c));s=SimpleNamespace(job_map={'a':SimpleNamespace(current_config_id=None,current_placement=())});rows=[]
+  a._secondary_tie(s,[c,d],{'a'},rows,lambda cost:[c],[c])
+  self.assertEqual(a.secondary_startup_cost['minimum_actual_delay'],50.)
+
+if __name__=='__main__':unittest.main(verbosity=2)

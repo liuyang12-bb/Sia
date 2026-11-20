@@ -1,0 +1,52 @@
+[
+  {
+    "number": 1,
+    "latex": "\\overline{JCT}=\\frac{1}{J}\\sum_{j=1}^{J}(F_j-a_j). \\qquad (1)",
+    "image": "figures\\equations\\eq01.png"
+  },
+  {
+    "number": 2,
+    "latex": "\\sum_j(F_j-a_j)=\\int_0^{\\infty}N(t)\\,dt. \\qquad (2)",
+    "image": "figures\\equations\\eq02.png"
+  },
+  {
+    "number": 3,
+    "latex": "v_{aq}=\\frac{T^0_{aq}/g_q}{\\min_{q'}(T^0_{aq'}/g_{q'})},\\quad\n\\phi_c=\\min(4,\\max(0.5,v_{aq})),\\quad\n\\phi_m=\\min(2,\\max(0.5,\\sqrt{v_{aq}})). \\qquad (3)",
+    "image": "figures\\equations\\eq03.png"
+  },
+  {
+    "number": 4,
+    "latex": "\\rho_{aq}(c,m)=\\left[\\frac{M_a(E(c/\\phi_c,m/\\phi_m))}{M_a(E(3/\\phi_c,62.5/\\phi_m))}\\right]^{\\alpha}. \\qquad (4)",
+    "image": "figures\\equations\\eq04.png"
+  },
+  {
+    "number": 5,
+    "latex": "r^{exec}_{jk}=r^{raw}_{jq}\\rho_{jq}(c_{jk},m_{jk}),\\qquad\n\\Delta p_j=\\int_{\\mathrm{productive\\ interval}}r^{exec}_{jk}(t)\\,dt. \\qquad (5)",
+    "image": "figures\\equations\\eq05.png"
+  },
+  {
+    "number": 6,
+    "latex": "JCT_j=Q_j^{first}+Q_j^{later}+D_j+P_j. \\qquad (6)",
+    "image": "figures\\equations\\eq06.png"
+  },
+  {
+    "number": 7,
+    "latex": "\\widehat T_{jk}=d_{jk}+\\frac{w_j(t)}{\\widehat r^{raw}_{jq}\\rho_{jq}(c_{jk},m_{jk})},\\qquad\nu_{jk}=\\frac{1}{\\widehat T_{jk}}. \\qquad (7)",
+    "image": "figures\\equations\\eq07.png"
+  },
+  {
+    "number": 8,
+    "latex": "\\max_x\\sum_{j,k}\\frac{u_{jk}}{s_t}x_{jk},\\qquad x_{jk}\\in\\{0,1\\}. \\qquad (8)",
+    "image": "figures\\equations\\eq08.png"
+  },
+  {
+    "number": 9,
+    "latex": "\\sum_kx_{jk}\\leq1,\\quad\n\\sum_{j,k}g_{jkn}x_{jk}\\leq G_n,\\quad\n\\sum_{j,k}g_{jkn}c_{jk}x_{jk}\\leq C_n,\\quad\n\\sum_{j,k}g_{jkn}m_{jk}x_{jk}\\leq M_n. \\qquad (9)",
+    "image": "figures\\equations\\eq09.png"
+  },
+  {
+    "number": 10,
+    "latex": "\\sum_kx_{jk}=1\\quad(j\\in P_t),\\qquad\nx_{j,k_j^{old}}=1\\quad(j\\in L_t). \\qquad (10)",
+    "image": "figures\\equations\\eq10.png"
+  }
+]

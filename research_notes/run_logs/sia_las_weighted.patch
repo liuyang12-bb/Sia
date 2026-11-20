@@ -1,0 +1,411 @@
+diff --git a/sia-simulator/multi_simulator.py b/sia-simulator/multi_simulator.py
+index 43cf050..1e32073 100644
+--- a/sia-simulator/multi_simulator.py
++++ b/sia-simulator/multi_simulator.py
+@@ -11,6 +11,7 @@ from rich.table import Table
+ from cluster import Cluster
+ from gavel import GavelPolicy
+ from sia import SiaPolicy
++from sia_las import SiaLASPolicy
+ from sia_fix import SiaFixPolicy
+ import simulator_config as sim_config
+ 
+@@ -34,7 +35,7 @@ def multi_simulate(args):
+                                                lambda_n=args.mip_lambda_n,
+                                                project_throughputs=args.project_throughputs,
+                                                share_max_replicas=args.share_max_replicas)
+-    else:
++    elif args.policy == "sia":
+         policy = SiaPolicy(p_fairness=args.policy_p_val,
+                                    restart_penalty=30,
+                                    lambda_a=args.mip_lambda_a,
+@@ -42,16 +43,26 @@ def multi_simulate(args):
+                                    project_throughputs=args.project_throughputs,
+                                    share_max_replicas=args.share_max_replicas,
+                                    enable_bsz_tuning=not args.disable_bsz_tuning)
++    elif args.policy == "sia_las":
++        policy = SiaLASPolicy(p_fairness=args.policy_p_val,
++                              restart_penalty=30,
++                              lambda_a=args.mip_lambda_a,
++                              lambda_n=args.mip_lambda_n,
++                              project_throughputs=args.project_throughputs,
++                              share_max_replicas=args.share_max_replicas,
++                              enable_bsz_tuning=not args.disable_bsz_tuning,
++                              las_threshold_gpu_seconds=args.las_threshold_gpu_seconds,
++                              las_priority_factor=args.las_priority_factor)
+     policy.populate_valid_configs(
+         cluster_populate_nnodes, sim_ngpus_per_node, sim_config.cluster_max_physical_nnodes)
+     cluster = Cluster(workload, policy, sim_config.cluster_nnodes, sim_ngpus_per_node,
+                       max_physical_nodes=sim_config.cluster_max_physical_nnodes)
+-    if args.disable_bsz_tuning and args.policy == "sia":
++    if args.disable_bsz_tuning and args.policy in ("sia", "sia_las"):
+         print(f"Diabled bsz tuning for {args.policy} policy")
+         cluster.disable_bsz_tuning()
+     if args.policy == "gavel":
+         cluster.disable_bsz_tuning()
+-    if args.policy == "sia":
++    if args.policy in ("sia", "sia_las"):
+         # seed profiles for all rigid jobs
+         rigid_jobs = [job for job in cluster.jobs if job.category == "rigid"]
+         for job in rigid_jobs:
+@@ -130,13 +141,17 @@ if __name__ == "__main__":
+     parser = argparse.ArgumentParser()
+     parser.add_argument("workload", type=str, help="path to workload csv")
+     parser.add_argument("--policy", type=str, default="sia",
+-                        choices=["sia", "gavel", "sia_fix"])
++                        choices=["sia", "sia_las", "gavel", "sia_fix"])
+     parser.add_argument("--policy_p_val", type=float,
+                         default=0.5, help="value of p for policy=sia")
+     parser.add_argument("--mip_lambda_n", type=float, default=None,
+                         help="sia regularization: no-alloc")
+     parser.add_argument("--mip_lambda_a", type=float, default=None,
+                         help="sia regularization: change of alloc")
++    parser.add_argument("--las_threshold_gpu_seconds", type=float, default=3600,
++                        help="sia_las high-priority cutoff in productive GPU-seconds")
++    parser.add_argument("--las_priority_factor", type=float, default=1.0,
++                        help="sia_las multiplier for high-priority effective Goodput")
+     parser.add_argument("--cluster_scale", type=int, default=None,
+                         help="scale of cluster relative to hardcoded values")
+     parser.add_argument("--project_throughputs", action='store_true', default=False,
+@@ -184,4 +199,4 @@ if __name__ == "__main__":
+         with open(args.output + "/summary.json", "w") as f:
+             json.dump(summary, f, indent=4)
+     else:
+-        multi_simulate(args)
+\ No newline at end of file
++        multi_simulate(args)
+diff --git a/sia-simulator/sia.py b/sia-simulator/sia.py
+index e41b7fb..aa6702e 100644
+--- a/sia-simulator/sia.py
++++ b/sia-simulator/sia.py
+@@ -97,6 +97,15 @@ class SiaPolicy(object):
+         self.objective_values = []
+         self.effective_gpus = []
+ 
++    def _apply_objective_goodput_priorities(
++            self, adaptive_jobnames, adaptive_speedup_mat,
++            rigid_jobnames, rigid_speedup_mat):
++        """Hook for derived policies immediately before the p transform.
++
++        Base Sia intentionally returns the exact input arrays unchanged.
++        """
++        return adaptive_speedup_mat, rigid_speedup_mat
++
+     def populate_valid_configs(self, cluster_num_nodes, cluster_num_gpus, cluster_max_physical_nnodes=None):
+         self.configs = dict()
+         self.idx_to_config_map = dict()
+@@ -904,6 +913,14 @@ class SiaPolicy(object):
+             assert has_valid_schedule or (
+                 adaptive_jobnames[i] in non_preemptible_jobnames['adaptive']), f"missing speedup values for job: {adaptive_jobnames[i]}"
+ 
++        # Derived policies may alter effective goodput here. At this point
++        # Goodput is normalized and includes the original restart/reallocation
++        # damping; the p-fairness transform below has not yet been applied.
++        adaptive_speedup_mat, rigid_speedup_mat = \
++            self._apply_objective_goodput_priorities(
++                adaptive_jobnames, adaptive_speedup_mat,
++                rigid_jobnames, rigid_speedup_mat)
++
+         # power up speedup matrices
+         def __power_up_speedup_matrix(speedup_matrix, p_fairness):
+             # power up speedup matrix to make it more fair
+diff --git a/sia-simulator/sia_las.py b/sia-simulator/sia_las.py
+new file mode 100644
+index 0000000..290df71
+--- /dev/null
++++ b/sia-simulator/sia_las.py
+@@ -0,0 +1,99 @@
++import numpy as np
++
++from sia import SiaPolicy, ZERO_ALLOC_GAIN
++
++
++def get_las_attained_service(job_info):
++    """Return productive GPU-seconds, excluding queueing and restart waste."""
++    if not hasattr(job_info, "used_gpu_seconds"):
++        raise AttributeError(
++            "sia_las requires JobInfo.used_gpu_seconds from "
++            "Cluster.get_sia_multi_job_info()"
++        )
++    return float(job_info.used_gpu_seconds)
++
++
++def is_high_priority(attained_service, threshold_gpu_seconds):
++    return attained_service < threshold_gpu_seconds
++
++
++def apply_las_priority_factor(
++        goodput_matrix, high_priority_rows, priority_factor):
++    """Scale valid Goodput entries while preserving Sia's zero-allocation floor.
++
++    This is a Sia/LAS composition, not a formula from Tiresias. Multiplication
++    happens before Sia's p transform, so factor > 1 improves preference both
++    for p < 0 (minimization) and p > 0 (maximization).
++    """
++    if priority_factor <= 0:
++        raise ValueError("las_priority_factor must be greater than zero")
++    if priority_factor == 1.0 or goodput_matrix.size == 0:
++        return goodput_matrix
++
++    result = np.copy(goodput_matrix)
++    for row_idx, high_priority in enumerate(high_priority_rows):
++        if not high_priority:
++            continue
++        valid = result[row_idx, :] > ZERO_ALLOC_GAIN
++        result[row_idx, valid] *= priority_factor
++    return result
++
++
++class SiaLASPolicy(SiaPolicy):
++    """Sia with a two-class, attained-service-derived Goodput preference.
++
++    Tiresias motivates using productive GPU-seconds as attained service. This
++    weighted-Goodput adaptation does not reproduce Tiresias's MLFQ scheduler,
++    FIFO-within-queue ordering, skip behavior, or starvation promotion.
++    """
++
++    def __init__(self, *args, las_threshold_gpu_seconds=3600,
++                 las_priority_factor=1.0, **kwargs):
++        if las_threshold_gpu_seconds < 0:
++            raise ValueError(
++                "las_threshold_gpu_seconds must be non-negative"
++            )
++        if las_priority_factor <= 0:
++            raise ValueError("las_priority_factor must be greater than zero")
++        super().__init__(*args, **kwargs)
++        self.las_threshold_gpu_seconds = float(
++            las_threshold_gpu_seconds
++        )
++        self.las_priority_factor = float(las_priority_factor)
++        self._las_high_priority = {}
++        print(
++            "Sia-LAS params: "
++            f"threshold_gpu_seconds={self.las_threshold_gpu_seconds}, "
++            f"priority_factor={self.las_priority_factor}"
++        )
++
++    def optimize_mip(self, jobs, nodes, prev_allocations):
++        self._las_high_priority = {
++            jobname: is_high_priority(
++                get_las_attained_service(job),
++                self.las_threshold_gpu_seconds,
++            )
++            for jobname, job in jobs.items()
++        }
++        return super().optimize_mip(jobs, nodes, prev_allocations)
++
++    def _apply_objective_goodput_priorities(
++            self, adaptive_jobnames, adaptive_speedup_mat,
++            rigid_jobnames, rigid_speedup_mat):
++        adaptive_rows = [
++            self._las_high_priority[name] for name in adaptive_jobnames
++        ]
++        rigid_rows = [
++            self._las_high_priority[name] for name in rigid_jobnames
++        ]
++        adaptive_speedup_mat = apply_las_priority_factor(
++            adaptive_speedup_mat,
++            adaptive_rows,
++            self.las_priority_factor,
++        )
++        rigid_speedup_mat = apply_las_priority_factor(
++            rigid_speedup_mat,
++            rigid_rows,
++            self.las_priority_factor,
++        )
++        return adaptive_speedup_mat, rigid_speedup_mat
+diff --git a/sia-simulator/tests/test_sia_las.py b/sia-simulator/tests/test_sia_las.py
+new file mode 100644
+index 0000000..7ebefca
+--- /dev/null
++++ b/sia-simulator/tests/test_sia_las.py
+@@ -0,0 +1,189 @@
++import os
++import sys
++import unittest
++from types import SimpleNamespace
++
++import numpy as np
++
++
++SIMULATOR_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
++if SIMULATOR_DIR not in sys.path:
++    sys.path.insert(0, SIMULATOR_DIR)
++
++import simulator_config as sim_config
++from sia import SiaPolicy, ZERO_ALLOC_GAIN
++from sia_las import (
++    SiaLASPolicy,
++    apply_las_priority_factor,
++    get_las_attained_service,
++    is_high_priority,
++)
++from utils import NodeInfo
++
++
++def rigid_job(service, *, scaling_underway=False, restarts=0, age=600):
++    return SimpleNamespace(
++        category="rigid",
++        max_replicas={"gpu": 1},
++        cluster_throughput_ratios={"gpu": 1.0},
++        num_restarts=restarts,
++        age=age,
++        attained_service=service,
++        used_gpu_seconds=service,
++        wasted_gpu_seconds=0,
++        scaling_underway=scaling_underway,
++    )
++
++
++def one_gpu_nodes():
++    return {
++        "gpu": {
++            0: NodeInfo(resources={"nvidia.com/gpu": 1}, preemptible=False),
++        }
++    }
++
++
++def make_policy(cls, **kwargs):
++    policy = cls(
++        p_fairness=-0.5,
++        lambda_a=0.01,
++        lambda_n=1.1,
++        project_throughputs=False,
++        share_max_replicas=False,
++        **kwargs,
++    )
++    policy.populate_valid_configs(
++        {"gpu": 1}, {"gpu": 1}, {"gpu": 1}
++    )
++    return policy
++
++
++class ServiceAccountingTests(unittest.TestCase):
++    def test_uses_productive_gpu_seconds_not_age_or_restart_waste(self):
++        job = SimpleNamespace(
++            used_gpu_seconds=3599,
++            attained_service=4199,
++            wasted_gpu_seconds=600,
++            age=10000,
++        )
++        self.assertEqual(get_las_attained_service(job), 3599)
++
++    def test_threshold_boundary(self):
++        self.assertTrue(is_high_priority(3599, 3600))
++        self.assertFalse(is_high_priority(3600, 3600))
++
++
++class ObjectiveTests(unittest.TestCase):
++    def test_factor_one_is_bitwise_identity(self):
++        matrix = np.asarray(
++            [[ZERO_ALLOC_GAIN, 1.0, 4.0], [2.0, 3.0, 8.0]],
++            dtype=np.float64,
++        )
++        actual = apply_las_priority_factor(
++            matrix, [True, False], priority_factor=1.0
++        )
++        self.assertTrue(np.array_equal(actual, matrix))
++
++    def test_factor_increases_preference_for_default_negative_p(self):
++        matrix = np.asarray([[1.0, 4.0]], dtype=np.float64)
++        boosted = apply_las_priority_factor(
++            matrix, [True], priority_factor=2.0
++        )
++        base_cost = np.power(matrix, -0.5)
++        boosted_cost = np.power(boosted, -0.5)
++        self.assertTrue(np.all(boosted_cost < base_cost))
++
++    def test_factor_increases_preference_for_positive_p_without_assuming_direction(self):
++        matrix = np.asarray([[1.0, 4.0]], dtype=np.float64)
++        boosted = apply_las_priority_factor(
++            matrix, [True], priority_factor=2.0
++        )
++        base_value = np.power(matrix, 0.5)
++        boosted_value = np.power(boosted, 0.5)
++        self.assertTrue(np.all(boosted_value > base_value))
++
++    def test_zero_alloc_floor_is_unchanged(self):
++        matrix = np.asarray([[ZERO_ALLOC_GAIN, 1.0]], dtype=np.float64)
++        boosted = apply_las_priority_factor(
++            matrix, [True], priority_factor=2.0
++        )
++        self.assertEqual(boosted[0, 0], ZERO_ALLOC_GAIN)
++        self.assertEqual(boosted[0, 1], 2.0)
++
++
++class SolverIntegrationTests(unittest.TestCase):
++    @classmethod
++    def setUpClass(cls):
++        cls.old_verbose = sim_config.sia_solver_verbose
++        cls.old_threads = sim_config.sia_solver_num_threads
++        sim_config.sia_solver_verbose = False
++        sim_config.sia_solver_num_threads = 1
++
++    @classmethod
++    def tearDownClass(cls):
++        sim_config.sia_solver_verbose = cls.old_verbose
++        sim_config.sia_solver_num_threads = cls.old_threads
++
++    def test_factor_one_matches_sia_objective_allocation_and_unallocated_penalty(self):
++        jobs = {
++            "cifar10-new": rigid_job(0),
++            "cifar10-old": rigid_job(7200),
++        }
++        base = make_policy(SiaPolicy)
++        las = make_policy(
++            SiaLASPolicy,
++            las_threshold_gpu_seconds=3600,
++            las_priority_factor=1.0,
++        )
++        base_alloc = base.optimize(jobs, one_gpu_nodes(), {})
++        las_alloc = las.optimize(jobs, one_gpu_nodes(), {})
++        self.assertEqual(base_alloc, las_alloc)
++        self.assertEqual(base.objective_values, las.objective_values)
++        self.assertEqual(
++            sum(bool(alloc[1]) for alloc in las_alloc.values()), 1
++        )
++
++    def test_boosted_high_priority_job_wins_without_breaking_capacity(self):
++        jobs = {
++            "cifar10-new": rigid_job(0),
++            "cifar10-old": rigid_job(7200),
++        }
++        las = make_policy(
++            SiaLASPolicy,
++            las_threshold_gpu_seconds=3600,
++            las_priority_factor=2.0,
++        )
++        allocations = las.optimize(jobs, one_gpu_nodes(), {})
++        self.assertTrue(allocations["cifar10-new"][1])
++        self.assertFalse(allocations["cifar10-old"][1])
++        self.assertLessEqual(
++            sum(len(alloc[1]) for alloc in allocations.values()), 1
++        )
++
++    def test_checkpoint_preservation_and_reallocation_logic_match_sia(self):
++        jobs = {
++            "cifar10-checkpoint": rigid_job(
++                7200, scaling_underway=True, restarts=2, age=9000
++            ),
++            "cifar10-new": rigid_job(0),
++        }
++        previous = {"cifar10-checkpoint": ("gpu", (0,))}
++        base = make_policy(SiaPolicy)
++        las = make_policy(
++            SiaLASPolicy,
++            las_threshold_gpu_seconds=3600,
++            las_priority_factor=1.0,
++        )
++        base.prev_allocs_v2["rigid"]["cifar10-checkpoint"] = 0
++        las.prev_allocs_v2["rigid"]["cifar10-checkpoint"] = 0
++        base_alloc = base.optimize(jobs, one_gpu_nodes(), previous)
++        las_alloc = las.optimize(jobs, one_gpu_nodes(), previous)
++        self.assertEqual(base_alloc, las_alloc)
++        self.assertEqual(
++            las_alloc["cifar10-checkpoint"], ("gpu", [0])
++        )
++        self.assertEqual(base.objective_values, las.objective_values)
++
++
++if __name__ == "__main__":
++    unittest.main()

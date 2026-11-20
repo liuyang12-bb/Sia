@@ -1,0 +1,465 @@
+diff --git a/sia-simulator/check_full160_mixed.py b/sia-simulator/check_full160_mixed.py
+new file mode 100644
+index 0000000..ca67c98
+--- /dev/null
++++ b/sia-simulator/check_full160_mixed.py
+@@ -0,0 +1,36 @@
++"""Fixed 3-job / 30-round gate, all capacities and methods; no tuning."""
++import copy,json,os,sys,traceback
++from pathlib import Path
++import pandas as pd
++from joint_prototype.full160 import make_cluster
++
++def main():
++    root=Path(__file__).resolve().parents[2];out=Path(sys.argv[1]);out.mkdir(exist_ok=False)
++    cfg=json.loads((out.parent/'inputs/config.json').read_text())
++    # Stress arrivals while long checkpoint is in flight. No work/epoch edits.
++    rows=pd.DataFrame([dict(name='imagenet-lock',time=0,application='imagenet',num_replicas=4,batch_size=1600),
++        dict(name='bert-arrival',time=61,application='bert',num_replicas=4,batch_size=384),
++        dict(name='cifar10-arrival',time=121,application='cifar10',num_replicas=4,batch_size=2048)])
++    results=[]
++    for capacity in ('main','half','double'):
++        for method in ('sia_p','sia_tune','joint_p','joint_o'):
++            c=make_cluster(cfg,rows,root/'research_runs/sia_synergy/stage2b_neutral/g0_verified/registry.json',
++                root/'research_sources/Synergy/simulator/models',method,'medium',capacity,True)
++            records=[]
++            try:
++                for i in range(30):
++                    if c.all_complete():break
++                    c.step(60);records.append(copy.deepcopy(c.joint_round_logs[-1]))
++                result=dict(status='PASS',capacity=capacity,method=method,rounds=len(records),
++                    progress={j.name:float(j.progress) for j in c.jobs})
++            except Exception as e:
++                result=dict(status='FAIL',capacity=capacity,method=method,rounds=len(records),
++                    time=c.current_time,error=repr(e),traceback=traceback.format_exc(),failure=c.policy.last_failure,
++                    allocations=c.allocations,resources=c.policy.current_resources)
++            with (out/f'{capacity}_{method}.json').open('x') as f:json.dump(dict(result=result,records=records),f,default=lambda v:v.item() if hasattr(v,'item') else str(v))
++            results.append(result)
++            if result['status']=='FAIL':break
++        if results[-1]['status']=='FAIL':break
++    with (out/'summary.json').open('x') as f:json.dump(results,f,indent=2)
++    print(json.dumps(results));assert all(r['status']=='PASS' for r in results)
++if __name__=='__main__':main()
+diff --git a/sia-simulator/check_full160_official.py b/sia-simulator/check_full160_official.py
+new file mode 100644
+index 0000000..9053f05
+--- /dev/null
++++ b/sia-simulator/check_full160_official.py
+@@ -0,0 +1,37 @@
++"""Separate-process exact official / adapted comparison; fixed 100-round cap."""
++import argparse,json,os,subprocess,sys
++from pathlib import Path
++
++def probe(a):
++    sys.path.insert(0,str(a.sim));os.chdir(a.sim)
++    import pandas as pd
++    import simulator_config as sc
++    sc.num_parallel_jobs=1;sc.num_parallel_traces=1;sc.sia_solver_verbose=False;sc.preserve_ckpt_allocs=True
++    rows=pd.DataFrame([dict(name='cifar10-test',time=17,application='cifar10',num_replicas=1,batch_size=128),
++                       dict(name='bert-test',time=130,application='bert',num_replicas=1,batch_size=384)])
++    cfg=json.loads(a.config.read_text());root=a.sim.parents[1]
++    if a.kind=='official':
++        from sia import SiaPolicy
++        from cluster import Cluster
++        c0=cfg['cluster'];s=cfg['simulation']
++        p=SiaPolicy(p_fairness=s['p_fairness'],restart_penalty=30,lambda_a=s['lambda_a'],lambda_n=s['lambda_n'],
++            project_throughputs=s['project_throughputs'],share_max_replicas=s['share_max_replicas'],sched_interval=60,enable_bsz_tuning=True)
++        p.populate_valid_configs(c0['nnodes'],c0['ngpus_per_node'],c0['max_physical_nodes'])
++        c=Cluster(rows,p,c0['nnodes'],c0['ngpus_per_node'],c0['max_physical_nodes'])
++        for j in c.jobs:j.seed_profiles(1,8)
++    else:
++        from joint_prototype.full160 import make_cluster
++        c=make_cluster(cfg,rows,root/'research_runs/sia_synergy/stage2b_neutral/g0_verified/registry.json',
++            root/'research_sources/Synergy/simulator/models','sia_p','neutral','main',True)
++    records=[]
++    for _ in range(100):
++        if c.all_complete():break
++        c.step(60)
++        records.append(dict(time=c.current_time,allocations=c.allocations,jobs={j.name:dict(progress=j.progress,
++            epoch=j.epoch,training=j.execution_time,delay=j.rescale_time,completion=j.completion_time,restarts=j.num_restarts,
++            used=j.used_gpu_seconds,wasted=j.wasted_gpu_seconds,placement=j.placement,cluster=j.current_cluster) for j in c.jobs}))
++    with a.out.open('x') as f:json.dump(records,f,default=lambda v:v.item())
++
++def main():
++    p=argparse.ArgumentParser();p.add_argument('--sim',type=Path);p.add_argument('--kind');p.add_argument('--config',type=Path);p.add_argument('--out',type=Path);a=p.parse_args();probe(a)
++if __name__=='__main__':main()
+diff --git a/sia-simulator/joint_prototype/full160.py b/sia-simulator/joint_prototype/full160.py
+new file mode 100644
+index 0000000..a9b195a
+--- /dev/null
++++ b/sia-simulator/joint_prototype/full160.py
+@@ -0,0 +1,138 @@
++"""Full-trace experiment adapters. No change to official Sia or old policies.
++
++SIA modes call the byte-identical official SiaPolicy.optimize, with no second
++admission optimizer. TUNE is the existing demand/fair/peer port. An unprovable
++full-intent fallback stops explicitly; it never drops a job or a checkpoint.
++"""
++import copy
++import time
++from unittest.mock import patch
++import cvxpy as cp
++import simulator_config as sim_config
++from sia import SiaPolicy
++from .joint_integration import JointSiaPolicy
++from .r0_liveness import R0Oracle,R0Policy,R0Cluster,R0Admission,APPLICATION_TEMPLATES
++from .synergy_adapter import SynergyTuneAdapter
++
++METHODS=('sia_p','sia_tune','joint_p','joint_o')
++def capacities(level):
++    factor={'half':.5,'main':1.,'double':2.}[level]
++    return {t:dict(cpu_cores=g*3.*factor,ram_gb=g*62.5) for t,g in [('aws',4),('dgx-ext',8),('rtx',8)]}
++
++class FullAdmission(R0Admission):
++    # Same FIFO, service quantum, drain and equality constraints. Tests exercise
++    # all 160 arrivals, current services, locks and requeue, not just this guard.
++    MAX_ACTIVE_JOBS=160
++
++class FullJointPolicy(R0Policy):
++    ADMISSION_CLASS=FullAdmission
++    def optimize(self,*args):
++        result=super().optimize(*args)
++        self.last_decision['shared_contract']['max_active_jobs']=160
++        return result
++
++class FullCluster(R0Cluster):
++    def optimize_policy(self):
++        # Observation before a new decision can issue another checkpoint.
++        self.checkpoint_before_decision={j.name:j.rescale_time for j in self.jobs}
++        return super().optimize_policy()
++
++    def step(self,seconds=60):
++        super().step(seconds)
++        for e in self.joint_round_logs[-1]['execution']:
++            e['checkpoint_remaining_before_decision']=self.checkpoint_before_decision[e['job_id']]
++
++class SiaDecisionR0Policy(R0Policy):
++    MODES={'b1','b5'}
++    def __init__(self,**kwargs):
++        # Deliberately bypass NeutralL2Policy.__init__: NO L2 queue or services.
++        JointSiaPolicy.__init__(self,**kwargs)
++
++    @staticmethod
++    def canonical(allocations,jobs):
++        return {j:(a[0],tuple(a[1])) if a and a[0] is not None and a[1] else (None,())
++                for j in jobs for a in [allocations.get(j)]}
++
++    def optimize(self,jobs,nodes,base_allocations):
++        started=time.perf_counter()
++        specs,provenance=self._job_specs(jobs,base_allocations)
++        scheduler=JointSiaPolicy._scheduler(self,self._nodes(nodes),specs)
++        scheduler.locked_columns()
++        # Actual official objective, candidates, CBC solve and placement.
++        solver_records=[]; original_solve=cp.Problem.solve
++        def observe(problem,*args,**kwargs):
++            tick=time.perf_counter();value=original_solve(problem,*args,**kwargs)
++            solver_records.append(dict(status=problem.status,objective=problem.value,
++                wall_seconds=time.perf_counter()-tick,parameters=kwargs))
++            return value
++        with patch.object(cp.Problem,'solve',observe):
++            intent=SiaPolicy.optimize(self,jobs,nodes,base_allocations)
++        proportional=self._b1_result(intent,specs,scheduler)
++        intent_canonical=self.canonical(intent,jobs)
++        if self.canonical(self._allocations_from_result(proportional,jobs),jobs)!=intent_canonical:
++            raise RuntimeError('OFFICIAL_SIA_INTENT_CHECKPOINT_CONFLICT')
++        fixed={j:c.config for j,c in proportional.selected.items()}
++        if self.mode=='b1':
++            result=proportional
++        else:
++            cause=None; tuned=None
++            try:
++                tuned=SynergyTuneAdapter(scheduler).run('SIA_TUNE_FIXED_OFFICIAL_GPU',fixed,
++                    dict(source='OFFICIAL_SIA_OPTIMIZE',uses_aux_for_gpu_choice=False))
++                if self.canonical(self._allocations_from_result(tuned,jobs),jobs)!=intent_canonical:
++                    cause='TUNE_DROPPED_OR_CHANGED_OFFICIAL_INTENT'
++                elif not scheduler.audit(list(tuned.selected.values()))['valid']:
++                    cause='TUNE_ATOMIC_AUDIT_FAILED'
++            except (RuntimeError,ValueError) as exc:
++                cause=repr(exc)
++            if cause is not None:
++                # Proportional for unlocked jobs, exact original quotas for
++                # real checkpoint locks. Never assume this is still feasible.
++                fallback=scheduler.audit(list(proportional.selected.values()))
++                if not fallback['valid']:
++                    self.last_failure=dict(reason='NO_SAFE_FULL_INTENT_FALLBACK',cause=cause,
++                        original_sia_allocations=intent,proportional=proportional.to_dict(),
++                        tune=tuned.to_dict() if tuned else None,independent_audit=fallback)
++                    raise RuntimeError(f'NO_SAFE_FULL_INTENT_FALLBACK: {fallback}')
++                result=proportional;result.status='FALLBACK_PROPORTIONAL'
++                result.audit.update(fallback_reason=cause,tune_attempt=tuned.to_dict() if tuned else None)
++            else: result=tuned
++        independent=scheduler.audit(list(result.selected.values()))
++        if not independent['valid']:
++            self.last_failure=dict(original_sia_allocations=intent,result=result.to_dict(),audit=independent)
++            raise RuntimeError(f'SIA_FULL_INTENT_ATOMIC_AUDIT: {independent}')
++        if self.canonical(self._allocations_from_result(result,jobs),jobs)!=intent_canonical:
++            raise RuntimeError('SIA_GPU_INTENT_CHANGED')
++        result.audit['precommit_independent_audit']=independent
++        result.solve_seconds=time.perf_counter()-started
++        self._commit_metadata(result,provenance,{j:c.config_id for j,c in fixed.items()})
++        self.last_decision.update(original_sia_allocations=copy.deepcopy(intent),
++            admission='OFFICIAL_SIA_NO_L2_NO_SECOND_ADMISSION',gpu_optimizer='sia.SiaPolicy.optimize',
++            strict_full_intent=True,registry_sha256=self.oracle.registry_sha256)
++        self.last_decision['official_solver_records']=solver_records
++        # Preserve original list/tuple representation too: Cluster compares it.
++        return intent
++
++def make_cluster(config,workload,registry,models,method,response,capacity,seed=True):
++    if method not in METHODS: raise ValueError('unregistered method')
++    if len(workload)>160 or len(workload)==0: raise ValueError('FULL160_SCOPE')
++    sim_config.num_parallel_jobs=1;sim_config.num_parallel_traces=1
++    sim_config.sia_solver_verbose=False;sim_config.preserve_ckpt_allocs=True
++    cc=config['cluster'];rc=config['response'];sc=config['simulation']
++    apps=dict(zip(workload.name,workload.application))
++    oracle=R0Oracle(registry,models,apps,response)
++    cls=SiaDecisionR0Policy if method.startswith('sia_') else FullJointPolicy
++    mode={'sia_p':'b1','sia_tune':'b5','joint_p':'u_jp','joint_o':'u_jo'}[method]
++    p=cls(mode=mode,oracle=oracle,node_capacities=capacities(capacity),
++        template_map={j:APPLICATION_TEMPLATES[a] for j,a in apps.items()},
++        aux_cpu_points=rc['aux_cpu_points'],aux_ram_points=rc['aux_ram_points'],
++        minimum_cpu_per_gpu=rc['minimum_legal_profile_point']['cpu_per_gpu'],
++        minimum_ram_gb_per_gpu=rc['minimum_legal_profile_point']['ram_gb_per_gpu'],
++        p_fairness=sc['p_fairness'],restart_penalty=30,lambda_a=sc['lambda_a'],lambda_n=sc['lambda_n'],
++        project_throughputs=sc['project_throughputs'],share_max_replicas=sc['share_max_replicas'],
++        sched_interval=sc['interval_seconds'],enable_bsz_tuning=not sc['disable_batch_size_tuning'])
++    p.populate_valid_configs(cc['nnodes'],cc['ngpus_per_node'],cc['max_physical_nodes'])
++    c=FullCluster(workload.copy(),p,cc['nnodes'],cc['ngpus_per_node'],cc['max_physical_nodes'])
++    if seed:
++        for j in c.jobs: j.seed_profiles(sc['seed_profiles_num_nodes'],sc['seed_profiles_num_replicas'])
++    return c
+diff --git a/sia-simulator/run_full160_cell.py b/sia-simulator/run_full160_cell.py
+new file mode 100644
+index 0000000..3bfd231
+--- /dev/null
++++ b/sia-simulator/run_full160_cell.py
+@@ -0,0 +1,110 @@
++"""One pre-registered full trace, independent process, durable gzip evidence."""
++import argparse,collections,gzip,hashlib,importlib.metadata,json,math,subprocess,sys,time,traceback
++from pathlib import Path
++import numpy as np
++import pandas as pd
++import psutil
++from joint_prototype.full160 import make_cluster
++from run_stage2c_cell import Accumulator,independent_rho,sha,save
++from run_cpu_bottleneck_smoke import json_default
++
++class FullMetrics(Accumulator):
++    """Own decision audit; delegate unchanged direct execution/time integration."""
++    def __init__(self,c):
++        super().__init__(c);self.fallbacks=collections.Counter();self.clipping=collections.Counter();self.selected_count=0
++        self.last_locked={};self.tune=collections.Counter();self.scheduling_wall=[]
++
++    def consume(self,c,r):
++        d=r['decision_for_next_interval'];res=d.get('result',{});audit=res.get('audit',{})
++        fresh=d.get('round')!=getattr(self,'last_decision_round',None)
++        if fresh:
++            if not audit.get('valid'):raise RuntimeError('INVALID_DECISION')
++            self.status[res['status']]+=1;self.solve.append(res['solve_seconds'])
++            self.events.update(e['event'] for e in d.get('liveness_events',[]))
++            self.tune.update(e['action'] for e in audit.get('tune_trace',[]))
++            if res['status'].startswith('FALLBACK_'):self.fallbacks[res['status']]+=1
++            totals={f'{t}:0':dict(gpu=0,cpu=0.,ram=0.) for t in c.ngpus_per_node}
++            for name,col in res.get('selected',{}).items():
++                cfg=col['config'];typ=cfg['gpu_type'];cap=c.policy.node_capacities[typ];ng=c.ngpus_per_node[typ]
++                pc=cap['cpu_cores']/ng;pm=cap['ram_gb']/ng
++                expected=independent_rho(c.policy.oracle,name,cfg['config_id'],col['cpu_per_gpu'],col['ram_gb_per_gpu'])
++                if not math.isclose(col['rho'],expected,rel_tol=1e-12):raise RuntimeError('DECISION_RHO')
++                if c.policy.mode in ('b1','u_jp') and (col['cpu_per_gpu'],col['ram_gb_per_gpu'])!=(pc,pm):raise RuntimeError('PROPORTIONAL_CONTRACT')
++                # TUNE demand/fair is not the JO proportional-progress-floor objective.
++                if c.policy.mode in ('u_jp','u_jo'):
++                    if expected+1e-9<independent_rho(c.policy.oracle,name,cfg['config_id'],pc,pm):raise RuntimeError('PROGRESS_FLOOR')
++                    self.floor_checks+=1
++                row=c.policy.oracle.reference(name,cfg['config_id']);self.selected_count+=1
++                if cfg['cpu_demand_scale']!=row['phi_c'] or cfg['memory_demand_scale']!=row['phi_m']:raise RuntimeError('FIXED_PHI')
++                for prefix,cpu,ram in [('numerator',col['cpu_per_gpu'],col['ram_gb_per_gpu']),('denominator',3.,62.5)]:
++                    self.clipping[prefix+'_cpu']+=int(not 1<=cpu/row['phi_c']<=24)
++                    self.clipping[prefix+'_ram']+=int(not 20.83<=ram/row['phi_m']<=250)
++                for node,g in col['placement'].items():
++                    v=totals[node];v['gpu']+=g;v['cpu']+=g*col['cpu_per_gpu'];v['ram']+=g*col['ram_gb_per_gpu']
++            for node,v in totals.items():
++                typ=node.rsplit(':',1)[0];cap=c.policy.node_capacities[typ];ng=c.ngpus_per_node[typ]
++                if v['gpu']>ng or v['cpu']>cap['cpu_cores']+1e-7 or v['ram']>cap['ram_gb']+1e-7:raise RuntimeError('INDEPENDENT_NODE_CAPACITY')
++                self.idle_saturated+=int(v['cpu']>=cap['cpu_cores']-1e-7 and v['gpu']<ng)
++                for k in v:self.node_peaks[node][k]=max(self.node_peaks[node][k],v[k])
++            if d.get('strict_full_intent'):
++                intended=c.policy.canonical(d['original_sia_allocations'],c.allocations)
++                if c.policy.canonical(c.allocations,c.allocations)!=intended:raise RuntimeError('OFFICIAL_INTENT_NOT_PRESERVED')
++            # Prevent old Accumulator's L2-only progress-floor decision audit;
++            # ALL decisions were independently checked above. Execution audit
++            # below remains unchanged and uses directly recorded raw rates.
++            self.last_decision_round=d.get('round')
++        for e in r['execution']:
++            if e['resource_allocation'] and e['checkpoint_delay_consumed']>0:
++                if e['checkpoint_remaining_before_decision']>0 and e['completion_time'] is None:
++                    old=e['resource_allocation'];new=c.policy.current_resources.get(e['job_id'])
++                    for key in ('config_id','placement','cpu_per_gpu','ram_gb_per_gpu'):
++                        if new is None or old[key]!=new[key]:raise RuntimeError('CHECKPOINT_GEOMETRY_CHANGED')
++        super().consume(c,r)
++
++    def summary(self,c,p):
++        result=super().summary(c,p)
++        result.update(fallback_count=sum(self.fallbacks.values()),fallback_status=dict(self.fallbacks),
++            clipping_counts=dict(self.clipping),clipping_denominator_selected_columns=self.selected_count,
++            tune_actions=dict(self.tune))
++        return result
++
++def main():
++    ap=argparse.ArgumentParser();ap.add_argument('--manifest',required=True,type=Path);ap.add_argument('--cell',required=True);ap.add_argument('--output',required=True,type=Path)
++    a=ap.parse_args();p=json.loads(a.manifest.read_text());cell=next(v for v in p['runs'] if v['id']==a.cell)
++    for path,h in p['input_hashes'].items():
++        if sha(path)!=h:raise RuntimeError(f'INPUT_CHANGED {path}')
++    work=Path(__file__).resolve().parent
++    if subprocess.check_output(['git','-C',str(work),'rev-parse','HEAD']).decode().strip()!=p['commit']:raise RuntimeError('COMMIT_CHANGED')
++    for path,h in p['source_hashes'].items():
++        if sha(work/path)!=h:raise RuntimeError(f'SOURCE_CHANGED {path}')
++    for pkg,ver in p['packages'].items():
++        if importlib.metadata.version(pkg)!=ver:raise RuntimeError('DEPENDENCY_CHANGED')
++    mem=psutil.virtual_memory().available/1024**3
++    if mem<2:raise RuntimeError(f'MEMORY_GATE {mem}')
++    a.output.mkdir(parents=True,exist_ok=False)
++    save(a.output/'start.json',dict(command=sys.argv,cell=cell,commit=p['commit'],manifest_hash=sha(a.manifest),memory_gib=mem))
++    config=json.loads(Path(p['config']).read_text());trace=p['traces'][str(cell['trace'])]
++    c=make_cluster(config,pd.read_csv(trace['file']),p['registry'],p['models'],cell['method'],cell['response'],cell['capacity'],True)
++    m=FullMetrics(c)
++    try:
++        with gzip.open(a.output/'rounds.jsonl.gz','xt',encoding='utf-8') as f:
++            for i in range(6000):
++                if c.all_complete():break
++                tick=time.perf_counter();c.step(60);record=c.joint_round_logs[-1];record['round_wall_seconds']=time.perf_counter()-tick
++                record['job_end_state']={j.name:dict(restarts=j.num_restarts or 0,migrations=j.num_migrations or 0,
++                    wasted_gpu_seconds=j.wasted_gpu_seconds,completion=j.completion_time) for j in c.jobs}
++                f.write(json.dumps(record,default=json_default,separators=(',',':'))+'\n');f.flush()
++                m.consume(c,record)
++                c.joint_round_logs.clear();c.logs.clear();c.rescale_events.clear();c.migrate_events.clear()
++                if (i+1)%100==0:print('PROGRESS '+json.dumps(dict(round=i+1,time=c.current_time,completed=sum(j.completion_time is not None for j in c.jobs))),flush=True)
++        result=m.summary(c,{'rmst_tau_seconds':trace['rmst_tau']});save(a.output/'summary.json',result)
++        save(a.output/'output_hashes.json',{f.name:sha(f) for f in a.output.iterdir() if f.is_file()})
++        print('RESULT '+json.dumps({k:v for k,v in result.items() if k not in ('jobs','node_resource_hours','node_peaks')}),flush=True)
++    except Exception as exc:
++        live=getattr(c.policy,'liveness',None)
++        save(a.output/'failure.json',dict(error=repr(exc),traceback=traceback.format_exc(),rounds=m.rounds,time=c.current_time,
++            last_failure=c.policy.last_failure,last_decision=c.policy.last_decision,allocations=c.allocations,
++            ready=live.ready if live else None,services=list(live.services) if live else None,
++            jobs={j.name:dict(progress=float(j.progress),completion=j.completion_time,delay=j.rescale_time,placement=j.placement) for j in c.jobs}))
++        raise
++if __name__=='__main__':main()
+diff --git a/sia-simulator/tests/test_full160.py b/sia-simulator/tests/test_full160.py
+new file mode 100644
+index 0000000..b5e0e89
+--- /dev/null
++++ b/sia-simulator/tests/test_full160.py
+@@ -0,0 +1,114 @@
++"""Predeclared adapters, scale and bounded real-chain acceptance, not JCT tuning."""
++import copy,json,os,unittest
++from pathlib import Path
++from unittest.mock import patch
++import pandas as pd
++from joint_prototype.full160 import make_cluster, FullAdmission, capacities
++from joint_prototype.r0_liveness import R0Admission
++from joint_prototype.neutral_liveness import L2Admission
++from sia import SiaPolicy
++from test_stage2c_r0 import REG,MODELS,CONFIG
++from test_stage2b_neutral import schedule,spec,current,negative
++from joint_prototype.joint_profile import NodeSpec
++
++def config(): return json.loads(CONFIG.read_text())
++def cluster(method='sia_p',capacity='main',response='neutral',rows=None,seed=True):
++    if rows is None: rows=[dict(name='bert-mid',time=17,application='bert',num_replicas=1,batch_size=384)]
++    return make_cluster(config(),pd.DataFrame(rows),REG,MODELS,method,response,capacity,seed)
++def evidence(name,data):
++    if os.environ.get('FULL160_EVIDENCE'):
++        p=Path(os.environ['FULL160_EVIDENCE']);p.mkdir(parents=True,exist_ok=True)
++        with (p/(name+'.json')).open('x') as f: json.dump(data,f,default=str)
++
++class Full160Tests(unittest.TestCase):
++    def test_sia_p_calls_actual_official_optimize_without_l2(self):
++        original=SiaPolicy.optimize; calls=[]
++        def wrapped(self,*args): calls.append(True); return original(self,*args)
++        c=cluster()
++        with patch.object(SiaPolicy,'optimize',wrapped): c.step(60)
++        self.assertEqual(len(calls),1);self.assertFalse(hasattr(c.policy,'liveness'))
++        self.assertEqual(c.allocations,c.policy.last_decision['original_sia_allocations'])
++
++    def test_main_medium_proportional_identity_and_all_capacity_floors(self):
++        for cap in ('half','main','double'):
++            c=cluster(capacity=cap,response='medium');c.step(60)
++            for a in c.policy.current_resources.values():
++                self.assertEqual(a['cpu_per_gpu'],{'half':1.5,'main':3.,'double':6.}[cap])
++                self.assertEqual(a['ram_gb_per_gpu'],62.5)
++                if cap=='main': self.assertEqual(a['rho'],1.)
++            self.assertTrue(c.policy.last_decision['result']['audit']['valid'])
++
++    def test_tune_real_unseeded_chain_gpu_intent_and_locks(self):
++        c=cluster('sia_tune',response='medium',seed=False); records=[]
++        for _ in range(10):
++            c.step(60); records.append(copy.deepcopy(c.joint_round_logs[-1]))
++            self.assertEqual(c.allocations,c.policy.last_decision['original_sia_allocations'])
++            self.assertTrue(c.policy.last_decision['result']['audit']['valid'])
++        self.assertGreater(c.jobs[0].progress,0);evidence('tune_unseeded',records)
++
++    def test_tune_failure_atomic_proportional_fallback_no_gpu_changes(self):
++        from joint_prototype.synergy_adapter import SynergyTuneAdapter
++        c=cluster('sia_tune')
++        with patch.object(SynergyTuneAdapter,'run',side_effect=RuntimeError('injected failure')): c.step(60)
++        self.assertEqual(c.policy.last_decision['result']['status'],'FALLBACK_PROPORTIONAL')
++        self.assertEqual(c.allocations,c.policy.last_decision['original_sia_allocations'])
++        self.assertTrue(c.policy.last_decision['result']['audit']['valid'])
++
++    def test_full160_queue_no_truncation_and_old_guards_preserved(self):
++        self.assertEqual(L2Admission.MAX_ACTIVE_JOBS,3);self.assertEqual(R0Admission.MAX_ACTIVE_JOBS,20)
++        a=FullAdmission(300,250,60);jobs=[spec(f'j{i:03}',0) for i in range(160)]
++        s=schedule(jobs,[NodeSpec('aws:0','aws',1,3,62.5)])
++        r=a.decide(s,negative(s),0,{})
++        self.assertEqual(len(a.seen),160);self.assertEqual(len(a.ready),159)
++        self.assertEqual(set(r.selected),{'j000'})
++        s=schedule([current(j,r.selected,1,True) for j in jobs],[NodeSpec('aws:0','aws',1,3,62.5)])
++        r2=a.decide(s,negative(s),60,{'j000':0})
++        self.assertEqual(set(r2.selected),{'j000'});self.assertEqual(len(a.ready),159)
++        self.assertTrue(r2.audit['valid'])
++        s=schedule([current(j,r2.selected,2,False) for j in jobs],[NodeSpec('aws:0','aws',1,3,62.5)])
++        r3=a.decide(s,negative(s),360,{'j000':300})
++        self.assertEqual(set(r3.selected),{'j001'});self.assertEqual(a.ready[-1],'j000')
++        evidence('queue160',dict(seen=len(a.seen),ready=a.ready,services=list(a.services),audit=r3.audit))
++
++    def test_real160_active_job_infos_no_filter(self):
++        rows=[dict(name=f'bert-{i}',time=0,application='bert',num_replicas=1,batch_size=384) for i in range(160)]
++        c=cluster('joint_p',rows=rows,seed=False); c.step(60)
++        self.assertEqual(len(c.policy.liveness.seen),160)
++        self.assertEqual(len(c.policy.last_decision['candidate_summary']),160)
++        self.assertEqual(set(c.policy.liveness.ready)|set(c.policy.liveness.services),{j.name for j in c.jobs})
++        self.assertTrue(c.policy.last_decision['result']['audit']['valid'])
++
++    def test_same_seed_and_execution_inputs_all_methods(self):
++        states=[]
++        for method in ('sia_p','sia_tune','joint_p','joint_o'):
++            c=cluster(method,response='medium')
++            j=c.jobs[0]
++            states.append(str((j.profiles,j.target_batch_size,j.submission_time)))
++            self.assertEqual(c.policy.oracle.response_exponent,.5)
++            self.assertEqual(c.policy.node_capacities,capacities('main'))
++        self.assertTrue(all(s==states[0] for s in states))
++
++    def test_metrics_actual_short_chain_all_methods_and_responses(self):
++        from run_full160_cell import FullMetrics
++        for method in ('sia_p','sia_tune','joint_p','joint_o'):
++            for response in ('neutral','medium'):
++                c=cluster(method,response=response);m=FullMetrics(c)
++                for _ in range(5):c.step(60);m.consume(c,c.joint_round_logs[-1])
++                result=m.summary(c,{'rmst_tau_seconds':200})
++                self.assertEqual(result['violations'],0)
++                self.assertGreater(result['execution_audits'],0)
++                self.assertTrue(c.policy.last_decision['result']['audit']['valid'])
++
++    def test_checkpoint_observation_is_before_new_decision(self):
++        from run_full160_cell import FullMetrics
++        c=cluster('sia_p',seed=False);m=FullMetrics(c);evidence_rows=[]
++        for dt in (60,60,60,60,60,60,60,60,60,60):
++            c.step(dt);r=c.joint_round_logs[-1];m.consume(c,r)
++            e=r['execution'][0]
++            self.assertEqual(e['checkpoint_remaining_before_decision'],c.checkpoint_before_decision[c.jobs[0].name])
++            evidence_rows.append(dict(before=e['checkpoint_remaining_before_decision'],after=c.jobs[0].rescale_time,training=e['training_seconds']))
++        self.assertTrue(any(x['before']==0 and x['after']>0 for x in evidence_rows))
++        self.assertTrue(any(x['before']>0 for x in evidence_rows))
++        evidence('checkpoint_decision_boundary',evidence_rows)
++
++if __name__=='__main__': unittest.main()

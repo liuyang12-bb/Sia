@@ -1,0 +1,20 @@
+{
+  "jobs": [
+    "cifar10-0",
+    "deepspeech2-8"
+  ],
+  "rounds": 5,
+  "interval": 60,
+  "methods": [
+    "SIA_P",
+    "SIA_ECT_AUX",
+    "JOINT_CC_P",
+    "JOINT_CC"
+  ],
+  "responses": [
+    "neutral",
+    "medium"
+  ],
+  "purpose": "Compare exact allocation/progress/checkpoint/batch/CPU/RAM trajectories before and after dependency cleanup; not a performance experiment.",
+  "workload_sha256": "13144215B2BE3F9BA415B3CCE58A05D345F5FEE06D08D353F47EC07424F2480B"
+}

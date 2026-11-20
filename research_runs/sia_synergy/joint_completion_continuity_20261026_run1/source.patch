@@ -1,0 +1,639 @@
+--- parent/joint_prototype\adaptive_service.py
++++ current/joint_prototype\adaptive_service.py
+@@ -55,6 +55,14 @@
+                     bounds=Bounds(np.zeros(len(columns)), np.ones(len(columns))),
+                     constraints=constraints,
+                     options={'time_limit': 30., 'mip_rel_gap': 0.})
++
++    def service_expired(self, name, service, productive):
++        """Historical default; opt-in continuity supplies its own contract."""
++        return productive.get(name, 0.) - service['productive_base'] >= self.quantum - 1e-9
++
++    def check_service_clock(self, name, service, now, productive):
++        if now - service['issued_time'] > self.delay_bound + self.quantum + self.interval + 1e-8:
++            raise RuntimeError(f'SERVICE_BOUND_EXCEEDED: {name}')
+ 
+     def eligible_held_columns(self, scheduler, job, service, columns, productive, now):
+         """Return current-round eligible columns plus explicit filter evidence.
+@@ -143,12 +151,12 @@
+             done = productive.get(name, 0.) - service['productive_base']
+             if done < -1e-8:
+                 raise RuntimeError('NON_MONOTONIC_SERVICE_COUNTER')
+-            if done >= self.quantum - 1e-9:
++            if self.service_expired(name, service, productive):
+                 if s.lock_active(jobs[name]):
+                     raise RuntimeError('CHECKPOINT_AFTER_SERVICE_WITHOUT_RECONFIGURATION')
+                 expired.append(name)
+-            elif now - service['issued_time'] > self.delay_bound + self.quantum + self.interval + 1e-8:
+-                raise RuntimeError(f'SERVICE_BOUND_EXCEEDED: {name}')
++            else:
++                self.check_service_clock(name, service, now, productive)
+         for name in sorted(expired, key=lambda n: self.services[n]['sequence']):
+             self.ready.append(name)
+             previous = self.services.pop(name)
+--- parent/joint_prototype\bundle_adaptation.py
++++ current/joint_prototype\bundle_adaptation.py
+@@ -105,7 +105,7 @@
+         self.numerical_solver_retries=[]
+         self._diagnostic_job_order=[j.job_id for j in s.jobs]
+         held={j:v for j,v in self.services.items() if j in s.job_map and
+-              productive.get(j,0.)-v['productive_base']<self.quantum-1e-9}
++              not self.service_expired(j,v,productive)}
+         old_geometry={j:geometry(v['column']) for j,v in held.items()}
+         result=super()._decide(s,columns,now,productive)
+         baseline=[]
+--- parent/joint_prototype\completion_continuity.py
++++ current/joint_prototype\completion_continuity.py
+@@ -0,0 +1,143 @@
++"""Opt-in completion priority and non-preemptive service continuity.
++
++This is a current-rate completion-priority surrogate, not globally optimal JCT.
++Historical policies and the execution/response models are unchanged.
++"""
++import copy
++import math
++from dataclasses import replace
++
++from .completion_time import (CompletionPolicy, completion_cost,
++                              install as install_legacy)
++from .protected_admission import ProtectedAdmission
++from .adaptive_service import gpu_geometry
++
++
++def completion_priority(work, raw_rate, rho, delay):
++    estimate = completion_cost(work, raw_rate, rho, delay)
++    if estimate <= 0:
++        raise ValueError('NONPOSITIVE_COMPLETION_ESTIMATE')
++    return 1. / estimate
++
++
++class ContinuityAdmission(ProtectedAdmission):
++    """Finite-work FIFO liveness without a mandatory periodic eviction.
++
++    Existing service remains required until actual completion. The inherited
++    delay_charged budget is lifetime because service records never expire.
++    Admission state still commits only through L2Admission.decide's trial copy.
++    """
++    def service_expired(self, name, service, productive):
++        return False
++
++    def check_service_clock(self, name, service, now, productive):
++        value = float(productive.get(name, 0.))
++        previous = service.get('last_observed_productive', service['productive_base'])
++        last_time = service.get('last_productive_observation_time', service['issued_time'])
++        if not math.isfinite(value) or value < previous - 1e-8:
++            raise RuntimeError('NON_MONOTONIC_CONTINUITY_SERVICE')
++        if now < service['issued_time'] or now < last_time:
++            raise RuntimeError('NON_MONOTONIC_CONTINUITY_TIME')
++        if value > previous + 1e-9:
++            last_time = now
++        if now - last_time > self.delay_bound + self.interval + 1e-8:
++            raise RuntimeError(f'CONTINUITY_NO_PRODUCTIVE_PROGRESS: {name}')
++        service['last_observed_productive'] = value
++        service['last_productive_observation_time'] = last_time
++
++    def eligible_held_columns(self, scheduler, job, service, columns, productive, now):
++        eligible, evidence = super().eligible_held_columns(
++            scheduler, job, service, columns, productive, now)
++        # Real checkpoint, provenance, last-productive and actual startup
++        # budget were already enforced by the inherited eligibility checks.
++        rejected = []
++        if not self.geometry_event_reasons:
++            current = gpu_geometry(service['column'])
++            rejected = [c.column_id for c in eligible if gpu_geometry(c) != current]
++            eligible = [c for c in eligible if gpu_geometry(c) == current]
++        evidence.update(eligibility_rule='COMPLETION_CONTINUITY_EVENT_GEOMETRY_LIFETIME_DELAY',
++            geometry_event_reasons=self.geometry_event_reasons,
++            non_event_geometry_rejected=rejected, eligible_count=len(eligible),
++            productive_remaining=None, service_end='ACTUAL_COMPLETION')
++        return eligible, evidence
++
++    def _decide(self, scheduler, columns, now, productive):
++        active = set(scheduler.job_map)
++        previous = getattr(self, 'previous_active', set())
++        known = set(getattr(scheduler, 'current_known_configs', set()))
++        old_known = getattr(self, 'previous_known_configs', set())
++        reasons = []
++        if active - previous:
++            reasons.append('ARRIVAL')
++        if previous - active:
++            reasons.append('COMPLETION')
++        if known - old_known:
++            reasons.append('FIRST_VALID_CURRENT_MODEL')
++        self.geometry_event_reasons = reasons
++        result = super()._decide(scheduler, columns, now, productive)
++        self.previous_active = active
++        # Candidate contraction during checkpoint does not erase observations.
++        self.previous_known_configs = old_known | known
++        result.audit.update(geometry_event_reasons=reasons,
++            completion_continuity=True, periodic_service_expiry=False,
++            lifetime_startup_budget=self.delay_bound)
++        result.policy = 'COMPLETION_CONTINUITY'
++        result.status = 'DRAIN_FOR_HEAD' if result.audit['drain'] else 'OPTIMAL_COMPLETION_CONTINUITY'
++        return result
++
++
++class CompletionContinuityPolicy(CompletionPolicy):
++    def factor_columns(self, jobs, specs, scheduler):
++        columns, proposals = super().factor_columns(jobs, specs, scheduler)
++        scores = self.completion_scores
++        scheduler.current_known_configs = {
++            (c.job_id, c.config.config_id) for c, v in zip(columns, scores)
++            if v['raw_rate'] is not None}
++        if self.use_completion_priority:
++            priorities = [0. if v['estimated_completion'] is None else completion_priority(
++                v['remaining_work'], v['raw_rate'], v['rho'], v['delay']) for v in scores]
++            # Shared positive numerical scale, no relative weight tuning.
++            scale = max(priorities, default=0.) or 1.
++            revised = []
++            for column, old, priority in zip(columns, scores, priorities):
++                value = priority / scale
++                revised.append(replace(column, scheduling_utility=value))
++                old.update(historical_wait_reference_ignored=old['wait_cost'], wait_cost=None,
++                    completion_priority=priority, common_numerical_scale=scale, utility=value)
++            columns = revised
++        self.exchange_columns = columns
++        self.continuity_scores = scores
++        return columns, proposals
++
++    def optimize(self, *args):
++        previous_controller = copy.deepcopy(self.liveness)
++        try:
++            result = super().optimize(*args)
++        except Exception:
++            # Parent factor construction updates profile-source diagnostics
++            # before its trial copy. Failed calls must not retain that update.
++            self.liveness = previous_controller
++            raise
++        contract = self.last_decision['shared_contract']
++        contract.update(policy_version='JOINT_COMPLETION_CONTINUITY_V1',
++            objective=('SUM_RECIPROCAL_CURRENT_COMPLETION_ETA' if self.use_completion_priority
++                       else 'HISTORICAL_ETA_SAVING'),
++            admission=('FIFO_HEAD_NONPREEMPTIVE_COMPLETION_CONTINUITY' if self.use_continuity
++                       else 'HISTORICAL_PERIODIC_PRODUCTIVE_SERVICE'),
++            geometry_events=('ARRIVAL_COMPLETION_FIRST_MODEL' if self.use_continuity else 'HISTORICAL'),
++            startup_budget_scope='JOB_LIFETIME' if self.use_continuity else 'SERVICE_QUANTUM',
++            nonpreemptive_completion=self.use_continuity,
++            reciprocal_eta_priority=self.use_completion_priority)
++        self.last_decision['probe']['contract']['objective'] = contract['objective']
++        self.last_decision['continuity_scores'] = self.continuity_scores
++        return result
++
++
++def install(cluster, proportional=False, new_score=True, continuity=True):
++    install_legacy(cluster, proportional=proportional)
++    cluster.policy.__class__ = CompletionContinuityPolicy
++    cluster.policy.use_completion_priority = bool(new_score)
++    cluster.policy.use_continuity = bool(continuity)
++    if continuity:
++        cluster.policy.liveness.__class__ = ContinuityAdmission
++    return cluster
+--- parent/tests\test_completion_continuity.py
++++ current/tests\test_completion_continuity.py
+@@ -0,0 +1,215 @@
++"""Bounded regression contracts for opt-in completion continuity.
++
++The implementation is imported lazily so this suite records the absent/new
++mechanism as red before implementation. Real integration cases use the original
++unseeded BERT fixture and genuine Cluster.optimize_policy calls. No observation
++is extended beyond the fixed 12 x 60 second limit.
++"""
++import contextlib
++import copy
++import importlib
++import io
++import math
++import unittest
++from types import SimpleNamespace
++from unittest.mock import patch
++
++import test_exchange_integration as exchange_fixture
++from joint_prototype.execution_audit import audit_execution
++
++
++def implementation():
++    return importlib.import_module('joint_prototype.completion_continuity')
++
++
++def selected_geometry(record):
++    return (record['config']['config_id'],
++            tuple(sorted(record['placement'].items())))
++
++
++class CompletionContinuityTests(unittest.TestCase):
++    def build(self, proportional=False, new_score=True, continuity=True):
++        return implementation().install(
++            exchange_fixture.ExchangeIntegration().build(),
++            proportional=proportional, new_score=new_score,
++            continuity=continuity)
++
++    def test_remaining_work_does_not_cancel_completion_priority(self):
++        priority = implementation().completion_priority
++        # Two jobs competing for the same one-GPU slot at the same rate.
++        # The old best-proportional wait-minus-ETA score erased this difference.
++        self.assertAlmostEqual(priority(100., 2., 1., 0.), .02)
++        self.assertAlmostEqual(priority(1000., 2., 1., 0.), .002)
++        self.assertGreater(priority(100., 2., 1., 0.),
++                           priority(1000., 2., 1., 0.))
++
++    def test_startup_cost_can_reverse_nominal_speed_ranking(self):
++        priority = implementation().completion_priority
++        # Doubling speed cannot repay a 60-second restart for 100 seconds of
++        # remaining work, but it can repay it for 1,000 seconds of work.
++        self.assertGreater(priority(100., 1., 1., 0.),
++                           priority(100., 2., 1., 60.))
++        self.assertLess(priority(1000., 1., 1., 0.),
++                        priority(1000., 2., 1., 60.))
++        self.assertAlmostEqual(priority(120., 2., 3., 10.), 1. / 30.)
++
++    def test_invalid_priority_inputs_are_rejected(self):
++        priority = implementation().completion_priority
++        for values in ((1., 0., 1., 0.), (1., 1., 0., 0.),
++                       (-1., 1., 1., 0.), (1., 1., 1., -1.),
++                       (1., math.nan, 1., 0.),
++                       (1., 1., math.inf, 0.)):
++            with self.subTest(values=values):
++                with self.assertRaises(ValueError):
++                    priority(*values)
++
++    def test_unseeded_unknown_eta_bootstraps_without_fabricated_rate(self):
++        with contextlib.redirect_stdout(io.StringIO()):
++            c = self.build()
++            c.step(60)
++            d = c.policy.last_decision
++            self.assertTrue(d['result']['audit']['valid'])
++            self.assertIn('bert-mid', d['result']['selected'])
++            self.assertTrue(d['continuity_scores'])
++            for score in d['continuity_scores']:
++                self.assertIsNone(score['raw_rate'])
++                self.assertIsNone(score['estimated_completion'])
++                self.assertEqual(score['utility'], 0.)
++
++    def test_real_unseeded_bert_full_scheduling_execution_chain(self):
++        with contextlib.redirect_stdout(io.StringIO()):
++            c = self.build()
++            productive = startup = 0.
++            previous = 0.
++            known_scores = []
++            for _ in range(12):
++                c.step(60)
++                d = c.policy.last_decision
++                self.assertTrue(d['result']['audit']['valid'])
++                self.assertGreaterEqual(c.jobs[0].progress, previous)
++                previous = c.jobs[0].progress
++                known_scores.extend(v for v in d['continuity_scores']
++                                    if v['raw_rate'] is not None)
++                for execution in c.joint_round_logs[-1]['execution']:
++                    self.assertTrue(audit_execution(execution)['valid'])
++                    productive += execution['training_seconds']
++                    startup += execution['checkpoint_delay_consumed']
++                    span = max(0., execution['interval_end'] - max(
++                        execution['interval_start'], execution['arrival_time']))
++                    if execution['checkpoint_delay_consumed'] >= span > 0:
++                        self.assertEqual(execution['progress_before'],
++                                         execution['progress_after'])
++            self.assertGreater(productive, 0.)
++            self.assertGreater(startup, 0.)
++            self.assertGreater(c.jobs[0].progress, 0.)
++            self.assertIsNotNone(c.jobs[0].first_productive_training_time)
++            self.assertTrue(known_scores)
++            self.assertTrue(all(v['utility'] > 0. for v in known_scores))
++
++    def test_real_checkpoint_preserves_full_gpu_and_aux_allocation(self):
++        with contextlib.redirect_stdout(io.StringIO()):
++            c = self.build()
++            c.step(60)
++            self.assertGreater(c.jobs[0].rescale_time, 60.)
++            allocation = copy.deepcopy(c.allocations)
++            resources = copy.deepcopy(c.policy.current_resources)
++            before = c.jobs[0].progress
++            c.step(60)
++            self.assertEqual(c.allocations, allocation)
++            self.assertEqual(c.jobs[0].progress, before)
++            for key in ('config_id', 'cpu_per_gpu', 'ram_gb_per_gpu', 'placement'):
++                self.assertEqual(c.policy.current_resources['bert-mid'][key],
++                                 resources['bert-mid'][key])
++            self.assertIn('bert-mid',
++                          c.policy.last_decision['result']['audit']['checkpoint_locks'])
++
++    def test_crossing_300_productive_seconds_does_not_force_requeue(self):
++        with contextlib.redirect_stdout(io.StringIO()):
++            c = self.build()
++            events = []
++            for _ in range(12):
++                c.step(60)
++                self.assertTrue(c.policy.last_decision['result']['audit']['valid'])
++                events.extend(c.policy.last_decision['liveness_events'])
++            self.assertGreater(c.jobs[0].execution_time, 300.)
++            self.assertFalse(any(e['event'] == 'REQUEUE_PRODUCTIVE_QUANTUM'
++                                 for e in events))
++            self.assertIn('bert-mid', c.policy.last_decision['result']['selected'])
++
++    def test_no_event_round_cannot_change_incumbent_gpu_geometry(self):
++        with contextlib.redirect_stdout(io.StringIO()):
++            c = self.build()
++            previous = {}
++            checked = 0
++            for _ in range(12):
++                c.step(60)
++                d = c.policy.last_decision
++                reasons = d['result']['audit']['geometry_event_reasons']
++                self.assertIsInstance(reasons, list)
++                current = {name: selected_geometry(v)
++                           for name, v in d['result']['selected'].items()}
++                if not reasons:
++                    for name in previous.keys() & current.keys():
++                        self.assertEqual(previous[name], current[name])
++                        checked += 1
++                previous = current
++            self.assertGreater(checked, 0)
++
++    def test_proportional_ablation_cannot_choose_free_aux_quotas(self):
++        with contextlib.redirect_stdout(io.StringIO()):
++            c = self.build(proportional=True)
++            count = 0
++            for _ in range(8):
++                c.step(60)
++                d = c.policy.last_decision
++                self.assertTrue(d['result']['audit']['valid'])
++                for record in d['result']['selected'].values():
++                    typ = record['config']['gpu_type']
++                    capacity = c.policy.node_capacities[typ]
++                    self.assertAlmostEqual(record['cpu_per_gpu'],
++                        capacity['cpu_cores'] / c.ngpus_per_node[typ])
++                    self.assertAlmostEqual(record['ram_gb_per_gpu'],
++                        capacity['ram_gb'] / c.ngpus_per_node[typ])
++                    count += 1
++            self.assertGreater(count, 0)
++
++    def test_joint_and_prop_share_objective_liveness_and_response(self):
++        with contextlib.redirect_stdout(io.StringIO()):
++            jo = self.build()
++            jp = self.build(proportional=True)
++            self.assertIs(type(jo.policy.liveness), type(jp.policy.liveness))
++            self.assertEqual(jo.policy.oracle.provenance_digest(),
++                             jp.policy.oracle.provenance_digest())
++            self.assertEqual(jo.policy.aux_cpu_points, jp.policy.aux_cpu_points)
++            self.assertEqual(jo.policy.aux_ram_points, jp.policy.aux_ram_points)
++            for c in (jo, jp):
++                c.step(60)
++                self.assertTrue(c.policy.last_decision['result']['audit']['valid'])
++            jo_contract = jo.policy.last_decision['shared_contract']
++            jp_contract = jp.policy.last_decision['shared_contract']
++            self.assertEqual(jo_contract['objective'], jp_contract['objective'])
++            self.assertEqual(jo_contract['admission'], jp_contract['admission'])
++
++    def test_solver_failure_leaves_allocation_resources_and_service_unchanged(self):
++        with contextlib.redirect_stdout(io.StringIO()):
++            c = self.build()
++            c.step(60)
++            before_alloc = copy.deepcopy(c.allocations)
++            before_resources = copy.deepcopy(c.policy.current_resources)
++            before_service = copy.deepcopy(c.policy.liveness.__dict__)
++            # Force an observable source-metadata difference during factor
++            # construction; it too must be rolled back on solver failure.
++            c.policy.liveness.profile_sources = {'failure_sentinel': {}}
++            before_service = copy.deepcopy(c.policy.liveness.__dict__)
++            with patch('joint_prototype.adaptive_service.milp',
++                       return_value=SimpleNamespace(x=None, status=1,
++                           success=False, message='fixed unit timeout')):
++                with self.assertRaises(RuntimeError):
++                    c.optimize_policy()
++            self.assertEqual(c.allocations, before_alloc)
++            self.assertEqual(c.policy.current_resources, before_resources)
++            self.assertEqual(c.policy.liveness.__dict__, before_service)
++
++
++if __name__ == '__main__':
++    unittest.main(verbosity=2)
+--- parent/tests\test_completion_continuity_states.py
++++ current/tests\test_completion_continuity_states.py
+@@ -0,0 +1,228 @@
++"""Independent bounded controller sequences; no Job.step or train simulation.
++
++Supplied progress counters and model-availability events are explicit unit
++inputs. Capacity, candidate validation, checkpoint locks and the MILP use the
++production implementations. The analytic exchange response is reused only as
++a labelled synthetic correctness witness, never as application performance.
++"""
++import copy
++import unittest
++from dataclasses import replace
++from types import SimpleNamespace
++from unittest.mock import patch
++
++import numpy as np
++
++from test_adaptive_service import (admission, cfg, columns, current,
++                                   scheduler, spec)
++from test_exchange_netprogress import witness
++from joint_prototype.completion_continuity import ContinuityAdmission
++from joint_prototype.joint_profile import NodeSpec
++
++
++def controller(jobs, delay=50.):
++    result = ContinuityAdmission(300., 250., 60.)
++    baseline = admission(jobs, delay)
++    result.delay_costs = baseline.delay_costs
++    result.profile_sources = baseline.profile_sources
++    return result
++
++
++def state(jobs, nodes=None, known=None):
++    result = scheduler(jobs, nodes)
++    result.current_known_configs = (set(known) if known is not None else {
++        (j.job_id, c.config_id) for j in jobs for c in j.configs})
++    return result
++
++
++def start(job, delay=50., known=None):
++    a = controller([job], delay)
++    s = state([job], known=known)
++    first_config = job.configs[0].config_id
++    allowed = [c for c in columns(s) if c.config.config_id == first_config]
++    return a, a.decide(s, allowed, 0., {job.job_id: 0.})
++
++
++class CompletionContinuityStateTests(unittest.TestCase):
++    def test_gang_waits_beyond_quantum_then_starts_after_incumbent_completion(self):
++        small = spec('small')
++        gang = spec('gang', [cfg('aws', 2)], arrival=60., index=1)
++        peer = spec('peer', arrival=60., index=2)
++        nodes = [NodeSpec('aws:0', 'aws', 2, 6., 125.)]
++        a = controller([small, gang, peer])
++        s = state([small], nodes)
++        first = a.decide(s, columns(s), 0., {})
++        self.assertEqual(set(first.selected), {'small'})
++
++        active = [current(small, first.selected), gang, peer]
++        s = state(active, nodes)
++        waiting = a.decide(s, columns(s), 60., {'small': 10.})
++        self.assertTrue(waiting.audit['drain'])
++        self.assertEqual(set(waiting.selected), {'small'})
++        self.assertEqual(a.ready, ['gang', 'peer'])
++        # Peer fits the spare GPU but cannot extend a head-blocking drain.
++        self.assertNotIn('peer', a.services)
++
++        s = state([current(small, waiting.selected, 2), gang, peer], nodes)
++        beyond_quantum = a.decide(s, columns(s), 360., {'small': 310.})
++        self.assertEqual(set(beyond_quantum.selected), {'small'})
++        self.assertEqual(a.services['small']['productive_base'], 0.)
++        self.assertFalse(any(e['event'] == 'REQUEUE_PRODUCTIVE_QUANTUM'
++                             for e in a.events))
++
++        # The enclosing simulator removes an actually completed job from its
++        # active JobSpecs; this unit input models that exact boundary.
++        s = state([gang, peer], nodes)
++        after_completion = a.decide(s, columns(s), 420., {'small': 370.})
++        self.assertEqual(set(after_completion.selected), {'gang'})
++        self.assertEqual(a.ready, ['peer'])
++        self.assertIn('COMPLETION', after_completion.audit['geometry_event_reasons'])
++        self.assertTrue(after_completion.audit['valid'])
++
++    def test_known_model_event_permits_legal_gpu_resize(self):
++        job = spec(configs=[cfg('aws'), cfg('aws', 2, rate=100.)])
++        one = {(job.job_id, 'aws:1:1')}
++        a, first = start(job, known=one)
++        s = state([current(job, first.selected)], known=one | {(job.job_id, 'aws:1:2')})
++        second = a.decide(s, columns(s), 180., {'j': 130.})
++        self.assertIn('FIRST_VALID_CURRENT_MODEL', second.audit['geometry_event_reasons'])
++        self.assertEqual(second.selected['j'].config.gpus, 2)
++        self.assertEqual(a.services['j']['delay_charged'], 100.)
++        self.assertTrue(second.audit['valid'])
++
++    def test_no_event_excludes_otherwise_beneficial_gpu_resize(self):
++        job = spec(configs=[cfg('aws'), cfg('aws', 2, rate=100.)])
++        all_known = {(job.job_id, c.config_id) for c in job.configs}
++        a, first = start(job, known=all_known)
++        s = state([current(job, first.selected)], known=all_known)
++        second = a.decide(s, columns(s), 180., {'j': 130.})
++        self.assertEqual(second.audit['geometry_event_reasons'], [])
++        self.assertEqual(second.selected['j'].config.gpus, 1)
++        rejected = second.audit['adaptive_candidate_filters']['j']['non_event_geometry_rejected']
++        self.assertTrue(rejected)
++        self.assertFalse(any(e['event'] == 'ADAPT_GEOMETRY' for e in a.events))
++
++    def test_checkpoint_candidate_contraction_does_not_rediscover_old_model(self):
++        job = spec(configs=[cfg('aws'), cfg('aws', 2, rate=100.)])
++        all_known = {('j', 'aws:1:1'), ('j', 'aws:1:2')}
++        a, first = start(job, delay=120., known=all_known)
++        # A real checkpoint exposes only its exact selected geometry to the
++        # candidate scorer. Temporarily absent candidates are not new models
++        # when the same checkpoint unlocks.
++        locked_state = state([current(job, first.selected, locked=True)],
++                             known={('j', 'aws:1:1')})
++        locked = a.decide(locked_state, columns(locked_state), 60., {'j': 0.})
++        self.assertEqual(locked.selected['j'].config.gpus, 1)
++        unlocked_state = state([current(job, locked.selected, 2)], known=all_known)
++        unlocked = a.decide(unlocked_state, columns(unlocked_state), 180., {'j': 60.})
++        self.assertNotIn('FIRST_VALID_CURRENT_MODEL',
++                         unlocked.audit['geometry_event_reasons'])
++        self.assertEqual(unlocked.audit['geometry_event_reasons'], [])
++        self.assertEqual(unlocked.selected['j'].config.gpus, 1)
++        self.assertTrue(all_known <= a.previous_known_configs)
++
++    def test_lifetime_budget_is_not_reset_after_300_productive_seconds(self):
++        job = spec(configs=[cfg('aws'), cfg('dgx-ext', rate=10.),
++                            cfg('rtx', rate=100.)])
++        known = {('j', 'aws:1:1')}
++        a, first = start(job, delay=120., known=known)
++        known.add(('j', 'dgx-ext:1:1'))
++        s = state([current(job, first.selected)], known=known)
++        without_rtx = [c for c in columns(s) if c.config.gpu_type != 'rtx']
++        second = a.decide(s, without_rtx, 180., {'j': 60.})
++        self.assertEqual(second.selected['j'].config.gpu_type, 'dgx-ext')
++        self.assertEqual(a.services['j']['delay_charged'], 240.)
++
++        known.add(('j', 'rtx:1:1'))
++        s = state([current(job, second.selected, 2)], known=known)
++        third = a.decide(s, columns(s), 480., {'j': 360.})
++        self.assertIn('FIRST_VALID_CURRENT_MODEL', third.audit['geometry_event_reasons'])
++        self.assertEqual(third.selected['j'].config.gpu_type, 'dgx-ext')
++        self.assertEqual(a.services['j']['delay_charged'], 240.)
++        self.assertEqual(a.services['j']['productive_base'], 0.)
++        self.assertEqual(a.services['j']['issued_time'], 0.)
++        self.assertGreater(third.audit['adaptive_candidate_filters']['j']
++                           ['rejection_counts']['SERVICE_DELAY_BUDGET'], 0)
++
++    def test_auxiliary_exchange_can_slow_donor_without_geometry_event(self):
++        jobs, s = witness(exchange=True)
++        s.current_known_configs = {(j.job_id, c.config_id) for j in jobs for c in j.configs}
++        a = controller(jobs)
++        initial_columns = [replace(c, scheduling_utility=c.query.effective_goodput)
++            for c in s.build_joint_columns()
++            if c.query.cpu_per_gpu == 3. and c.query.ram_gb_per_gpu == 62.5]
++        first = a.decide(s, initial_columns, 0., {})
++        self.assertEqual(set(first.selected), {'receiver', 'donor'})
++        updated = [current(j, first.selected) for j in jobs]
++        _, s = witness(exchange=True)
++        s.jobs = updated
++        s.job_map = {j.job_id: j for j in updated}
++        s.current_known_configs = {(j.job_id, c.config_id) for j in updated for c in j.configs}
++        cs = [replace(c, scheduling_utility=c.query.effective_goodput)
++              for c in s.build_joint_columns()]
++        second = a.decide(s, cs, 60., {'receiver': 10., 'donor': 10.})
++        self.assertEqual(second.audit['geometry_event_reasons'], [])
++        self.assertEqual(second.selected['receiver'].query.cpu_per_gpu, 4.)
++        self.assertEqual(second.selected['donor'].query.cpu_per_gpu, 2.)
++        self.assertLess(second.selected['donor'].query.effective_goodput,
++                        first.selected['donor'].query.effective_goodput)
++        self.assertGreater(sum(c.query.effective_goodput for c in second.selected.values()),
++                           sum(c.query.effective_goodput for c in first.selected.values()))
++        self.assertTrue(second.audit['valid'])
++        for name in ('receiver', 'donor'):
++            self.assertEqual(a.services[name]['delay_charged'], 50.)
++            self.assertEqual(a.services[name]['geometry_changes'], 0)
++
++    def test_missing_solo_candidate_is_explicit_failure_without_state_commit(self):
++        job = spec()
++        a = controller([job])
++        before = copy.deepcopy(a.__dict__)
++        s = state([job])
++        with self.assertRaisesRegex(RuntimeError, 'NO_SOLO_FEASIBLE_CANDIDATE'):
++            a.decide(s, [], 0., {})
++        self.assertEqual(a.__dict__, before)
++
++    def test_missing_solver_solution_is_not_committed(self):
++        job = spec(configs=[cfg('aws'), cfg('aws', 2, rate=100.)])
++        a, first = start(job, known={('j', 'aws:1:1')})
++        before = copy.deepcopy(a.__dict__)
++        s = state([current(job, first.selected)])
++        failed = SimpleNamespace(x=None, status=1, success=False, message='injected timeout')
++        with patch('joint_prototype.adaptive_service.milp', return_value=failed):
++            with self.assertRaisesRegex(RuntimeError, 'SOLVER_UNDECIDED'):
++                a.decide(s, columns(s), 180., {'j': 130.})
++        self.assertEqual(a.__dict__, before)
++
++    def test_invalid_successful_solver_vector_is_not_committed(self):
++        job = spec()
++        a, first = start(job)
++        before = copy.deepcopy(a.__dict__)
++        s = state([current(job, first.selected)])
++        cs = columns(s)
++        # A falsely successful all-zero vector violates required incumbent
++        # service. Both the initial answer and its numerical retry are bad.
++        def invalid(c, **kwargs):
++            return SimpleNamespace(x=np.zeros(len(c)), status=0, success=True,
++                                   message='injected invalid success')
++        with patch('joint_prototype.adaptive_service.milp', side_effect=invalid):
++            with self.assertRaisesRegex(RuntimeError, 'INVALID_SOLVER_RESULT'):
++                a.decide(s, cs, 180., {'j': 130.})
++        self.assertEqual(a.__dict__, before)
++
++    def test_zero_productive_service_exceeding_watchdog_stops_atomically(self):
++        job = spec()
++        a, first = start(job)
++        s = state([current(job, first.selected)])
++        # 250-second startup bound + one 60-second sampling interval is the
++        # existing protection limit, not a test-selected performance timeout.
++        at_boundary = a.decide(s, columns(s), 310., {'j': 0.})
++        self.assertTrue(at_boundary.audit['valid'])
++        before = copy.deepcopy(a.__dict__)
++        s = state([current(job, at_boundary.selected, 2)])
++        with self.assertRaisesRegex(RuntimeError, 'CONTINUITY_NO_PRODUCTIVE_PROGRESS'):
++            a.decide(s, columns(s), 311., {'j': 0.})
++        self.assertEqual(a.__dict__, before)
++
++
++if __name__ == '__main__':
++    unittest.main(verbosity=2)

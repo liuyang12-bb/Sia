@@ -1,0 +1,243 @@
+{
+  "baseline": {
+    "average_jct_hours": 0.58084375,
+    "average_jct_seconds": 2091.0375,
+    "average_jct_seconds_per_type": {
+      "bert": 1051.8333333333333,
+      "cifar10": 816.0970149253732,
+      "deepspeech2": 2570.5,
+      "imagenet": 30807.0,
+      "yolov3": 14396.0
+    },
+    "average_restarts_per_job": 4.11875,
+    "average_restarts_per_type": {
+      "bert": 2,
+      "cifar10": 3.4328358208955225,
+      "deepspeech2": 7.9,
+      "imagenet": 17.333333333333332,
+      "yolov3": 8
+    },
+    "capacity_violation_count": 0,
+    "capacity_violations": [],
+    "completed_jobs": 160,
+    "contention_max": 21,
+    "contention_mean": 7.372185430463576,
+    "gpu_hours_mean_per_job": 3.611562500000011,
+    "gpu_hours_per_job_type_and_gpu": {
+      "bert": {
+        "aws": 0.024999999999999998,
+        "dgx-ext": 0.7083333333333335,
+        "rtx": 0.016666666666666666
+      },
+      "cifar10": {
+        "aws": 0.048756218905472624,
+        "dgx-ext": 0.5103233830845764,
+        "rtx": 0.15199004975124356
+      },
+      "deepspeech2": {
+        "aws": 0.6433333333333336,
+        "dgx-ext": 0.5116666666666669,
+        "rtx": 5.034999999999993
+      },
+      "imagenet": {
+        "aws": 5.411111111111119,
+        "dgx-ext": 33.84444444444476,
+        "rtx": 62.16111111111161
+      },
+      "yolov3": {
+        "aws": 14.49761904761896,
+        "dgx-ext": 1.466666666666667,
+        "rtx": 0.02380952380952381
+      }
+    },
+    "jobs": 160,
+    "makespan_hours": 12.460833333333333,
+    "makespan_seconds": 44859.0,
+    "maximum_allocated_gpus": {
+      "aws": 24,
+      "dgx-ext": 16,
+      "rtx": 24
+    },
+    "p99_jct_hours_official_index": 7.7125,
+    "p99_jct_seconds_official_index": 27765.0,
+    "queue_max": 1,
+    "queue_mean": 0.0026490066225165563,
+    "queue_median": 0,
+    "records": 755,
+    "scheduling_time": {
+      "policy_rounds_measured": 748,
+      "policy_time_mean_ms": 45.347927807486634,
+      "policy_time_total_seconds": 33.92025000000001,
+      "solver_rounds_measured": 748,
+      "solver_time_mean_ms": 31.713355614973263,
+      "solver_time_p99_ms": 52.42,
+      "solver_time_total_seconds": 23.721589999999992
+    }
+  },
+  "sia_las_factor1_5": {
+    "average_jct_seconds": {
+      "relative_to_sia_percent": 1.0897700304274727,
+      "value": 2113.825
+    },
+    "average_jct_seconds_per_type": {
+      "bert": {
+        "relative_to_sia_percent": 3.691966407859315,
+        "value": 1090.6666666666667
+      },
+      "cifar10": {
+        "relative_to_sia_percent": 1.4210338615726403,
+        "value": 827.6940298507462
+      },
+      "deepspeech2": {
+        "relative_to_sia_percent": 10.114763664656689,
+        "value": 2830.5
+      },
+      "imagenet": {
+        "relative_to_sia_percent": 1.1544995185077012,
+        "value": 31162.666666666668
+      },
+      "yolov3": {
+        "relative_to_sia_percent": -1.7941491684198008,
+        "value": 14137.714285714286
+      }
+    },
+    "average_restarts_per_job": {
+      "relative_to_sia_percent": 7.587253414264028,
+      "value": 4.43125
+    },
+    "capacity_violation_count": 0,
+    "completed_jobs": {
+      "relative_to_sia_percent": 0.0,
+      "value": 160
+    },
+    "contention_max": {
+      "relative_to_sia_percent": 4.761904761904767,
+      "value": 22
+    },
+    "contention_mean": {
+      "relative_to_sia_percent": -1.0072721315015798,
+      "value": 7.2979274611398965
+    },
+    "gpu_hours_mean_per_job": {
+      "relative_to_sia_percent": -1.8834184188515013,
+      "value": 3.543541666666677
+    },
+    "makespan_seconds": {
+      "relative_to_sia_percent": 2.2737912124657367,
+      "value": 45879.0
+    },
+    "maximum_allocated_gpus": {
+      "aws": 24,
+      "dgx-ext": 16,
+      "rtx": 24
+    },
+    "p99_jct_seconds_official_index": {
+      "relative_to_sia_percent": 1.7179902755267484,
+      "value": 28242.0
+    },
+    "queue_max": {
+      "relative_to_sia_percent": -100.0,
+      "value": 0
+    },
+    "queue_mean": {
+      "relative_to_sia_percent": -100.0,
+      "value": 0
+    },
+    "queue_median": {
+      "relative_to_sia_percent": null,
+      "value": 0.0
+    },
+    "scheduling_time": {
+      "policy_rounds_measured": 765,
+      "policy_time_mean_ms": 40.14688888888889,
+      "policy_time_total_seconds": 30.712370000000014,
+      "solver_rounds_measured": 765,
+      "solver_time_mean_ms": 25.98013071895425,
+      "solver_time_p99_ms": 53.54,
+      "solver_time_total_seconds": 19.874800000000008
+    }
+  },
+  "sia_las_factor2_0": {
+    "average_jct_seconds": {
+      "relative_to_sia_percent": -0.46537902835314116,
+      "value": 2081.30625
+    },
+    "average_jct_seconds_per_type": {
+      "bert": {
+        "relative_to_sia_percent": 7.130407225479329,
+        "value": 1126.8333333333333
+      },
+      "cifar10": {
+        "relative_to_sia_percent": 2.1973901990727462,
+        "value": 834.0298507462686
+      },
+      "deepspeech2": {
+        "relative_to_sia_percent": -4.283213382610384,
+        "value": 2460.4
+      },
+      "imagenet": {
+        "relative_to_sia_percent": 2.974432217785994,
+        "value": 31723.333333333332
+      },
+      "yolov3": {
+        "relative_to_sia_percent": -6.0115905211765135,
+        "value": 13530.57142857143
+      }
+    },
+    "average_restarts_per_job": {
+      "relative_to_sia_percent": 3.034901365705611,
+      "value": 4.24375
+    },
+    "capacity_violation_count": 0,
+    "completed_jobs": {
+      "relative_to_sia_percent": 0.0,
+      "value": 160
+    },
+    "contention_max": {
+      "relative_to_sia_percent": 9.523809523809534,
+      "value": 23
+    },
+    "contention_mean": {
+      "relative_to_sia_percent": -4.393552066207008,
+      "value": 7.048284625158831
+    },
+    "gpu_hours_mean_per_job": {
+      "relative_to_sia_percent": 5.8521530962475365,
+      "value": 3.8229166666666763
+    },
+    "makespan_seconds": {
+      "relative_to_sia_percent": 4.3625582380347305,
+      "value": 46816.0
+    },
+    "maximum_allocated_gpus": {
+      "aws": 24,
+      "dgx-ext": 16,
+      "rtx": 24
+    },
+    "p99_jct_seconds_official_index": {
+      "relative_to_sia_percent": 11.2443724113092,
+      "value": 30887.0
+    },
+    "queue_max": {
+      "relative_to_sia_percent": -100.0,
+      "value": 0
+    },
+    "queue_mean": {
+      "relative_to_sia_percent": -100.0,
+      "value": 0
+    },
+    "queue_median": {
+      "relative_to_sia_percent": null,
+      "value": 0
+    },
+    "scheduling_time": {
+      "policy_rounds_measured": 780,
+      "policy_time_mean_ms": 39.42366666666667,
+      "policy_time_total_seconds": 30.750460000000007,
+      "solver_rounds_measured": 780,
+      "solver_time_mean_ms": 26.025179487179486,
+      "solver_time_p99_ms": 65.67,
+      "solver_time_total_seconds": 20.299640000000007
+    }
+  }
+}

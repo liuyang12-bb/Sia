@@ -1,0 +1,13 @@
+relocate.ps1 -Apply exited1 at line48 Move-Item of the main repository.
+Message: insufficient access rights / hidden, system, or read-only item.
+
+Read-only inspection found the exact partial layout:
+old sia-joint-experiments: empty Hidden .git directory, adaptdl/, sia-simulator/.
+destination: complete .git metadata/objects/index/worktree records, README.md,
+sia-sosp23.pdf. Both root ACLs allowed Modify. All26 other trees moved intact.
+
+Recovery is limited to moving the two still-unmoved source children into absent
+destination children, verifying/removing only empty old containers without
+recursion, then git worktree repair. Full byte archive, patches and bundles had
+already passed readback. verify_relocation.py must verify every working file,
+branch, HEAD and dirty status. Never mark cleanup complete before this passes.

@@ -1,0 +1,11 @@
+Initial new-entry --check exited1 after successful20-job construction, before
+any Job.step/time advancement. It failed only while formatting JSON output:
+
+run_cc_joint.py line36 -> json.dumps -> json.encoder
+TypeError: Object of type int32 is not JSON serializable
+
+Cause: GPU configuration tuple includes NumPy int32. The already-defined encode
+helper handles NumPy scalar/list conversion, but check-mode print omitted
+default=encode. Minimal front-door-only fix adds that argument. Engine/source
+hashes and scheduler semantics remain unchanged. Preserve this red evidence;
+post-relocation real constructor check must pass without calling Job.step.

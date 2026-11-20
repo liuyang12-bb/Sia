@@ -1,0 +1,1332 @@
+diff --git a/sia-simulator/check_stage1_legacy_regression.py b/sia-simulator/check_stage1_legacy_regression.py
+new file mode 100644
+index 0000000..cd43998
+--- /dev/null
++++ b/sia-simulator/check_stage1_legacy_regression.py
+@@ -0,0 +1,65 @@
++"""Three-round, one-job deterministic original-Sia probe; not a cohort run."""
++import argparse
++import json
++import os
++from pathlib import Path
++import subprocess
++import sys
++
++
++def probe(simdir):
++    sys.path.insert(0, str(simdir))
++    os.chdir(simdir)
++    import pandas as pd
++    import simulator_config as cfg
++    from cluster import Cluster
++    from sia import SiaPolicy
++    cfg.num_parallel_jobs = 1
++    cfg.sia_solver_verbose = False
++    nodes = {"aws": 1, "dgx-ext": 1, "rtx": 1}
++    gpus = {"aws": 4, "dgx-ext": 8, "rtx": 8}
++    policy = SiaPolicy(p_fairness=-.5, restart_penalty=30, lambda_a=.01, lambda_n=1.1,
++                       project_throughputs=False, share_max_replicas=False, sched_interval=60, enable_bsz_tuning=True)
++    policy.populate_valid_configs(nodes, gpus, nodes)
++    c = Cluster(pd.DataFrame([dict(name="cifar10-regression", time=17, application="cifar10", num_replicas=1, batch_size=128)]), policy, nodes, gpus, nodes)
++    for job in c.jobs:
++        job.seed_profiles(1, 8)
++    states = []
++    for _ in range(3):
++        c.step(60)
++        j = c.jobs[0]
++        states.append({"time": c.current_time, "allocations": c.allocations, "progress": j.progress, "epoch": j.epoch,
++                       "execution_time": j.execution_time, "rescale_time": j.rescale_time, "completion": j.completion_time,
++                       "restarts": j.num_restarts, "used": j.used_gpu_seconds, "wasted": j.wasted_gpu_seconds,
++                       "start_time": j.start_time})
++    print("PROBE_JSON=" + json.dumps(states, sort_keys=True))
++
++
++def main():
++    p = argparse.ArgumentParser()
++    p.add_argument("--probe", type=Path)
++    p.add_argument("--root", type=Path)
++    p.add_argument("--output", type=Path)
++    a = p.parse_args()
++    if a.probe:
++        return probe(a.probe)
++    if a.output.exists():
++        raise RuntimeError("refuse to overwrite regression")
++    a.output.mkdir(parents=True)
++    results = {}
++    for name in ("sia-joint-medium-frozen", "sia-joint-correctness-stage1"):
++        cmd = [sys.executable, "-B", str(Path(__file__).resolve()), "--probe", str(a.root / name / "sia-simulator")]
++        r = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
++                           env={**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONDONTWRITEBYTECODE": "1"})
++        (a.output / (name + ".log")).write_bytes(r.stdout)
++        if r.returncode:
++            raise RuntimeError(f"probe failed: {name}, exit {r.returncode}")
++        results[name] = json.loads(next(x[len("PROBE_JSON="):] for x in r.stdout.decode().splitlines() if x.startswith("PROBE_JSON=")))
++    matched = results["sia-joint-medium-frozen"] == results["sia-joint-correctness-stage1"]
++    (a.output / "comparison.json").write_text(json.dumps({"exact_state_match": matched, "rounds": 3, "jobs": 1, "states": results}, indent=2), encoding="utf-8")
++    assert matched
++    print("original Sia: 3/3 round state snapshots exactly match")
++
++
++if __name__ == "__main__":
++    main()
+diff --git a/sia-simulator/job.py b/sia-simulator/job.py
+index cc75dca..e74f07f 100644
+--- a/sia-simulator/job.py
++++ b/sia-simulator/job.py
+@@ -417,6 +417,11 @@ class Job(object):
+             self.perf_params[self.current_cluster] = perf_params
+ 
+     def step(self, seconds, interference=0.0):
++        # Joint-mode telemetry is opt-in; original --policy=sia execution and
++        # its historical scheduling counters are deliberately unchanged.
++        joint_accounting = getattr(self, "enable_joint_accounting", False)
++        if joint_accounting:
++            self.joint_step_segments = []
+         if self.completion_time is not None:
+             return
+         if not self.placement:
+@@ -488,7 +493,11 @@ class Job(object):
+             # goodput = self.multiplier * goodput
+             # slowdown for job
+             goodput = goodput * self.calibration_factor
++            raw_rate_before_rho = goodput
+             goodput = goodput * self.goodput_multiplier
++            segment_start_time = self.current_time
++            segment_start_progress = self.progress
++            segment_epoch = self.epoch
+ 
+             # Update current epoch and progress.
+             next_progress = application.get_progress(self.epoch + 1)
+@@ -524,6 +533,20 @@ class Job(object):
+                 self.execution_time += delta
+                 seconds -= delta
+                 # Re-scale batch size between epochs.
++            if joint_accounting:
++                elapsed = self.current_time - segment_start_time
++                progress_delta = self.progress - segment_start_progress
++                self.joint_step_segments.append({
++                    "start_time": segment_start_time, "seconds": elapsed,
++                    "epoch_before": segment_epoch, "epoch_after": self.epoch,
++                    "raw_rate_before_rho": float(raw_rate_before_rho),
++                    "rho": float(self.goodput_multiplier), "effective_rate": float(goodput),
++                    "progress_delta": float(progress_delta),
++                    "rounding_progress_residual": float(progress_delta - goodput * elapsed),
++                    "completion": self.completion_time is not None,
++                })
++                if progress_delta > 0 and getattr(self, "first_productive_training_time", None) is None:
++                    self.first_productive_training_time = segment_start_time
+             self.update_local_bsz(self.placement)
+         self.current_time += seconds  # Add any remaining time.
+ 
+diff --git a/sia-simulator/joint_prototype/execution_audit.py b/sia-simulator/joint_prototype/execution_audit.py
+new file mode 100644
+index 0000000..320bdc4
+--- /dev/null
++++ b/sia-simulator/joint_prototype/execution_audit.py
+@@ -0,0 +1,39 @@
++"""Independent execution invariants using raw rates captured BEFORE rho."""
++import math
++
++
++def audit_execution(event):
++    errors = []
++    segments = event["training_segments"]
++    def close(a, b):
++        return math.isclose(a, b, rel_tol=1e-9, abs_tol=1e-8)
++    if not close(sum(s["seconds"] for s in segments), event["training_seconds"]):
++        errors.append("segment time differs from execution_time delta")
++    if not close(sum(s["progress_delta"] for s in segments), event["progress_delta"]):
++        errors.append("segment progress differs from Job progress delta")
++    for s in segments:
++        raw, rho, rate, dt = s["raw_rate_before_rho"], s["rho"], s["effective_rate"], s["seconds"]
++        if not all(math.isfinite(v) for v in (raw, rho, rate, dt)) or min(raw, rho, rate, dt) < 0:
++            errors.append("non-finite/negative rate or time")
++        if not close(rho, event["rho"]) or not close(rate, raw*rho):
++            errors.append("rho not applied exactly once to directly recorded raw rate")
++        residual = s["progress_delta"] - raw*rho*dt
++        if s["epoch_after"] == s["epoch_before"]:
++            if not close(residual, 0):
++                errors.append("non-boundary progress differs from rate integral")
++        else:
++            # Original Job.step rounds boundary duration to the nearest second.
++            if s["epoch_after"] != s["epoch_before"] + 1 or abs(residual) > 0.5*rate + 1e-7:
++                errors.append("epoch-boundary residual exceeds Sia rounding bound")
++        if not close(residual, s["rounding_progress_residual"]):
++            errors.append("incorrect recorded rounding residual")
++    observed = event["observed_active_seconds"]
++    if not close(event["waiting_seconds"] + event["checkpoint_delay_consumed"] + event["training_seconds"], observed):
++        errors.append("non-exclusive observed time")
++    if event["checkpoint_delay_consumed"] >= observed > 0 and event["progress_delta"] != 0:
++        errors.append("progress during full checkpoint interval")
++    if event["completion_time"] is not None:
++        for s in segments:
++            if s["start_time"] + s["seconds"] > event["completion_time"] + 1e-8:
++                errors.append("training after completion")
++    return {"valid": not errors, "violations": errors, "raw_evidence": "captured_before_rho_not_effective_divided_by_rho"}
+diff --git a/sia-simulator/joint_prototype/joint_integration.py b/sia-simulator/joint_prototype/joint_integration.py
+index e4c79f5..b0c3c71 100644
+--- a/sia-simulator/joint_prototype/joint_integration.py
++++ b/sia-simulator/joint_prototype/joint_integration.py
+@@ -29,6 +29,7 @@ from .joint_scheduler import (
+     _proportional_point,
+ )
+ from .synergy_adapter import SynergyTuneAdapter
++from .execution_audit import audit_execution
+ 
+ 
+ def _config_id(cluster: str, num_nodes: int, num_gpus: int) -> str:
+@@ -224,6 +225,14 @@ class JointSiaPolicy(SiaPolicy):
+                 and current_config is not None
+                 and current_nodes
+             )
++            previous = self._last_committed_columns.get(job_id)
++            placement = ()
++            if current_config is not None:
++                allocation = base_allocations[job_id]
++                placement = self._placement_from_allocation(*allocation).node_gpus
++            if checkpoint_locked and (previous is None or previous.placement.node_gpus != placement
++                                      or previous.config.config_id != current_config):
++                raise RuntimeError(f"INFEASIBLE_CHECKPOINT_LOCK missing/mismatched quota evidence: {job_id}")
+             template = self.template_map.get(job_id)
+             if template is None:
+                 raise ValueError(f"missing pre-registered response template for {job_id}")
+@@ -232,11 +241,16 @@ class JointSiaPolicy(SiaPolicy):
+                     job_id=job_id,
+                     template_file=template,
+                     configs=configs,
+-                    arrival_time=0.0,
++                    arrival_time=float(job_info.creation_timestamp),
++                    source_row_index=int(getattr(job_info, "source_row_index", 0)),
+                     observed_progress=float(getattr(job_info, "attained_service", 0.0)),
+                     checkpoint_locked=checkpoint_locked,
+                     current_config_id=current_config,
+                     current_nodes=current_nodes,
++                    current_placement=placement,
++                    current_cpu_per_gpu=previous.query.cpu_per_gpu if previous else None,
++                    current_ram_gb_per_gpu=previous.query.ram_gb_per_gpu if previous else None,
++                    query_round=self.round_index,
+                     mapping_mode="fixed_hash",
+                 )
+             )
+@@ -266,6 +280,10 @@ class JointSiaPolicy(SiaPolicy):
+         spec_map = {job.job_id: job for job in specs}
+         selected = {}
+         for job_id, allocation in allocations.items():
++            if job_id in spec_map and scheduler.lock_active(spec_map[job_id]):
++                selected[job_id] = replace(scheduler.locked_column(spec_map[job_id]),
++                                           scheduling_utility=next(c.sia_goodput for c in spec_map[job_id].configs if c.config_id == spec_map[job_id].current_config_id))
++                continue
+             if not allocation or allocation[0] is None or not allocation[1]:
+                 continue
+             cluster, gpu_ids = allocation
+@@ -295,7 +313,14 @@ class JointSiaPolicy(SiaPolicy):
+                 proportional_ram_per_gpu=execution_point[1],
+                 preserves_sia_config=cid == job.current_config_id,
+                 preserves_node_ids=tuple(sorted(placement.node_ids)) == tuple(sorted(job.current_nodes)),
++                query_round=job.query_round,
++                candidate_kind="proportional",
+             )
++        # A Sia placement omission must not silently clear an in-flight restore.
++        for job in specs:
++            if scheduler.lock_active(job) and job.job_id not in selected:
++                selected[job.job_id] = replace(scheduler.locked_column(job),
++                                               scheduling_utility=next(c.sia_goodput for c in job.configs if c.config_id == job.current_config_id))
+         audit = scheduler.audit(list(selected.values()))
+         if not audit["valid"] and self.minimum_cpu_per_gpu <= 0 and self.minimum_ram_gb_per_gpu <= 0:
+             raise RuntimeError(f"original Sia proportional allocation failed joint audit: {audit}")
+@@ -407,10 +432,20 @@ class JointSiaPolicy(SiaPolicy):
+                 if spec.checkpoint_locked:
+                     lock_violations.append(spec.job_id)
+                 continue
+-            selected[spec.job_id] = previous
++            if spec.current_placement and previous.placement.node_gpus != spec.current_placement:
++                missing_current.append(spec.job_id)
++                continue
++            try:
++                selected[spec.job_id] = scheduler.refresh_column(previous)
++            except (ValueError, KeyError):
++                missing_current.append(spec.job_id)
++                continue
+ 
+         original_failure_audit = dict(failed.audit)
+         fallback_audit = scheduler.audit(list(selected.values()))
++        if missing_current:
++            fallback_audit["valid"] = False
++            fallback_audit["violations"].append("unverifiable previous allocation")
+         fallback_audit.update({
+             "fallback_reason": failed.audit.get("failure_reason", failed.status),
+             "original_failure_status": failed.status,
+@@ -502,6 +537,8 @@ class JointSiaPolicy(SiaPolicy):
+         for job_id, column in result.selected.items():
+             resources[job_id] = {
+                 "config_id": column.config.config_id,
++                "query_round": column.query_round,
++                "oracle_version": self.oracle.provenance_digest(),
+                 "gpu_type": column.config.gpu_type,
+                 "gpus": column.config.gpus,
+                 "num_nodes": column.config.num_nodes,
+@@ -563,13 +600,14 @@ class JointSiaPolicy(SiaPolicy):
+         node_specs = self._nodes(nodes)
+         specs, provenance = self._job_specs(jobs, base_allocations)
+         scheduler = self._scheduler(node_specs, specs)
++        scheduler.locked_columns()  # Explicit hard stop before any policy on infeasible locks.
+         if self.mode in {"b1", "b4", "b5"}:
+             original_allocations = super().optimize(jobs, nodes, base_allocations)
+             b1_intent = self._b1_result(original_allocations, specs, scheduler)
+             if self.mode == "b1":
+                 if b1_intent.audit.get("valid", False):
+                     result = b1_intent
+-                    allocations = original_allocations
++                    allocations = self._allocations_from_result(result, jobs)
+                 else:
+                     result = scheduler.solve(
+                         "B1_SIA_GPU_INTENT_CPU_ADMISSION",
+@@ -633,9 +671,22 @@ class JointSiaPolicy(SiaPolicy):
+                         f"refusing non-atomic joint allocation: {result.audit}"
+                     )
+                 result = fallback
++                # Fallback rebuilds geometry against this round's state. Do not
++                # carry an old objective coefficient into the diagnostic log.
++                spec_map = {s.job_id: s for s in specs}
++                for job_id, column in list(result.selected.items()):
++                    factor = self._restart_factor(job_id, jobs[job_id], column.config.config_id, spec_map[job_id].current_config_id)
++                    adjusted = max(column.query.effective_goodput * factor, ZERO_ALLOC_GAIN)
++                    powered = min(round(adjusted ** self.p_fairness, 2), sim_config.sia_goodput_clip_val)
++                    utility = (-1.0 if self.p_fairness < 0 else 1.0) * (powered - (self.lambda_n if self.lambda_n else -1.0))
++                    result.selected[job_id] = replace(column, scheduling_utility=utility)
++                result.scheduling_objective = sum(c.scheduling_utility for c in result.selected.values())
+             allocations = self._allocations_from_result(result, jobs)
+-            self._update_b3_previous(jobs, result)
+             fixed = {}
++        # Never trust a cached solver audit, including fault-injected results.
++        independent = scheduler.audit(list(result.selected.values()))
++        result.audit["precommit_independent_audit"] = independent
++        result.audit["valid"] = bool(result.audit.get("valid", False) and independent["valid"])
+         if not result.audit.get("valid", False):
+             self.last_failure = {
+                 "round": self.round_index,
+@@ -644,6 +695,8 @@ class JointSiaPolicy(SiaPolicy):
+                 "current_resources": self.current_resources,
+             }
+             raise RuntimeError(f"refusing non-atomic joint allocation: {result.audit}")
++        if self.mode in {"b3", "b3_prop"}:
++            self._update_b3_previous(jobs, result)
+         self._commit_metadata(result, provenance, fixed)
+         return allocations
+ 
+@@ -684,12 +737,28 @@ class JointCluster(Cluster):
+                 "throughputs": throughputs,
+             }
+         self.joint_round_logs = []
++        workload = args[0] if args else kwargs["workload"]
++        for index, job in enumerate(self.jobs):
++            job.source_row_index = int(workload.iloc[index].get("source_row_index", index))
++            job.enable_joint_accounting = True
++            job.first_allocation_time = None
++            job.first_productive_training_time = None
++
++    def get_job_infos(self):
++        infos = super().get_job_infos()
++        jobs = {j.name: j for j in self.jobs}
++        for name, info in infos.items():
++            info.source_row_index = jobs[name].source_row_index
++        return infos
+ 
+     def optimize_policy(self):
+         events = super().optimize_policy()
+         resources = self.policy.current_resources
+         for job in self.jobs:
+             job.goodput_multiplier = float(resources.get(job.name, {}).get("rho", 1.0))
++            if job.name in resources and job.first_allocation_time is None:
++                job.first_allocation_time = self.current_time
++                job.start_time = self.current_time  # Explicit legacy alias: allocation, not training.
+         return events
+ 
+     def step(self, seconds=60):
+@@ -719,15 +788,32 @@ class JointCluster(Cluster):
+                 raise RuntimeError(f"non-monotonic progress for {job.name}")
+             training_seconds = float(job.execution_time - prev["execution_time"])
+             rho = float(prev["rho"])
+-            effective_goodput = progress_delta / training_seconds if training_seconds > 0 else 0.0
+-            raw_goodput = effective_goodput / rho if training_seconds > 0 and rho > 0 else 0.0
+-            delay_consumed = min(float(prev["rescale_time"]), float(seconds)) if prev["placement"] else 0.0
++            segments = job.joint_step_segments
++            raw_integral = sum(s["raw_rate_before_rho"] * s["seconds"] for s in segments)
++            effective_integral = sum(s["effective_rate"] * s["seconds"] for s in segments)
++            raw_goodput = raw_integral / training_seconds if training_seconds > 0 else 0.0
++            effective_goodput = effective_integral / training_seconds if training_seconds > 0 else 0.0
++            observed_end = min(self.current_time, job.completion_time if job.completion_time is not None else self.current_time)
++            observed_start = max(interval_start, job.submission_time)
++            active_seconds = max(0.0, observed_end - observed_start)
++            waiting_seconds = active_seconds if not prev["placement"] else 0.0
++            delay_consumed = min(float(prev["rescale_time"]), active_seconds) if prev["placement"] else 0.0
++            if not math.isclose(waiting_seconds + delay_consumed + training_seconds, active_seconds, abs_tol=1e-7):
++                raise RuntimeError(f"nonexclusive time accounting: {job.name}")
+             execution.append(
+                 {
+                     "job_id": job.name,
+                     "interval_start": interval_start,
+                     "interval_end": self.current_time,
+                     "submitted": job.submission_time <= interval_start,
++                    "arrival_time": job.submission_time,
++                    "source_row_index": job.source_row_index,
++                    "observed_active_seconds": active_seconds,
++                    "waiting_seconds": waiting_seconds,
++                    "allocated_seconds": active_seconds if prev["placement"] else 0.0,
++                    "post_completion_seconds": max(0.0, self.current_time - max(interval_start, job.completion_time)) if job.completion_time is not None else 0.0,
++                    "first_allocation_time": job.first_allocation_time,
++                    "first_productive_training_time": job.first_productive_training_time,
+                     "cluster": prev["cluster"],
+                     "placement": prev["placement"],
+                     "progress_before": prev["progress"],
+@@ -738,12 +824,19 @@ class JointCluster(Cluster):
+                     "checkpoint_delay_consumed": delay_consumed,
+                     "training_seconds": training_seconds,
+                     "raw_goodput": raw_goodput,
++                    "raw_goodput_source": "Job.step.before_rho_direct_measurement",
++                    "training_segments": segments,
++                    "integrated_effective_progress": effective_integral,
++                    "epoch_rounding_progress_residual": progress_delta - effective_integral,
+                     "rho": rho,
+                     "effective_goodput": effective_goodput,
+                     "completion_time": job.completion_time,
+                     "resource_allocation": prev["resource_allocation"],
+                 }
+             )
++            execution[-1]["independent_execution_audit"] = audit_execution(execution[-1])
++            if not execution[-1]["independent_execution_audit"]["valid"]:
++                raise RuntimeError(f"execution audit failed: {execution[-1]}")
+         rescale_events, migrate_events = self.optimize_policy()
+         round_record = {
+             "interval_start": interval_start,
+diff --git a/sia-simulator/joint_prototype/joint_profile.py b/sia-simulator/joint_prototype/joint_profile.py
+index 78caa5e..3c3775f 100644
+--- a/sia-simulator/joint_prototype/joint_profile.py
++++ b/sia-simulator/joint_prototype/joint_profile.py
+@@ -54,6 +54,11 @@ class JobSpec:
+     current_config_id: str | None = None
+     current_nodes: Tuple[str, ...] = ()
+     mapping_mode: str = "category_mix"
++    source_row_index: int = 0
++    current_placement: Tuple[Tuple[str, int], ...] = ()
++    current_cpu_per_gpu: float | None = None
++    current_ram_gb_per_gpu: float | None = None
++    query_round: int = 0
+ 
+ 
+ @dataclass(frozen=True)
+diff --git a/sia-simulator/joint_prototype/joint_scheduler.py b/sia-simulator/joint_prototype/joint_scheduler.py
+index e233042..f8b67bb 100644
+--- a/sia-simulator/joint_prototype/joint_scheduler.py
++++ b/sia-simulator/joint_prototype/joint_scheduler.py
+@@ -5,7 +5,7 @@ from __future__ import annotations
+ import itertools
+ import math
+ import time
+-from dataclasses import asdict, dataclass, field
++from dataclasses import asdict, dataclass, field, replace
+ from typing import Dict, Iterable, List, Mapping, Sequence, Tuple
+ 
+ import numpy as np
+@@ -36,6 +36,8 @@ class JointColumn:
+     proportional_ram_per_gpu: float
+     preserves_sia_config: bool
+     preserves_node_ids: bool
++    query_round: int = 0
++    candidate_kind: str = "legacy"
+ 
+     def usage_for(self, node_id: str) -> Tuple[float, float, float]:
+         for nid, gpu, cpu, ram in self.node_usage:
+@@ -62,6 +64,8 @@ class PolicyResult:
+         for job_id, column in sorted(self.selected.items()):
+             selected[job_id] = {
+                 "column_id": column.column_id,
++                "query_round": column.query_round,
++                "candidate_kind": column.candidate_kind,
+                 "config": asdict(column.config),
+                 "placement": dict(column.placement.node_gpus),
+                 "cpu_per_gpu": column.query.cpu_per_gpu,
+@@ -190,8 +194,10 @@ class JointScheduler:
+ 
+     def _validate_inputs(self) -> None:
+         for job in self.jobs:
+-            if job.arrival_time > 0:
+-                raise ValueError("prototype scenarios contain only currently arrived jobs")
++            # The caller supplies only arrived jobs; absolute arrival timestamps
++            # must survive here for FIFO (zeroing them changes Synergy ordering).
++            if not math.isfinite(job.arrival_time):
++                raise ValueError("non-finite arrival timestamp")
+             for config in job.configs:
+                 if not config.legal:
+                     continue
+@@ -230,11 +236,54 @@ class JointScheduler:
+                 return False
+         return True
+ 
++    @staticmethod
++    def lock_active(job: JobSpec) -> bool:
++        return bool(job.checkpoint_locked and job.current_config_id is not None)
++
++    def refresh_column(self, old: JointColumn) -> JointColumn:
++        """Reuse geometry/quotas ONLY; rebuild against the current round state."""
++        job = self.job_map[old.job_id]
++        expected_usage = self._node_usage(old.placement, old.query.cpu_per_gpu, old.query.ram_gb_per_gpu)
++        if old.node_usage != expected_usage:
++            raise ValueError("previous column has inconsistent geometry/quota evidence")
++        config = next((c for c in job.configs if c.config_id == old.config.config_id and c.legal), None)
++        if config is None or old.placement not in enumerate_placements(config, self.nodes):
++            raise ValueError("previous configuration/placement is no longer legal")
++        prop = _proportional_point(old.placement, self.node_map)
++        query = self.oracle.query(job, config, old.query.cpu_per_gpu, old.query.ram_gb_per_gpu, prop)
++        return replace(old, config=config, query=query, node_usage=expected_usage,
++                       query_round=job.query_round, scheduling_utility=query.effective_goodput + self.allocation_bonus)
++
++    def locked_column(self, job: JobSpec) -> JointColumn:
++        """A lock is one exact allocation, not a filter permitting unselection."""
++        if not job.current_placement or job.current_cpu_per_gpu is None or job.current_ram_gb_per_gpu is None:
++            raise RuntimeError(f"INFEASIBLE_CHECKPOINT_LOCK missing full allocation: {job.job_id}")
++        cfg = next((c for c in job.configs if c.config_id == job.current_config_id and c.legal), None)
++        placement = Placement(job.current_placement)
++        if cfg is None or placement not in enumerate_placements(cfg, self.nodes):
++            raise RuntimeError(f"INFEASIBLE_CHECKPOINT_LOCK illegal geometry: {job.job_id}")
++        prop = _proportional_point(placement, self.node_map)
++        query = self.oracle.query(job, cfg, job.current_cpu_per_gpu, job.current_ram_gb_per_gpu, prop)
++        return JointColumn(f"{job.job_id}|LOCK|{cfg.config_id}", job.job_id, cfg, placement, query,
++                           self._node_usage(placement, query.cpu_per_gpu, query.ram_gb_per_gpu),
++                           query.effective_goodput + self.allocation_bonus, prop[0], prop[1], True, True,
++                           query_round=job.query_round, candidate_kind="locked")
++
++    def locked_columns(self) -> Dict[str, JointColumn]:
++        selected = {j.job_id: self.locked_column(j) for j in self.jobs if self.lock_active(j)}
++        audit = self.audit(list(selected.values()))
++        if not audit["valid"]:
++            raise RuntimeError(f"INFEASIBLE_CHECKPOINT_LOCK: {audit}")
++        return selected
++
+     def build_joint_columns(
+         self, allowed_configs: Mapping[str, Iterable[str]] | None = None
+     ) -> List[JointColumn]:
+         columns: List[JointColumn] = []
+         for job in self.jobs:
++            if self.lock_active(job):
++                columns.append(self.locked_column(job))
++                continue
+             lock_active = (
+                 job.checkpoint_locked
+                 and job.current_config_id is not None
+@@ -293,6 +342,8 @@ class JointScheduler:
+                                 proportional_ram_per_gpu=prop[1],
+                                 preserves_sia_config=preserves_config,
+                                 preserves_node_ids=preserves_nodes,
++                                query_round=job.query_round,
++                                candidate_kind="joint_aux",
+                             )
+                         )
+         return self._pareto_prune(columns)
+@@ -309,6 +360,9 @@ class JointScheduler:
+         """
+         columns: List[JointColumn] = []
+         for job in self.jobs:
++            if self.lock_active(job):
++                columns.append(self.locked_column(job))
++                continue
+             lock_active = (
+                 job.checkpoint_locked
+                 and job.current_config_id is not None
+@@ -357,6 +411,8 @@ class JointScheduler:
+                                 tuple(sorted(placement.node_ids))
+                                 == tuple(sorted(job.current_nodes))
+                             ),
++                            query_round=job.query_round,
++                            candidate_kind="proportional",
+                         )
+                     )
+         return sorted(columns, key=lambda column: column.column_id)
+@@ -389,6 +445,9 @@ class JointScheduler:
+         """GPU-only objective with proportional auxiliary allocation for execution."""
+         columns: List[JointColumn] = []
+         for job in self.jobs:
++            if self.lock_active(job):
++                columns.append(self.locked_column(job))
++                continue
+             lock_active = (
+                 job.checkpoint_locked
+                 and job.current_config_id is not None
+@@ -424,6 +483,8 @@ class JointScheduler:
+                             proportional_ram_per_gpu=execution_point[1],
+                             preserves_sia_config=config.config_id == job.current_config_id,
+                             preserves_node_ids=tuple(sorted(placement.node_ids)) == tuple(sorted(job.current_nodes)),
++                            query_round=job.query_round,
++                            candidate_kind="proportional",
+                         )
+                     )
+         return sorted(columns, key=lambda c: c.column_id)
+@@ -505,12 +566,16 @@ class JointScheduler:
+                 audit=audit,
+             )
+         matrix, upper = self._constraint_matrix(columns, dimensions)
++        lower = np.full(len(upper), -np.inf)
++        for idx, job in enumerate(self.jobs):
++            if self.lock_active(job):
++                lower[idx] = 1.0  # sum of the exact locked job's columns == 1
+         objective = -np.asarray([col.scheduling_utility for col in columns], dtype=float)
+         result = milp(
+             c=objective,
+             integrality=np.ones(len(columns)),
+             bounds=Bounds(np.zeros(len(columns)), np.ones(len(columns))),
+-            constraints=LinearConstraint(matrix, -np.inf, upper),
++            constraints=LinearConstraint(matrix, lower, upper),
+             options={"time_limit": 30.0, "mip_rel_gap": 0.0},
+         )
+         elapsed = time.perf_counter() - start
+@@ -566,18 +631,62 @@ class JointScheduler:
+         return best_obj, best_ids
+ 
+     def audit(
+-        self, columns: Sequence[JointColumn], dimensions: Sequence[str] = ("gpu", "cpu", "ram")
++        self, columns: Sequence[JointColumn], dimensions: Sequence[str] = ("gpu", "cpu", "ram"),
++        require_locks: bool = True,
+     ) -> Dict[str, object]:
+         violations: List[str] = []
+         job_counts: Dict[str, int] = {}
+         node_totals = {n.node_id: [0.0, 0.0, 0.0] for n in self.nodes}
+         for col in columns:
+             job_counts[col.job_id] = job_counts.get(col.job_id, 0) + 1
++            job = self.job_map.get(col.job_id)
++            if job is None:
++                violations.append(f"unknown job {col.job_id}")
++                continue
++            if col.config not in job.configs or not col.config.legal:
++                violations.append(f"stale/illegal config {col.job_id}")
++            if col.placement not in enumerate_placements(col.config, self.nodes):
++                violations.append(f"illegal placement {col.job_id}")
++            if col.query_round != job.query_round:
++                violations.append(f"stale query round {col.job_id}")
++            try:
++                prop = _proportional_point(col.placement, self.node_map)
++                expected = self.oracle.query(job, col.config, col.query.cpu_per_gpu, col.query.ram_gb_per_gpu, prop)
++                if expected != col.query:
++                    violations.append(f"stale/invalid oracle query {col.job_id}")
++                if col.node_usage != self._node_usage(col.placement, col.query.cpu_per_gpu, col.query.ram_gb_per_gpu):
++                    violations.append(f"quota/usage mismatch {col.job_id}")
++                if col.query.cpu_per_gpu < self.minimum_cpu_per_gpu or col.query.ram_gb_per_gpu < self.minimum_ram_gb_per_gpu:
++                    violations.append(f"quota below execution floor {col.job_id}")
++                if not self.lock_active(job):
++                    point = (col.query.cpu_per_gpu, col.query.ram_gb_per_gpu)
++                    floor = self.allocation_floor(prop)
++                    if col.candidate_kind == "proportional" and point != floor:
++                        violations.append(f"non-proportional candidate {col.job_id}")
++                    if col.candidate_kind == "joint_aux":
++                        if point[0] not in self.aux_cpu_points + (floor[0],) or point[1] not in self.aux_ram_points + (floor[1],):
++                            violations.append(f"quota outside current candidate grid {col.job_id}")
++                        baseline = self.oracle.query(job, col.config, *floor, prop)
++                        if self.enforce_floor and col.query.effective_goodput + 1e-9 < baseline.effective_goodput:
++                            violations.append(f"current proportional progress floor {col.job_id}")
++            except (ValueError, KeyError, TypeError):
++                violations.append(f"unverifiable candidate {col.job_id}")
++            if self.lock_active(job):
++                if (col.config.config_id != job.current_config_id or col.placement.node_gpus != job.current_placement
++                    or col.query.cpu_per_gpu != job.current_cpu_per_gpu or col.query.ram_gb_per_gpu != job.current_ram_gb_per_gpu):
++                    violations.append(f"checkpoint allocation changed {col.job_id}")
+             for node_id, gpu, cpu, ram in col.node_usage:
++                if node_id not in node_totals or not all(math.isfinite(v) and v >= 0 for v in (gpu, cpu, ram)):
++                    violations.append(f"invalid node usage {col.job_id}/{node_id}")
++                    continue
+                 totals = node_totals[node_id]
+                 totals[0] += gpu
+                 totals[1] += cpu
+                 totals[2] += ram
++        if require_locks:
++            for job in self.jobs:
++                if self.lock_active(job) and job_counts.get(job.job_id, 0) != 1:
++                    violations.append(f"checkpoint job not selected exactly once {job.job_id}")
+         for job_id, count in job_counts.items():
+             if count > 1:
+                 violations.append(f"multiple columns for {job_id}")
+@@ -611,13 +720,13 @@ class JointScheduler:
+         missing_from_b1 = sorted(set(b1.selected) - set(result.selected))
+         if missing_from_b1:
+             # The B1 proportional map is a constructive, jointly feasible fallback.
+-            fallback_cols = list(b1.selected.values())
++            fallback_cols = [self.refresh_column(c) for c in b1.selected.values()]
+             fallback_audit = self.audit(fallback_cols)
+             if fallback_audit["valid"]:
+                 result = PolicyResult(
+                     policy="B4_SERIAL_FIXED_GPU_PROPORTIONAL_FALLBACK",
+                     status="FALLBACK_B1_PROPORTIONAL",
+-                    selected=dict(b1.selected),
++                    selected={c.job_id: c for c in fallback_cols},
+                     unallocated_jobs=list(b1.unallocated_jobs),
+                     scheduling_objective=sum(c.query.effective_goodput + self.allocation_bonus for c in fallback_cols),
+                     actual_total_goodput=sum(c.query.effective_goodput for c in fallback_cols),
+diff --git a/sia-simulator/joint_prototype/synergy_adapter.py b/sia-simulator/joint_prototype/synergy_adapter.py
+index 7514a30..a0e975c 100644
+--- a/sia-simulator/joint_prototype/synergy_adapter.py
++++ b/sia-simulator/joint_prototype/synergy_adapter.py
+@@ -72,10 +72,12 @@ class SynergyTuneAdapter:
+             preserves_node_ids=(
+                 tuple(sorted(placement.node_ids)) == tuple(sorted(job.current_nodes))
+             ),
++            query_round=job.query_round,
++            candidate_kind="synergy_tune",
+         )
+ 
+     def _fits_with(self, candidate: JointColumn, selected: Mapping[str, JointColumn]) -> bool:
+-        return self.scheduler.audit(list(selected.values()) + [candidate])["valid"]
++        return self.scheduler.audit(list(selected.values()) + [candidate], require_locks=False)["valid"]
+ 
+     def _ordered_placements(self, config: GpuConfig) -> List[Placement]:
+         # Official placement prefers consolidation and then the server(s) with
+@@ -119,8 +121,10 @@ class SynergyTuneAdapter:
+         ordered_job_ids: Sequence[str],
+         fixed_configs: Mapping[str, GpuConfig],
+     ) -> Dict[str, JointColumn] | None:
+-        rebuilt: Dict[str, JointColumn] = {}
++        rebuilt = self.scheduler.locked_columns()
+         for job_id in ordered_job_ids:
++            if job_id in rebuilt:
++                continue
+             column = self._try_place(
+                 self.specs[job_id], fixed_configs[job_id], rebuilt, use_fair=True
+             )
+@@ -136,13 +140,18 @@ class SynergyTuneAdapter:
+         gpu_rule: Mapping[str, object],
+     ) -> PolicyResult:
+         start = time.perf_counter()
+-        selected: Dict[str, JointColumn] = {}
++        selected = self.scheduler.locked_columns()
+         trace: List[Dict[str, object]] = []
+         order = sorted(
+             fixed_configs,
+-            key=lambda job_id: (self.specs[job_id].arrival_time, job_id),
++            key=lambda job_id: (self.specs[job_id].arrival_time, self.specs[job_id].source_row_index, job_id),
+         )
+         for job_id in order:
++            if job_id in selected:
++                if selected[job_id].config.config_id != fixed_configs[job_id].config_id:
++                    raise RuntimeError(f"INFEASIBLE_CHECKPOINT_LOCK fixed config conflicts: {job_id}")
++                trace.append({"job_id": job_id, "action": "PRESERVE_EXACT_CHECKPOINT_LOCK"})
++                continue
+             job = self.specs[job_id]
+             config = fixed_configs[job_id]
+             column = self._try_place(job, config, selected, use_fair=False)
+diff --git a/sia-simulator/preflight_stage1_response.py b/sia-simulator/preflight_stage1_response.py
+new file mode 100644
+index 0000000..93f3a87
+--- /dev/null
++++ b/sia-simulator/preflight_stage1_response.py
+@@ -0,0 +1,237 @@
++"""Read-only response-data audit: no Job/Cluster import, no simulation/fit.
++
++Historical selected columns are NOT treated as complete candidate profiles.
++Missing phi is reported, never imputed. Outputs go to a fresh supplied folder.
++"""
++from __future__ import annotations
++import argparse
++import collections
++import csv
++import hashlib
++import json
++from pathlib import Path
++
++from joint_prototype.joint_profile import CPU_COORDS, RAM_COORDS, load_synergy_template, JointProfileOracle, JobSpec, GpuConfig
++
++
++def sha(path):
++    h = hashlib.sha256()
++    with Path(path).open("rb") as f:
++        for chunk in iter(lambda: f.read(1024*1024), b""):
++            h.update(chunk)
++    return h.hexdigest().upper()
++
++
++def stream_rounds(path):
++    """Bound memory by a single round, including the historical 303 MB file."""
++    decoder = json.JSONDecoder()
++    with path.open(encoding="utf-8") as f:
++        buf = ""
++        marker = '"joint_round_logs"'
++        while marker not in buf:
++            chunk = f.read(65536)
++            if not chunk:
++                raise ValueError(f"missing round array in {path}")
++            buf = buf[-len(marker):] + chunk
++        buf = buf[buf.index(marker)+len(marker):]
++        while "[" not in buf:
++            buf += f.read(65536)
++        buf = buf[buf.index("[")+1:]
++        while True:
++            buf = buf.lstrip(" \r\n\t,")
++            if buf.startswith("]"):
++                return
++            try:
++                obj, end = decoder.raw_decode(buf)
++            except json.JSONDecodeError:
++                chunk = f.read(65536)
++                if not chunk:
++                    raise
++                buf += chunk
++                continue
++            yield obj
++            buf = buf[end:]
++
++
++def flags(cpu, ram, phi_c, phi_m):
++    points = {"numerator_cpu": cpu/phi_c, "numerator_ram": ram/phi_m,
++              "denominator_cpu": 3/phi_c, "denominator_ram": 62.5/phi_m}
++    return {name: bool(value < (CPU_COORDS[0] if name.endswith("cpu") else RAM_COORDS[0])
++                   or value > (CPU_COORDS[-1] if name.endswith("cpu") else RAM_COORDS[-1]))
++            for name, value in points.items()}
++
++
++def scan_policy(path, config, oracle):
++    counts = collections.Counter()
++    config_flags = collections.defaultdict(set)
++    known = collections.defaultdict(set)
++    enumerated = set()
++    states = {}
++    fixed_point_rhos = collections.defaultdict(set)
++    details = []
++    for record in stream_rounds(path):
++        counts["rounds"] += 1
++        d = record["decision_for_next_interval"]
++        for job, item in d.get("candidate_summary", {}).items():
++            enumerated.update((job, cid) for cid in item["config_ids"])
++        for job, r in d.get("resources", {}).items():
++            provenance = r["goodput_provenance"]
++            pc, pm = provenance["cpu_demand_scale"], provenance["memory_demand_scale"]
++            cid = r["config_id"]
++            key = (job, cid)
++            known[key].add((pc, pm))
++            counts["selected_column_observations"] += 1
++            clipped = flags(r["cpu_per_gpu"], r["ram_gb_per_gpu"], pc, pm)
++            for name, clipped_here in clipped.items():
++                counts[name] += clipped_here
++                if clipped_here:
++                    config_flags[name].add(key)
++            counts["numerator_any"] += clipped["numerator_cpu"] or clipped["numerator_ram"]
++            counts["denominator_any"] += clipped["denominator_cpu"] or clipped["denominator_ram"]
++            counts["either_any"] += any(clipped.values())
++            fixed_point_rhos[(job, cid, r["cpu_per_gpu"], r["ram_gb_per_gpu"])].add(round(r["rho"], 12))
++            gpu_type = r["gpu_type"]
++            cap = config["cluster"]["capacity_scenarios"]["cpu_constrained"][gpu_type]
++            ng = config["cluster"]["ngpus_per_node"][gpu_type]
++            # Counterfactual proportional query on an OBSERVED phi state only.
++            prop_cpu = max(cap["cpu_cores"]/ng, config["response"]["minimum_legal_profile_point"]["cpu_per_gpu"])
++            prop_ram = max(cap["ram_gb"]/ng, config["response"]["minimum_legal_profile_point"]["ram_gb_per_gpu"])
++            strict_flags = flags(prop_cpu, prop_ram, pc, pm)
++            state_key = (job, cid, pc, pm)
++            states[state_key] = {"job": job, "config": cid, "phi_c": pc, "phi_m": pm,
++                                 "proportional_cpu": prop_cpu, "proportional_ram": prop_ram,
++                                 "proportional_clipping": strict_flags,
++                                 "strict_proportional_survives": not any(strict_flags.values())}
++            details.append({"round": d.get("round"), "time": record["interval_end"], "job": job, "config": cid,
++                            "phi_c": pc, "phi_m": pm, "cpu": r["cpu_per_gpu"], "ram": r["ram_gb_per_gpu"],
++                            "rho": r["rho"], **clipped})
++    by_job = collections.defaultdict(lambda: {"observed_states": 0, "strict_survivors": 0, "lost_config_ids": set(), "surviving_config_ids": set()})
++    for state in states.values():
++        x = by_job[state["job"]]
++        x["observed_states"] += 1
++        x["strict_survivors"] += state["strict_proportional_survives"]
++        x["surviving_config_ids" if state["strict_proportional_survives"] else "lost_config_ids"].add(state["config"])
++    for val in by_job.values():
++        for key in ("lost_config_ids", "surviving_config_ids"):
++            val[key] = sorted(val[key])
++    grid_counts = collections.Counter()
++    grid_flagged_configs = collections.defaultdict(set)
++    for state in states.values():
++        gpu_type, nn, ng = state["config"].split(":")
++        cap = config["cluster"]["capacity_scenarios"]["cpu_constrained"][gpu_type]
++        # Unit Sia goodput is used ONLY to cancel the common factor in the
++        # existing proportional floor predicate, not as a profile or simulation.
++        cfg = GpuConfig(state["config"], gpu_type, int(ng), int(nn), 1.0, state["phi_c"], state["phi_m"])
++        job = JobSpec(state["job"], config["response"]["template_map"][state["job"]], (cfg,))
++        prop = (state["proportional_cpu"], state["proportional_ram"])
++        pq = oracle.query(job, cfg, *prop, prop)
++        for cpu in sorted(set(config["response"]["aux_cpu_points"]+[prop[0]])):
++            for ram in sorted(set(config["response"]["aux_ram_points"]+[prop[1]])):
++                grid_counts["raw_state_quota_points"] += 1
++                if cpu*int(ng) > cap["cpu_cores"] or ram*int(ng) > cap["ram_gb"]:
++                    grid_counts["capacity_rejected"] += 1
++                    continue
++                grid_counts["capacity_feasible"] += 1
++                q = oracle.query(job, cfg, cpu, ram, prop)
++                if q.rho + 1e-9 < pq.rho:
++                    grid_counts["proportional_progress_floor_rejected"] += 1
++                    continue
++                grid_counts["eligible_pre_pareto_candidates"] += 1
++                fs = flags(cpu, ram, cfg.cpu_demand_scale, cfg.memory_demand_scale)
++                grid_counts["strict_clipping_rejected"] += any(fs.values())
++                for key, bad in fs.items():
++                    grid_counts[key] += bad
++                    if bad:
++                        grid_flagged_configs[key].add((state["job"], state["config"]))
++    # Full candidate-level conclusions cannot be reconstructed from selected-only provenance.
++    return {"input": str(path), "sha256": sha(path), "counts_selected_observations": dict(counts),
++            "config_level": {"distinct_job_config_with_phi": len(known), "enumerated_job_configs": len(enumerated),
++                             "flagged_job_config_counts": {name: len(keys) for name, keys in config_flags.items()},
++                             "enumerated_configs_without_any_logged_phi": [list(k) for k in sorted(enumerated-set(known))]},
++            "path_dependence": {"job_configs_with_multiple_phi": sum(len(v)>1 for v in known.values()),
++                                "identical_job_config_quota_with_multiple_rho": sum(len(v)>1 for v in fixed_point_rhos.values())},
++            "strict_proportional_on_observed_phi_states": {"total": len(states), "lost": sum(not s["strict_proportional_survives"] for s in states.values()),
++                                                         "by_job": dict(by_job),
++                                                         "jobs_without_survivors_IN_OBSERVED_SUBSET_ONLY": sorted(k for k,v in by_job.items() if v["strict_survivors"]==0)},
++            "all_candidate_phi_coverage": "UNAVAILABLE: candidate_summary records IDs, not every candidate's raw goodput/phi; no imputation",
++            "aux_candidate_grid_ON_OBSERVED_PHI_STATES_ONLY": {
++                "counts": dict(grid_counts), "flagged_job_config_counts": {k: len(v) for k,v in grid_flagged_configs.items()},
++                "counting_unit": "distinct (job, GPU-config, observed phi_c/phi_m, CPU, RAM), capacity + proportional-floor eligible, before Pareto pruning"},
++            "states": list(states.values()), "selected_observations": details}
++
++
++def main():
++    parser = argparse.ArgumentParser()
++    parser.add_argument("--root", type=Path, required=True)
++    parser.add_argument("--output", type=Path, required=True)
++    args = parser.parse_args()
++    if args.output.exists():
++        raise RuntimeError("refuse to overwrite response preflight")
++    args.output.mkdir(parents=True)
++    root = args.root.resolve()
++    run = root / "research_runs/sia_synergy/b3_w10_late_ablation_2x2/run2"
++    config_path = run / "frozen_config.json"
++    config = json.loads(config_path.read_text(encoding="utf-8"))
++    sim = root / "sia-joint-medium-frozen/sia-simulator"
++    templates = {}
++    for file in sorted((root / "research_sources/Synergy/simulator/models").glob("*_1.py")):
++        try:
++            t = load_synergy_template(file)
++            templates[file.name] = {"sha256": sha(file), "shape": list(t.matrix.shape), "min": float(t.matrix.min()),
++                                    "max": float(t.matrix.max()), "cpu_demand": t.cpu_demand, "ram_demand": t.memory_demand_gb}
++        except ValueError as e:
++            templates[file.name] = {"sha256": sha(file), "not_supported": str(e)}
++    coverage = []
++    apps = sorted(config["response"]["application_template_rule"])
++    for app in apps:
++        for gpu_type, ng in config["cluster"]["ngpus_per_node"].items():
++            files = []
++            observed_pairs = set()
++            for kind in ("placements", "scalability"):
++                path = sim / "traces" / app / f"{kind}-{gpu_type}.csv"
++                if not path.exists():
++                    files.append({"path": str(path), "missing": True})
++                    continue
++                with path.open(encoding="utf-8") as f:
++                    rows = list(csv.DictReader(f))
++                pairs = set()
++                seeded = 0
++                bszs = []
++                for row in rows:
++                    if kind == "placements":
++                        nn, g = len(row["placement"]), sum(int(x) for x in row["placement"])
++                    else:
++                        nn, g = int(row["num_nodes"]), int(row["num_replicas"])
++                    pairs.add((nn, g))
++                    seeded += nn <= 1 and g <= 8
++                    bszs.append(float(row["local_bsz"]))
++                observed_pairs |= pairs
++                files.append({"path": str(path), "sha256": sha(path), "rows": len(rows), "seed_filter_rows": seeded,
++                              "node_gpu_pairs": sorted(pairs), "batch_range": [min(bszs), max(bszs)] if bszs else None})
++            gpu_configs = [1, 2, 4] if ng == 4 else [1, 2, 4, 8]
++            coverage.append({"application": app, "gpu_type": gpu_type, "files": files,
++                             "topology_config_count": len(gpu_configs),
++                             "measured_geometry_present": [g for g in gpu_configs if (1,g) in observed_pairs],
++                             "measured_geometry_missing": [g for g in gpu_configs if (1,g) not in observed_pairs],
++                             "frozen_phi_available": False})
++    policies = {}
++    oracle = JointProfileOracle(root / "research_sources/Synergy/simulator/models", "fixed_reference", response_exponent=0.5)
++    for policy in ("b1", "b4", "b3_prop", "b3"):
++        data = scan_policy(run / "policies" / policy / "result.json", config, oracle)
++        (args.output / f"{policy}_coverage.json").write_text(json.dumps(data, indent=2), encoding="utf-8")
++        policies[policy] = {k:v for k,v in data.items() if k not in ("states", "selected_observations")}
++        print(policy, policies[policy]["counts_selected_observations"], flush=True)
++    manifest = root / "research_runs/sia_synergy/b3_multiworkload_medium/response_model_manifest_isolated.json"
++    result = {"scope": "READ_ONLY_EXISTING_DATA_NO_TRAINING_SIMULATION", "config_hash": sha(config_path), "response_manifest_hash": sha(manifest),
++              "source_head": "be03f95c7bc641cbef0e2a4452bc4c7a3b5404e4+archived_dirty_sources",
++              "cpu_axis": CPU_COORDS.tolist(), "ram_axis": RAM_COORDS.tolist(), "templates": templates,
++              "sia_source_coverage": coverage, "historical_selected_columns": policies,
++              "symbolic_strict_proportional_boundary": "All frozen nodes yield CPU=1 and RAM=125 per GPU. For actual online phi_c in [1,4], numerator CPU is in-grid iff phi_c=1. Denominator CPU is in-grid iff phi_c<=3. phi_m in [1,2] gives no proportional RAM clipping. This is a bound, not imputation of phi=1.",
++              "remaining_missing": ["static policy-independent phi table", "pre-registered batch/gradient/reference state for converting throughput to Goodput", "all-candidate raw goodput and phi per historical round", "real cross-hardware CPU/RAM calibration"],
++              "no_global_job_loss_claim": "Cannot identify jobs losing ALL feasible configs without all-candidate phi. Per-job loss in observed subset is not proof of global infeasibility."}
++    (args.output / "response_preflight.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
++    print("response preflight complete; no scheduler or Job.step was invoked")
++
++
++if __name__ == "__main__":
++    main()
+diff --git a/sia-simulator/run_cpu_bottleneck_smoke.py b/sia-simulator/run_cpu_bottleneck_smoke.py
+index 8a43d43..6f1bb2a 100644
+--- a/sia-simulator/run_cpu_bottleneck_smoke.py
++++ b/sia-simulator/run_cpu_bottleneck_smoke.py
+@@ -85,13 +85,15 @@ def summarize(cluster, wall_seconds: float, max_rounds: int, capacities):
+     for record in cluster.joint_round_logs:
+         duration = float(record["interval_end"] - record["interval_start"])
+         for event in record["execution"]:
+-            if event["submitted"] and not event["placement"] and event["completion_time"] is None:
++            if "waiting_seconds" in event:
++                waits[event["job_id"]] += event["waiting_seconds"]
++            elif event["submitted"] and not event["placement"] and event["completion_time"] is None:
+                 waits[event["job_id"]] += duration
+             allocation = event.get("resource_allocation")
+             if allocation and event["placement"]:
+-                active = duration
++                active = event.get("allocated_seconds", duration)
+                 completion = event.get("completion_time")
+-                if completion is not None and completion < record["interval_end"]:
++                if "allocated_seconds" not in event and completion is not None and completion < record["interval_end"]:
+                     active = max(0.0, completion - record["interval_start"])
+                 resource_hours["gpu_hours"] += allocation["gpus"] * active / 3600.0
+                 resource_hours["cpu_core_hours"] += sum(
+@@ -147,6 +149,14 @@ def summarize(cluster, wall_seconds: float, max_rounds: int, capacities):
+             job.name: job.completion_time for job in cluster.jobs
+         },
+         "waiting_seconds": waits,
++        "timing_schema": "stage1_mutually_exclusive_observed_time",
++        "first_allocation_times": {job.name: getattr(job, "first_allocation_time", None) for job in cluster.jobs},
++        "first_productive_training_times": {job.name: getattr(job, "first_productive_training_time", None) for job in cluster.jobs},
++        "exclusive_time_by_job": {
++            job.name: {key: sum(float(e.get(key, 0)) for r in cluster.joint_round_logs for e in r["execution"] if e["job_id"] == job.name)
++                       for key in ("waiting_seconds", "checkpoint_delay_consumed", "training_seconds", "allocated_seconds", "observed_active_seconds")}
++            for job in cluster.jobs
++        },
+         "simulated_seconds": float(cluster.current_time),
+         "rounds": len(cluster.joint_round_logs),
+         "hit_round_limit": len(cluster.joint_round_logs) >= max_rounds and not cluster.all_complete(),
+diff --git a/sia-simulator/tests/test_b3_failure_handling.py b/sia-simulator/tests/test_b3_failure_handling.py
+index 8c81f25..fe8411a 100644
+--- a/sia-simulator/tests/test_b3_failure_handling.py
++++ b/sia-simulator/tests/test_b3_failure_handling.py
+@@ -38,6 +38,9 @@ class B3FailureHandlingTests(unittest.TestCase):
+             checkpoint_locked=checkpoint,
+             current_config_id=current,
+             current_nodes=tuple(nodes),
++            current_placement=tuple((n, 1) for n in nodes),
++            current_cpu_per_gpu=1.0 if nodes else None,
++            current_ram_gb_per_gpu=20.83 if nodes else None,
+         )
+ 
+     def test_normal_b3_produces_valid_allocation(self):
+diff --git a/sia-simulator/tests/test_b3_prop_ablation.py b/sia-simulator/tests/test_b3_prop_ablation.py
+index a8c25df..650873c 100644
+--- a/sia-simulator/tests/test_b3_prop_ablation.py
++++ b/sia-simulator/tests/test_b3_prop_ablation.py
+@@ -99,6 +99,9 @@ class B3ProportionalAblationTests(unittest.TestCase):
+             checkpoint_locked=True,
+             current_config_id="fast:1:2",
+             current_nodes=("fast:0",),
++            current_placement=(("fast:0", 2),),
++            current_cpu_per_gpu=1.0,
++            current_ram_gb_per_gpu=125.0,
+         )
+         scheduler = JointScheduler(
+             self.nodes,
+diff --git a/sia-simulator/tests/test_joint_integration_coverage.py b/sia-simulator/tests/test_joint_integration_coverage.py
+index 1004f96..ad144f6 100644
+--- a/sia-simulator/tests/test_joint_integration_coverage.py
++++ b/sia-simulator/tests/test_joint_integration_coverage.py
+@@ -211,7 +211,11 @@ class JointIntegrationCoverageTests(unittest.TestCase):
+         cluster.policy.fail_solver = True
+         cluster.optimize_policy()
+         self.assertEqual(cluster.allocations, allocations_before)
+-        self.assertEqual(cluster.policy.current_resources, resources_before)
++        for name, old in resources_before.items():
++            new = cluster.policy.current_resources[name]
++            self.assertGreater(new["query_round"], old["query_round"])
++            self.assertEqual({k: v for k, v in new.items() if k != "query_round"},
++                             {k: v for k, v in old.items() if k != "query_round"})
+         result = cluster.policy.last_decision["result"]
+         self.assertEqual(
+             result["status"], "FALLBACK_PRESERVE_PREVIOUS_VALID_ALLOCATION"
+diff --git a/sia-simulator/tests/test_joint_prototype.py b/sia-simulator/tests/test_joint_prototype.py
+index 6d2163e..20c246f 100644
+--- a/sia-simulator/tests/test_joint_prototype.py
++++ b/sia-simulator/tests/test_joint_prototype.py
+@@ -170,6 +170,9 @@ class JointPrototypeTests(unittest.TestCase):
+             checkpoint_locked=True,
+             current_config_id="slow-1g",
+             current_nodes=("slow-0",),
++            current_placement=(("slow-0", 1),),
++            current_cpu_per_gpu=3.0,
++            current_ram_gb_per_gpu=62.5,
+         )
+         scheduler = JointScheduler(
+             scenario.nodes,
+diff --git a/sia-simulator/tests/test_stage1_correctness.py b/sia-simulator/tests/test_stage1_correctness.py
+new file mode 100644
+index 0000000..9f1437b
+--- /dev/null
++++ b/sia-simulator/tests/test_stage1_correctness.py
+@@ -0,0 +1,274 @@
++"""Bounded red/green fixtures; no cohort simulation and no liveness redesign."""
++import unittest
++import json
++import os
++from pathlib import Path
++from dataclasses import replace
++from types import SimpleNamespace
++from unittest.mock import patch
++
++import test_joint_integration_coverage as coverage_fixtures
++import test_joint_integration as job_fixtures
++import test_b3_failure_handling as failure_fixtures
++from joint_prototype.joint_profile import JobSpec, GpuConfig, NodeSpec, JointProfileOracle
++from joint_prototype.joint_scheduler import JointScheduler
++from run_cpu_bottleneck_smoke import summarize
++from joint_prototype.execution_audit import audit_execution
++from joint_prototype.joint_scheduler import PolicyResult
++from joint_prototype.joint_integration import JointSiaPolicy
++from joint_prototype.synergy_adapter import SynergyTuneAdapter
++
++
++class Stage1CorrectnessTests(unittest.TestCase):
++    @staticmethod
++    def evidence(name, data):
++        folder = os.environ.get("STAGE1_EVIDENCE_DIR")
++        if folder:
++            path = Path(folder)
++            path.mkdir(exist_ok=True, parents=True)
++            target = path / (name + ".json")
++            if target.exists():
++                raise RuntimeError("refuse to overwrite tiny-fixture evidence")
++            target.write_text(json.dumps(data, indent=2), encoding="utf-8")
++
++    def setUp(self):
++        self.fixture = coverage_fixtures.JointIntegrationCoverageTests()
++        self.fixture.setUp()
++        self.small = failure_fixtures.B3FailureHandlingTests()
++
++    def locked_spec(self):
++        return JobSpec("locked", "res18_1.py", (GpuConfig("aws:1:1", "aws", 1, 1, 1.0),),
++                       checkpoint_locked=True, current_config_id="aws:1:1", current_nodes=("aws:0",),
++                       current_placement=(("aws:0", 1),), current_cpu_per_gpu=1.0, current_ram_gb_per_gpu=20.83)
++
++    def test_negative_utility_lock_must_be_selected_and_keep_all_quotas(self):
++        spec = self.locked_spec()
++        s = self.small.scheduler([spec])
++        for builder in (s.build_joint_columns, s.build_proportional_columns):
++            columns = [replace(c, scheduling_utility=-100.0) for c in builder()]
++            result = s.solve("negative-locked", columns, ("gpu", "cpu", "ram"))
++            self.assertEqual(set(result.selected), {"locked"})
++            c = result.selected["locked"]
++            self.assertEqual(c.placement.node_gpus, spec.current_placement)
++            self.assertEqual(c.query.ram_gb_per_gpu, 20.83)
++            self.assertFalse(s.audit([])["valid"])
++
++    def test_fifo_real_arrival_then_source_row_not_job_id(self):
++        cfg = GpuConfig("aws:1:1", "aws", 1, 1, 1.0)
++        jobs = [JobSpec("a", "res18_1.py", (cfg,), arrival_time=40, source_row_index=0),
++                JobSpec("z", "res18_1.py", (cfg,), arrival_time=20, source_row_index=2)]
++        s = self.small.scheduler(jobs)
++        r = SynergyTuneAdapter(s).run("B5", {j.job_id: cfg for j in jobs}, {})
++        self.assertEqual(set(r.selected), {"z"})
++        jobs = [replace(j, arrival_time=20, source_row_index=1 if j.job_id=="z" else 2) for j in jobs]
++        s = self.small.scheduler(jobs)
++        self.assertEqual(set(SynergyTuneAdapter(s).run("B5", {j.job_id: cfg for j in jobs}, {}).selected), {"z"})
++
++    def test_mid_interval_arrival_and_first_times(self):
++        c = self.fixture._cluster([dict(name="bert-mid", time=17, application="bert", num_replicas=1, batch_size=384)], mode="b1")
++        c.step(60)
++        j = c.jobs[0]
++        e = c.joint_round_logs[0]["execution"][0]
++        self.assertEqual(e["waiting_seconds"], 43)
++        self.assertEqual(j.first_allocation_time, 60)
++        self.assertIsNone(j.first_productive_training_time)
++        infos = c.get_job_infos()
++        specs, _ = c.policy._job_specs(infos, c.allocations)
++        self.assertEqual(specs[0].arrival_time, 17)
++        self.assertEqual(specs[0].source_row_index, 0)
++        c.step(60)
++        c.step(60)
++        # Isolate the first productive boundary from the next Sia reoptimization.
++        with patch.object(c, "optimize_policy", return_value=([], [])):
++            c.step(1)
++        self.assertEqual(j.first_productive_training_time, 180)
++        self.assertEqual(j.start_time, j.first_allocation_time)
++        self.evidence("partial_arrival", c.joint_round_logs)
++
++    def test_fallback_rebuilds_current_config_query_not_old_rho(self):
++        old = self.small.job("keep")
++        s = self.small.scheduler([old])
++        previous = s.build_joint_columns()[0]
++        newer = replace(old, configs=(replace(old.configs[0], sia_goodput=7, cpu_demand_scale=2),),
++                        current_config_id="aws:1:1", current_nodes=("aws:0",))
++        current = self.small.scheduler([newer])
++        p = object.__new__(JointSiaPolicy)
++        p._last_committed_columns = {"keep": previous}
++        failed = PolicyResult("B3", "MIP_NO_SOLUTION_STATUS_1", {}, ["keep"], 0, 0, 0, audit={"valid": False})
++        r = p._b3_failure_fallback(failed, [newer], current)
++        self.assertIsNotNone(r)
++        self.assertEqual(r.selected["keep"].query.raw_sia_goodput, 7)
++        self.assertEqual(r.selected["keep"].config.cpu_demand_scale, 2)
++        self.assertFalse(current.audit([previous])["valid"])
++        self.evidence("fresh_fallback", r.to_dict())
++
++    def test_direct_raw_execution_rate_not_reconstructed(self):
++        j = job_fixtures.JointIntegrationTests()._job(2)
++        j.enable_joint_accounting = True
++        j.rescale_time = 0
++        j.step(1)
++        self.assertTrue(j.joint_step_segments)
++        s = j.joint_step_segments[0]
++        self.assertGreater(s["raw_rate_before_rho"], 0)
++        self.assertEqual(s["effective_rate"], s["raw_rate_before_rho"] * 2)
++        self.assertAlmostEqual(s["progress_delta"], s["effective_rate"] * s["seconds"])
++
++    def test_all_modes_keep_full_lock_and_b1_secondary_admission(self):
++        for mode in ("b1", "b4", "b5", "b3", "b3_prop"):
++            with self.subTest(mode=mode):
++                rows = [dict(name="bert-lock", time=0, application="bert", num_replicas=1, batch_size=384),
++                        dict(name="bert-new", time=90, application="bert", num_replicas=1, batch_size=384)]
++                c = self.fixture._cluster(rows, mode=mode, nnodes={"aws": 1}, ngpus={"aws": 4},
++                                          capacities={"aws": {"cpu_cores": 1, "ram_gb": 500}})
++                c.policy.minimum_cpu_per_gpu = 1.0
++                c.policy.minimum_ram_gb_per_gpu = 20.83
++                with patch("joint_prototype.joint_integration.SiaPolicy.optimize", return_value={"bert-lock": ("aws", (0,))}):
++                    c.step(60)
++                old = c.policy.current_resources["bert-lock"]
++                with patch("joint_prototype.joint_integration.SiaPolicy.optimize", return_value={"bert-lock": ("aws", (0,)), "bert-new": ("aws", (0,))}):
++                    c.step(60)
++                new = c.policy.current_resources["bert-lock"]
++                self.assertEqual({k: new[k] for k in ("config_id", "placement", "cpu_per_gpu", "ram_gb_per_gpu")},
++                                 {k: old[k] for k in ("config_id", "placement", "cpu_per_gpu", "ram_gb_per_gpu")})
++                self.assertNotIn("bert-new", c.policy.current_resources)
++                result = c.policy.last_decision["result"]
++                self.assertTrue(result["audit"]["precommit_independent_audit"]["valid"])
++                if mode == "b1":
++                    self.assertEqual(result["audit"]["admission_rule"], "WHOLE_JOB_ONLY_NO_GPU_CONFIG_CHANGE")
++                if mode == "b5":
++                    actions = [x["action"] for x in result["audit"]["tune_trace"]]
++                    self.assertIn("PRESERVE_EXACT_CHECKPOINT_LOCK", actions)
++                    self.assertIn("WAIT_FINAL_RETRY_INFEASIBLE", actions)
++                self.evidence("full_lock_"+mode, c.joint_round_logs)
++
++    def test_b5_fifo_through_cluster_with_real_arrivals_and_source_order(self):
++        for arrival in (17, 40):
++            rows = [dict(name="bert-z", time=17, application="bert", num_replicas=1, batch_size=384),
++                    dict(name="bert-a", time=arrival, application="bert", num_replicas=1, batch_size=384)]
++            c = self.fixture._cluster(rows, mode="b5", nnodes={"aws": 1}, ngpus={"aws": 4},
++                                      capacities={"aws": {"cpu_cores": 1, "ram_gb": 500}})
++            c.policy.minimum_cpu_per_gpu = 1
++            c.policy.minimum_ram_gb_per_gpu = 20.83
++            with patch("joint_prototype.joint_integration.SiaPolicy.optimize", return_value={"bert-a": ("aws", (0,)), "bert-z": ("aws", (0,))}):
++                c.step(60)
++            self.assertEqual(set(c.policy.current_resources), {"bert-z"})
++            self.evidence("fifo_arrival_"+str(arrival), c.joint_round_logs)
++
++    def test_locked_peer_cannot_be_downgraded_or_moved(self):
++        spec = self.locked_spec()
++        peer = replace(spec, job_id="peer", checkpoint_locked=False, current_config_id=None, current_nodes=(), current_placement=())
++        s = self.small.scheduler([spec, peer])
++        adapter = SynergyTuneAdapter(s)
++        fixed = {j.job_id: j.configs[0] for j in (spec, peer)}
++        self.assertIsNone(adapter._repack_all_fair(["locked", "peer"], fixed))
++        r = adapter.run("B5", fixed, {})
++        self.assertEqual(set(r.selected), {"locked"})
++        self.assertEqual(r.selected["locked"].query.ram_gb_per_gpu, 20.83)
++        self.assertFalse(s.audit([replace(r.selected["locked"], placement=replace(r.selected["locked"].placement, node_gpus=(("aws:0", 2),)))])["valid"])
++
++    def test_infeasible_lock_stops_without_committing(self):
++        c = self.fixture._cluster([dict(name="bert-lock", time=0, application="bert", num_replicas=1, batch_size=384)], mode="b3")
++        c.step(60)
++        before = dict(c.policy.current_resources)
++        gpu_type = before["bert-lock"]["gpu_type"]
++        c.policy.node_capacities[gpu_type]["cpu_cores"] = 0.01  # fault injection, NOT experimental capacity change
++        with self.assertRaisesRegex(RuntimeError, "INFEASIBLE_CHECKPOINT_LOCK"):
++            c.optimize_policy()
++        self.assertEqual(c.policy.current_resources, before)
++
++    def test_all_empty_absorbing_state_is_still_unresolved(self):
++        c = self.fixture._cluster([dict(name="cifar10-cold", time=0, application="cifar10", num_replicas=1, batch_size=128)],
++                                 mode="b3_prop", nnodes={"aws": 1}, ngpus={"aws": 4}, capacities={"aws": {"cpu_cores": 4, "ram_gb": 500}}, neutral=False)
++        c.policy.oracle.response_exponent = 0.5
++        c.policy.template_map["cifar10-cold"] = "alexnet_1.py"
++        for _ in range(3):
++            c.step(60)
++            self.assertEqual(c.policy.last_decision["result"]["status"], "OPTIMAL")
++            self.assertEqual(c.policy.current_resources, {})
++        self.assertEqual(c.jobs[0].progress, 0)
++        self.assertIsNone(c.jobs[0].first_productive_training_time)
++        self.evidence("UNRESOLVED_empty_optimal", c.joint_round_logs)
++
++    @staticmethod
++    def artificial_job(rho, delay=0):
++        j = job_fixtures.JointIntegrationTests()._job(rho)
++        app = SimpleNamespace(max_epochs=100, init_batch_size=1,
++                              get_grad_stats=lambda batch, epoch: (1.0, 0.0),
++                              get_throughput=lambda placement, batch: (1.0, 0.0),
++                              get_progress=lambda epoch: 10.0 * epoch,
++                              get_completion_epoch=lambda batch: 1,
++                              get_best_metric=lambda batch, epoch: 0)
++        j.applications = {"rtx": app}
++        j.atomic_bsz = 1
++        j.accum_steps = 0
++        j.calibration_factor = 1
++        j.rescale_time = delay
++        j.update_params = lambda *args: None
++        j.update_local_bsz = lambda *args: None
++        j.enable_joint_accounting = True
++        return j
++
++    def test_independent_multiplier_checkpoint_epoch_completion_boundaries(self):
++        slow, fast = self.artificial_job(1, 3), self.artificial_job(2, 3)
++        slow.step(3)
++        fast.step(3)
++        self.assertEqual((slow.progress, fast.progress), (0, 0))
++        slow.step(6)
++        fast.step(6)
++        self.assertEqual((slow.progress, fast.progress), (6, 12))
++        self.assertEqual(fast.epoch, 1)
++        self.assertTrue(all(s["raw_rate_before_rho"] == 1 for s in fast.joint_step_segments))
++        # Completion truncates productive work; never assert linearity past completion.
++        fast.step(60)
++        self.assertEqual(fast.progress, 20)
++        self.assertEqual(fast.completion_time, 13)
++        self.assertEqual(sum(s["seconds"] for s in fast.joint_step_segments), 4)
++        self.assertEqual(fast.execution_time, 10)
++        slow.step(60)
++        self.assertEqual(slow.completion_time, 23)
++
++    def test_resource_hours_stop_at_within_interval_completion(self):
++        c = self.fixture._cluster([dict(name="bert-fixture", time=0, application="bert", num_replicas=1, batch_size=384)], mode="b1")
++        j = self.artificial_job(2, 3)
++        j.name = "bert-fixture"
++        j.source_row_index = 0
++        j.first_allocation_time = 0
++        j.first_productive_training_time = None
++        c.jobs = [j]
++        c.policy.current_resources = {j.name: {"gpus": 1, "rho": 2, "node_usage": [{"cpu": 2, "ram_gb": 50}]}}
++        with patch.object(c, "optimize_policy", return_value=([], [])), patch.object(c, "step_log", side_effect=lambda: c.logs.append({})):
++            c.step(60)
++        e = c.joint_round_logs[0]["execution"][0]
++        self.assertEqual((e["waiting_seconds"], e["checkpoint_delay_consumed"], e["training_seconds"]), (0, 3, 10))
++        self.assertEqual(e["allocated_seconds"], 13)
++        self.assertEqual(e["post_completion_seconds"], 47)
++        self.assertTrue(audit_execution(e)["valid"])
++        forged = dict(e)
++        forged["training_segments"] = [dict(s, effective_rate=s["effective_rate"]*2) for s in e["training_segments"]]
++        self.assertFalse(audit_execution(forged)["valid"])
++        m = summarize(c, 0, 2, {})
++        self.assertAlmostEqual(m["resource_hours"]["gpu_hours"], 13/3600)
++        self.assertAlmostEqual(m["resource_hours"]["cpu_core_hours"], 26/3600)
++        self.assertAlmostEqual(m["resource_hours"]["ram_gb_hours"], 650/3600)
++        self.evidence("completion_timing_and_hours", {"event": e, "summary": m})
++
++    def test_epoch_rounding_bound_is_explicit_not_hidden_in_raw(self):
++        j = self.artificial_job(3)
++        j.step(4)
++        self.assertEqual(j.progress, 13)  # 10 boundary at round(10/3)=3, then 1s*3.
++        self.assertEqual(j.joint_step_segments[0]["rounding_progress_residual"], 1)
++        self.assertEqual(j.joint_step_segments[0]["raw_rate_before_rho"], 1)
++
++    def test_precommit_rejects_forged_success_with_dropped_lock(self):
++        c = self.fixture._cluster([dict(name="bert-lock", time=0, application="bert", num_replicas=1, batch_size=384)], mode="b3")
++        c.step(60)
++        before = dict(c.policy.current_resources)
++        fake = PolicyResult("B3", "OPTIMAL", {}, ["bert-lock"], 0, 0, 0, audit={"valid": True})
++        with patch.object(c.policy, "_b3_result", return_value=fake):
++            with self.assertRaisesRegex(RuntimeError, "refusing non-atomic"):
++                c.optimize_policy()
++        self.assertEqual(c.policy.current_resources, before)
++
++
++if __name__ == "__main__":
++    unittest.main()

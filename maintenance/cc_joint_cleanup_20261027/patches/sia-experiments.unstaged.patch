@@ -1,0 +1,111 @@
+diff --git a/sia-simulator/multi_simulator.py b/sia-simulator/multi_simulator.py
+index 43cf050..1e32073 100644
+--- a/sia-simulator/multi_simulator.py
++++ b/sia-simulator/multi_simulator.py
+@@ -11,6 +11,7 @@ from rich.table import Table
+ from cluster import Cluster
+ from gavel import GavelPolicy
+ from sia import SiaPolicy
++from sia_las import SiaLASPolicy
+ from sia_fix import SiaFixPolicy
+ import simulator_config as sim_config
+ 
+@@ -34,7 +35,7 @@ def multi_simulate(args):
+                                                lambda_n=args.mip_lambda_n,
+                                                project_throughputs=args.project_throughputs,
+                                                share_max_replicas=args.share_max_replicas)
+-    else:
++    elif args.policy == "sia":
+         policy = SiaPolicy(p_fairness=args.policy_p_val,
+                                    restart_penalty=30,
+                                    lambda_a=args.mip_lambda_a,
+@@ -42,16 +43,26 @@ def multi_simulate(args):
+                                    project_throughputs=args.project_throughputs,
+                                    share_max_replicas=args.share_max_replicas,
+                                    enable_bsz_tuning=not args.disable_bsz_tuning)
++    elif args.policy == "sia_las":
++        policy = SiaLASPolicy(p_fairness=args.policy_p_val,
++                              restart_penalty=30,
++                              lambda_a=args.mip_lambda_a,
++                              lambda_n=args.mip_lambda_n,
++                              project_throughputs=args.project_throughputs,
++                              share_max_replicas=args.share_max_replicas,
++                              enable_bsz_tuning=not args.disable_bsz_tuning,
++                              las_threshold_gpu_seconds=args.las_threshold_gpu_seconds,
++                              las_priority_factor=args.las_priority_factor)
+     policy.populate_valid_configs(
+         cluster_populate_nnodes, sim_ngpus_per_node, sim_config.cluster_max_physical_nnodes)
+     cluster = Cluster(workload, policy, sim_config.cluster_nnodes, sim_ngpus_per_node,
+                       max_physical_nodes=sim_config.cluster_max_physical_nnodes)
+-    if args.disable_bsz_tuning and args.policy == "sia":
++    if args.disable_bsz_tuning and args.policy in ("sia", "sia_las"):
+         print(f"Diabled bsz tuning for {args.policy} policy")
+         cluster.disable_bsz_tuning()
+     if args.policy == "gavel":
+         cluster.disable_bsz_tuning()
+-    if args.policy == "sia":
++    if args.policy in ("sia", "sia_las"):
+         # seed profiles for all rigid jobs
+         rigid_jobs = [job for job in cluster.jobs if job.category == "rigid"]
+         for job in rigid_jobs:
+@@ -130,13 +141,17 @@ if __name__ == "__main__":
+     parser = argparse.ArgumentParser()
+     parser.add_argument("workload", type=str, help="path to workload csv")
+     parser.add_argument("--policy", type=str, default="sia",
+-                        choices=["sia", "gavel", "sia_fix"])
++                        choices=["sia", "sia_las", "gavel", "sia_fix"])
+     parser.add_argument("--policy_p_val", type=float,
+                         default=0.5, help="value of p for policy=sia")
+     parser.add_argument("--mip_lambda_n", type=float, default=None,
+                         help="sia regularization: no-alloc")
+     parser.add_argument("--mip_lambda_a", type=float, default=None,
+                         help="sia regularization: change of alloc")
++    parser.add_argument("--las_threshold_gpu_seconds", type=float, default=3600,
++                        help="sia_las high-priority cutoff in productive GPU-seconds")
++    parser.add_argument("--las_priority_factor", type=float, default=1.0,
++                        help="sia_las multiplier for high-priority effective Goodput")
+     parser.add_argument("--cluster_scale", type=int, default=None,
+                         help="scale of cluster relative to hardcoded values")
+     parser.add_argument("--project_throughputs", action='store_true', default=False,
+@@ -184,4 +199,4 @@ if __name__ == "__main__":
+         with open(args.output + "/summary.json", "w") as f:
+             json.dump(summary, f, indent=4)
+     else:
+-        multi_simulate(args)
+\ No newline at end of file
++        multi_simulate(args)
+diff --git a/sia-simulator/sia.py b/sia-simulator/sia.py
+index e41b7fb..aa6702e 100644
+--- a/sia-simulator/sia.py
++++ b/sia-simulator/sia.py
+@@ -97,6 +97,15 @@ class SiaPolicy(object):
+         self.objective_values = []
+         self.effective_gpus = []
+ 
++    def _apply_objective_goodput_priorities(
++            self, adaptive_jobnames, adaptive_speedup_mat,
++            rigid_jobnames, rigid_speedup_mat):
++        """Hook for derived policies immediately before the p transform.
++
++        Base Sia intentionally returns the exact input arrays unchanged.
++        """
++        return adaptive_speedup_mat, rigid_speedup_mat
++
+     def populate_valid_configs(self, cluster_num_nodes, cluster_num_gpus, cluster_max_physical_nnodes=None):
+         self.configs = dict()
+         self.idx_to_config_map = dict()
+@@ -904,6 +913,14 @@ class SiaPolicy(object):
+             assert has_valid_schedule or (
+                 adaptive_jobnames[i] in non_preemptible_jobnames['adaptive']), f"missing speedup values for job: {adaptive_jobnames[i]}"
+ 
++        # Derived policies may alter effective goodput here. At this point
++        # Goodput is normalized and includes the original restart/reallocation
++        # damping; the p-fairness transform below has not yet been applied.
++        adaptive_speedup_mat, rigid_speedup_mat = \
++            self._apply_objective_goodput_priorities(
++                adaptive_jobnames, adaptive_speedup_mat,
++                rigid_jobnames, rigid_speedup_mat)
++
+         # power up speedup matrices
+         def __power_up_speedup_matrix(speedup_matrix, p_fairness):
+             # power up speedup matrix to make it more fair

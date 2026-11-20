@@ -1,0 +1,1 @@
+run1内部tuple/JSON list比较错误已按同编码规范化。run2在300秒新到达时发现测试hook绑定到旧live实例，trial浅复制后仍读取旧队列，违反原子trial机制；改为类级函数，与原install一致，确保self为当前trial。无算法源修改。两个失败均保留，不构成性能结果。

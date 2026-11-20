@@ -1,0 +1,920 @@
+{
+  "valid": true,
+  "created_unix": 1793040195.183277,
+  "trees": 27,
+  "working_file_hashes_checked": 19693,
+  "git_states_preserved": {
+    "sia-afs-experiments": {
+      "head": {
+        "command": [
+          "git",
+          "-C",
+          "D:\\科研启航\\Sia\\_archive\\legacy_code_20261027\\sia-afs-experiments",
+          "rev-parse",
+          "HEAD"
+        ],
+        "exit_code": 0,
+        "stdout": "aaf7a0de7b6cb5eab06ea020467ede5d2fd18e70\n",
+        "stderr": ""
+      },
+      "branch": {
+        "command": [
+          "git",
+          "-C",
+          "D:\\科研启航\\Sia\\_archive\\legacy_code_20261027\\sia-afs-experiments",
+          "branch",
+          "--show-current"
+        ],
+        "exit_code": 0,
+        "stdout": "exp/sia-afs\n",
+        "stderr": ""
+      },
+      "status": {
+        "command": [
+          "git",
+          "-C",
+          "D:\\科研启航\\Sia\\_archive\\legacy_code_20261027\\sia-afs-experiments",
+          "status",
+          "--short",
+          "--branch",
+          "--untracked-files=all"
+        ],
+        "exit_code": 0,
+        "stdout": "## exp/sia-afs\n M sia-simulator/cluster.py\n M sia-simulator/multi_simulator.py\n?? sia-simulator/sia_afs.py\n?? sia-simulator/tests/test_sia_afs.py\n",
+        "stderr": ""
+      }
+    },
+    "sia-experiments": {
+      "head": {
+        "command": [
+          "git",
+          "-C",
+          "D:\\科研启航\\Sia\\_archive\\legacy_code_20261027\\sia-experiments",
+          "rev-parse",
+          "HEAD"
+        ],
+        "exit_code": 0,
+        "stdout": "aaf7a0de7b6cb5eab06ea020467ede5d2fd18e70\n",
+        "stderr": ""
+      },
+      "branch": {
+        "command": [
+          "git",
+          "-C",
+          "D:\\科研启航\\Sia\\_archive\\legacy_code_20261027\\sia-experiments",
+          "branch",
+          "--show-current"
+        ],
+        "exit_code": 0,
+        "stdout": "exp/sia-las-weighted\n",
+        "stderr": ""
+      },
+      "status": {
+        "command": [
+          "git",
+          "-C",
+          "D:\\科研启航\\Sia\\_archive\\legacy_code_20261027\\sia-experiments",
+          "status",
+          "--short",
+          "--branch",
+          "--untracked-files=all"
+        ],
+        "exit_code": 0,
+        "stdout": "## exp/sia-las-weighted\n M sia-simulator/multi_simulator.py\n M sia-simulator/sia.py\n?? sia-simulator/sia_las.py\n?? sia-simulator/tests/test_sia_las.py\n",
+        "stderr": ""
+      }
+    },
+    "sia-joint-adaptive-service": {
+      "head": {
+        "command": [
+          "git",
+          "-C",
+          "D:\\科研启航\\Sia\\_archive\\legacy_code_20261027\\sia-joint-adaptive-service",
+          "rev-parse",
+          "HEAD"
+        ],
+        "exit_code": 0,
+        "stdout": "2d5f9dbfcb7e7bfc2bfd9dc194b1838674a227c2\n",
+        "stderr": ""
+      },
+      "branch": {
+        "command": [
+          "git",
+          "-C",
+          "D:\\科研启航\\Sia\\_archive\\legacy_code_20261027\\sia-joint-adaptive-service",
+          "branch",
+          "--show-current"
+        ],
+        "exit_code": 0,
+        "stdout": "exp/joint-adaptive-service\n",
+        "stderr": ""
+      },
+      "status": {
+        "command": [
+          "git",
+          "-C",
+          "D:\\科研启航\\Sia\\_archive\\legacy_code_20261027\\sia-joint-adaptive-service",
+          "status",
+          "--short",
+          "--branch",
+          "--untracked-files=all"
+        ],
+        "exit_code": 0,
+        "stdout": "## exp/joint-adaptive-service\n?? sia-simulator/joint_prototype/adaptive_probe.py\n?? sia-simulator/joint_prototype/adaptive_service.py\n?? sia-simulator/joint_prototype/small_mechanism.py\n?? sia-simulator/run_adaptive_cell.py\n?? sia-simulator/run_small_mechanism.py\n?? sia-simulator/tests/test_adaptive_integration.py\n?? sia-simulator/tests/test_adaptive_service.py\n?? sia-simulator/tests/test_small_mechanism.py\n",
+        "stderr": ""
+      }
+    },
+    "sia-joint-budgeted-adaptation": {
+      "head": {
+        "command": [
+          "git",
+          "-C",
+          "D:\\科研启航\\Sia\\_archive\\legacy_code_20261027\\sia-joint-budgeted-adaptation",
+          "rev-parse",
+          "HEAD"
+        ],
+        "exit_code": 0,
+        "stdout": "2d5f9dbfcb7e7bfc2bfd9dc194b1838674a227c2\n",
+        "stderr": ""
+      },
+      "branch": {
+        "command": [
+          "git",
+          "-C",
+          "D:\\科研启航\\Sia\\_archive\\legacy_code_20261027\\sia-joint-budgeted-adaptation",
+          "branch",
+          "--show-current"
+        ],
+        "exit_code": 0,
+        "stdout": "exp/joint-budgeted-adaptation\n",
+        "stderr": ""
+      },
+      "status": {
+        "command": [
+          "git",
+          "-C",
+          "D:\\科研启航\\Sia\\_archive\\legacy_code_20261027\\sia-joint-budgeted-adaptation",
+          "status",
+          "--short",
+          "--branch",
+          "--untracked-files=all"
+        ],
+        "exit_code": 0,
+        "stdout": "## exp/joint-budgeted-adaptation\n M sia-simulator/joint_prototype/execution_audit.py\n?? sia-simulator/joint_prototype/adaptive_probe.py\n?? sia-simulator/joint_prototype/adaptive_service.py\n?? sia-simulator/joint_prototype/bundle_adaptation.py\n?? sia-simulator/joint_prototype/scaled_adaptive.py\n?? sia-simulator/joint_prototype/small_mechanism.py\n?? sia-simulator/run_adaptive_cell.py\n?? sia-simulator/run_bundle_cell.py\n?? sia-simulator/run_scale_cell.py\n?? sia-simulator/run_small_mechanism.py\n?? sia-simulator/tests/test_adaptive_integration.py\n?? sia-simulator/tests/test_adaptive_service.py\n?? sia-simulator/tests/test_bundle_adaptation.py\n?? sia-simulator/tests/test_bundle_integration.py\n?? sia-simulator/tests/test_bundle_solver_numerics.py\n?? sia-simulator/tests/test_checkpoint_rounding_audit.py\n?? sia-simulator/tests/test_scaled_adaptive.py\n?? sia-simulator/tests/test_small_mechanism.py\n",
+        "stderr": ""
+      }
+    },
+    "sia-joint-correctness-stage1": {
+      "head": {
+        "command": [
+          "git",
+          "-C",
+          "D:\\科研启航\\Sia\\_archive\\legacy_code_20261027\\sia-joint-correctness-stage1",
+          "rev-parse",
+          "HEAD"
+        ],
+        "exit_code": 0,
+        "stdout": "0461dcdf061197fdfffe23b2b3d07e46e0d9efb2\n",
+        "stderr": ""
+      },
+      "branch": {
+        "command": [
+          "git",
+          "-C",
+          "D:\\科研启航\\Sia\\_archive\\legacy_code_20261027\\sia-joint-correctness-stage1",
+          "branch",
+          "--show-current"
+        ],
+        "exit_code": 0,
+        "stdout": "exp/b3-correctness-stage1\n",
+        "stderr": ""
+      },
+      "status": {
+        "command": [
+          "git",
+          "-C",
+          "D:\\科研启航\\Sia\\_archive\\legacy_code_20261027\\sia-joint-correctness-stage1",
+          "status",
+          "--short",
+          "--branch",
+          "--untracked-files=all"
+        ],
+        "exit_code": 0,
+        "stdout": "## exp/b3-correctness-stage1\n?? sia-simulator/__pycache__/applications.cpython-310.pyc\n?? sia-simulator/__pycache__/cluster.cpython-310.pyc\n?? sia-simulator/__pycache__/freeze_medium_w10_late_6000_followup.cpython-310.pyc\n?? sia-simulator/__pycache__/gavel.cpython-310.pyc\n?? sia-simulator/__pycache__/goodput.cpython-310.pyc\n?? sia-simulator/__pycache__/job.cpython-310.pyc\n?? sia-simulator/__pycache__/job_id_pair.cpython-310.pyc\n?? sia-simulator/__pycache__/run_cpu_bottleneck_smoke.cpython-310.pyc\n?? sia-simulator/__pycache__/sia.cpython-310.pyc\n?? sia-simulator/__pycache__/sia_fix.cpython-310.pyc\n?? sia-simulator/__pycache__/simulator_config.cpython-310.pyc\n?? sia-simulator/__pycache__/speedup.cpython-310.pyc\n?? sia-simulator/__pycache__/utils.cpython-310.pyc\n?? sia-simulator/__pycache__/utils_gavel.cpython-310.pyc\n?? sia-simulator/joint_prototype/__pycache__/__init__.cpython-310.pyc\n?? sia-simulator/joint_prototype/__pycache__/joint_integration.cpython-310.pyc\n?? sia-simulator/joint_prototype/__pycache__/joint_profile.cpython-310.pyc\n?? sia-simulator/joint_prototype/__pycache__/joint_scheduler.cpython-310.pyc\n?? sia-simulator/joint_prototype/__pycache__/scenario_io.cpython-310.pyc\n?? sia-simulator/joint_prototype/__pycache__/synergy_adapter.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/__init__.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/allox.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/fifo.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/finish_time_fairness.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/gandiva.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/isolated.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/max_min_fairness.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/max_min_fairness_water_filling.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/max_sum_throughput.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/min_jct.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/min_total_duration.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/policy.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/proportional.cpython-310.pyc\n?? sia-simulator/tests/__pycache__/test_b3_failure_handling.cpython-310.pyc\n?? sia-simulator/tests/__pycache__/test_b3_prop_ablation.cpython-310.pyc\n?? sia-simulator/tests/__pycache__/test_joint_integration.cpython-310.pyc\n?? sia-simulator/tests/__pycache__/test_joint_integration_coverage.cpython-310.pyc\n?? sia-simulator/tests/__pycache__/test_joint_prototype.cpython-310.pyc\n?? sia-simulator/tests/__pycache__/test_medium_followup.cpython-310.pyc\n?? sia-simulator/tests/__pycache__/test_medium_response.cpython-310.pyc\n?? sia-simulator/tests/__pycache__/test_stage1_correctness.cpython-310.pyc\n?? sia-simulator/tests/__pycache__/test_synergy_adapter.cpython-310.pyc\n",
+        "stderr": ""
+      }
+    },
+    "sia-joint-correctness-stage1p1": {
+      "head": {
+        "command": [
+          "git",
+          "-C",
+          "D:\\科研启航\\Sia\\_archive\\legacy_code_20261027\\sia-joint-correctness-stage1p1",
+          "rev-parse",
+          "HEAD"
+        ],
+        "exit_code": 0,
+        "stdout": "216573cb26f3136520ce9d4f609623b4c2c75df1\n",
+        "stderr": ""
+      },
+      "branch": {
+        "command": [
+          "git",
+          "-C",
+          "D:\\科研启航\\Sia\\_archive\\legacy_code_20261027\\sia-joint-correctness-stage1p1",
+          "branch",
+          "--show-current"
+        ],
+        "exit_code": 0,
+        "stdout": "exp/b3-correctness-stage1p1\n",
+        "stderr": ""
+      },
+      "status": {
+        "command": [
+          "git",
+          "-C",
+          "D:\\科研启航\\Sia\\_archive\\legacy_code_20261027\\sia-joint-correctness-stage1p1",
+          "status",
+          "--short",
+          "--branch",
+          "--untracked-files=all"
+        ],
+        "exit_code": 0,
+        "stdout": "## exp/b3-correctness-stage1p1\n",
+        "stderr": ""
+      }
+    },
+    "sia-joint-exchange-netprogress": {
+      "head": {
+        "command": [
+          "git",
+          "-C",
+          "D:\\科研启航\\Sia\\_archive\\legacy_code_20261027\\sia-joint-exchange-netprogress",
+          "rev-parse",
+          "HEAD"
+        ],
+        "exit_code": 0,
+        "stdout": "2d5f9dbfcb7e7bfc2bfd9dc194b1838674a227c2\n",
+        "stderr": ""
+      },
+      "branch": {
+        "command": [
+          "git",
+          "-C",
+          "D:\\科研启航\\Sia\\_archive\\legacy_code_20261027\\sia-joint-exchange-netprogress",
+          "branch",
+          "--show-current"
+        ],
+        "exit_code": 0,
+        "stdout": "exp/joint-exchange-netprogress\n",
+        "stderr": ""
+      },
+      "status": {
+        "command": [
+          "git",
+          "-C",
+          "D:\\科研启航\\Sia\\_archive\\legacy_code_20261027\\sia-joint-exchange-netprogress",
+          "status",
+          "--short",
+          "--branch",
+          "--untracked-files=all"
+        ],
+        "exit_code": 0,
+        "stdout": "## exp/joint-exchange-netprogress\n M sia-simulator/joint_prototype/execution_audit.py\n?? sia-simulator/joint_prototype/adaptive_probe.py\n?? sia-simulator/joint_prototype/adaptive_service.py\n?? sia-simulator/joint_prototype/bundle_adaptation.py\n?? sia-simulator/joint_prototype/exchange_netprogress.py\n?? sia-simulator/joint_prototype/scaled_adaptive.py\n?? sia-simulator/joint_prototype/small_mechanism.py\n?? sia-simulator/joint_prototype/version_bridge.py\n?? sia-simulator/run_adaptive_cell.py\n?? sia-simulator/run_bridge_cell.py\n?? sia-simulator/run_bundle_cell.py\n?? sia-simulator/run_scale_cell.py\n?? sia-simulator/run_small_mechanism.py\n?? sia-simulator/tests/test_adaptive_integration.py\n?? sia-simulator/tests/test_adaptive_service.py\n?? sia-simulator/tests/test_bundle_adaptation.py\n?? sia-simulator/tests/test_bundle_integration.py\n?? sia-simulator/tests/test_bundle_solver_numerics.py\n?? sia-simulator/tests/test_checkpoint_rounding_audit.py\n?? sia-simulator/tests/test_exchange_integration.py\n?? sia-simulator/tests/test_exchange_netprogress.py\n?? sia-simulator/tests/test_scaled_adaptive.py\n?? sia-simulator/tests/test_small_mechanism.py\n?? sia-simulator/tests/test_version_bridge.py\n",
+        "stderr": ""
+      }
+    },
+    "sia-joint-experiments": {
+      "head": {
+        "command": [
+          "git",
+          "-C",
+          "D:\\科研启航\\Sia\\_archive\\legacy_code_20261027\\sia-joint-experiments",
+          "rev-parse",
+          "HEAD"
+        ],
+        "exit_code": 0,
+        "stdout": "e0dd17538851dc100be6170b21402bce18294628\n",
+        "stderr": ""
+      },
+      "branch": {
+        "command": [
+          "git",
+          "-C",
+          "D:\\科研启航\\Sia\\_archive\\legacy_code_20261027\\sia-joint-experiments",
+          "branch",
+          "--show-current"
+        ],
+        "exit_code": 0,
+        "stdout": "exp/b3-multiworkload-neutral\n",
+        "stderr": ""
+      },
+      "status": {
+        "command": [
+          "git",
+          "-C",
+          "D:\\科研启航\\Sia\\_archive\\legacy_code_20261027\\sia-joint-experiments",
+          "status",
+          "--short",
+          "--branch",
+          "--untracked-files=all"
+        ],
+        "exit_code": 0,
+        "stdout": "## exp/b3-multiworkload-neutral\n?? sia-simulator/__pycache__/analyze_b3_multiworkload_neutral.cpython-310.pyc\n?? sia-simulator/__pycache__/applications.cpython-310.pyc\n?? sia-simulator/__pycache__/audit_b3_reproducibility.cpython-310.pyc\n?? sia-simulator/__pycache__/cluster.cpython-310.pyc\n?? sia-simulator/__pycache__/compare_five_policy_repeats.cpython-310.pyc\n?? sia-simulator/__pycache__/diagnose_b3_20job_failure.cpython-310.pyc\n?? sia-simulator/__pycache__/gavel.cpython-310.pyc\n?? sia-simulator/__pycache__/goodput.cpython-310.pyc\n?? sia-simulator/__pycache__/job.cpython-310.pyc\n?? sia-simulator/__pycache__/job_id_pair.cpython-310.pyc\n?? sia-simulator/__pycache__/run_b3_multiworkload_neutral.cpython-310.pyc\n?? sia-simulator/__pycache__/run_cpu_bottleneck_smoke.cpython-310.pyc\n?? sia-simulator/__pycache__/run_cpu_contention_20job.cpython-310.pyc\n?? sia-simulator/__pycache__/run_cpu_contention_4job.cpython-310.pyc\n?? sia-simulator/__pycache__/sia.cpython-310.pyc\n?? sia-simulator/__pycache__/sia_fix.cpython-310.pyc\n?? sia-simulator/__pycache__/simulator_config.cpython-310.pyc\n?? sia-simulator/__pycache__/speedup.cpython-310.pyc\n?? sia-simulator/__pycache__/utils.cpython-310.pyc\n?? sia-simulator/__pycache__/utils_gavel.cpython-310.pyc\n?? sia-simulator/__pycache__/validate_b3_20job_targeted.cpython-310.pyc\n?? sia-simulator/__pycache__/validate_cpu_contention_20job.cpython-310.pyc\n?? sia-simulator/audit_b3_reproducibility.py\n?? sia-simulator/audit_joint_response.py\n?? sia-simulator/compare_five_policy_repeats.py\n?? sia-simulator/diagnose_b3_20job_failure.py\n?? sia-simulator/joint_prototype/__pycache__/__init__.cpython-310.pyc\n?? sia-simulator/joint_prototype/__pycache__/joint_integration.cpython-310.pyc\n?? sia-simulator/joint_prototype/__pycache__/joint_profile.cpython-310.pyc\n?? sia-simulator/joint_prototype/__pycache__/joint_scheduler.cpython-310.pyc\n?? sia-simulator/joint_prototype/__pycache__/scenario_io.cpython-310.pyc\n?? sia-simulator/joint_prototype/__pycache__/synergy_adapter.cpython-310.pyc\n?? sia-simulator/joint_prototype/cpu_bottleneck_smoke_config.json\n?? sia-simulator/joint_prototype/cpu_bottleneck_smoke_workload.csv\n?? sia-simulator/joint_prototype/cpu_contention_20job_workload.csv\n?? sia-simulator/joint_prototype/cpu_contention_4job_config.json\n?? sia-simulator/joint_prototype/cpu_contention_4job_workload.csv\n?? sia-simulator/joint_prototype/integration_smoke_config.json\n?? sia-simulator/joint_prototype/integration_smoke_workload.csv\n?? sia-simulator/policies/__pycache__/__init__.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/allox.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/fifo.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/finish_time_fairness.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/gandiva.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/isolated.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/max_min_fairness.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/max_min_fairness_water_filling.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/max_sum_throughput.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/min_jct.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/min_total_duration.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/policy.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/proportional.cpython-310.pyc\n?? sia-simulator/run_joint_coverage.py\n?? sia-simulator/run_joint_integration_smoke.py\n?? sia-simulator/run_joint_prototype.py\n?? sia-simulator/run_joint_response_sensitivity.py\n?? sia-simulator/summarize_joint_integration.py\n?? sia-simulator/tests/__pycache__/test_b3_failure_handling.cpython-310.pyc\n?? sia-simulator/tests/__pycache__/test_joint_integration.cpython-310.pyc\n?? sia-simulator/tests/__pycache__/test_joint_integration_coverage.cpython-310.pyc\n?? sia-simulator/tests/__pycache__/test_joint_prototype.cpython-310.pyc\n?? sia-simulator/tests/__pycache__/test_synergy_adapter.cpython-310.pyc\n?? sia-simulator/validate_b3_20job_targeted.py\n?? sia-simulator/validate_cpu_bottleneck_smoke.py\n?? sia-simulator/validate_cpu_contention_4job.py\n?? sia-simulator/validate_joint_integration.py\n?? sia-simulator/validate_joint_response_audit.py\n",
+        "stderr": ""
+      }
+    },
+    "sia-joint-full160": {
+      "head": {
+        "command": [
+          "git",
+          "-C",
+          "D:\\科研启航\\Sia\\_archive\\legacy_code_20261027\\sia-joint-full160",
+          "rev-parse",
+          "HEAD"
+        ],
+        "exit_code": 0,
+        "stdout": "2d5f9dbfcb7e7bfc2bfd9dc194b1838674a227c2\n",
+        "stderr": ""
+      },
+      "branch": {
+        "command": [
+          "git",
+          "-C",
+          "D:\\科研启航\\Sia\\_archive\\legacy_code_20261027\\sia-joint-full160",
+          "branch",
+          "--show-current"
+        ],
+        "exit_code": 0,
+        "stdout": "exp/sia-r0-full160-comparison\n",
+        "stderr": ""
+      },
+      "status": {
+        "command": [
+          "git",
+          "-C",
+          "D:\\科研启航\\Sia\\_archive\\legacy_code_20261027\\sia-joint-full160",
+          "status",
+          "--short",
+          "--branch",
+          "--untracked-files=all"
+        ],
+        "exit_code": 0,
+        "stdout": "## exp/sia-r0-full160-comparison\n M sia-simulator/analyze_b3_multiworkload_medium.py\n M sia-simulator/analyze_b3_multiworkload_medium_censored.py\n M sia-simulator/analyze_b3_w10_late_ablation.py\n M sia-simulator/analyze_medium_w10_late_6000_followup.py\n M sia-simulator/check_stage1_legacy_regression.py\n M sia-simulator/combine_medium_cohort_runs.py\n M sia-simulator/finalize_medium_w10_late_6000_followup.py\n M sia-simulator/freeze_b3_w10_late_ablation.py\n M sia-simulator/freeze_medium_response_manifest.py\n M sia-simulator/freeze_medium_w10_late_6000_followup.py\n M sia-simulator/joint_prototype/b3_w10_late_ablation_preregistration.json\n M sia-simulator/joint_prototype/execution_audit.py\n M sia-simulator/joint_prototype/medium_w10_late_6000_followup_preregistration.json\n M sia-simulator/joint_prototype/multiworkload_medium_preregistration.json\n M sia-simulator/joint_prototype/neutral_liveness.py\n M sia-simulator/joint_prototype/r0_liveness.py\n M sia-simulator/joint_prototype/stage2b_neutral_config.json\n M sia-simulator/preflight_stage1_response.py\n M sia-simulator/run_b3_w10_late_ablation_policy.py\n M sia-simulator/run_medium_w10_late_6000_policy.py\n M sia-simulator/run_stage2c_cell.py\n M sia-simulator/stage2b_preflight.py\n M sia-simulator/tests/test_b3_prop_ablation.py\n M sia-simulator/tests/test_medium_followup.py\n M sia-simulator/tests/test_medium_response.py\n M sia-simulator/tests/test_stage1_correctness.py\n M sia-simulator/tests/test_stage1p1_correctness.py\n M sia-simulator/tests/test_stage2b_neutral.py\n M sia-simulator/tests/test_stage2c_r0.py\n M sia-simulator/validate_b3_w10_late_ablation.py\n",
+        "stderr": ""
+      }
+    },
+    "sia-joint-medium-frozen": {
+      "head": {
+        "command": [
+          "git",
+          "-C",
+          "D:\\科研启航\\Sia\\_archive\\legacy_code_20261027\\sia-joint-medium-frozen",
+          "rev-parse",
+          "HEAD"
+        ],
+        "exit_code": 0,
+        "stdout": "be03f95c7bc641cbef0e2a4452bc4c7a3b5404e4\n",
+        "stderr": ""
+      },
+      "branch": {
+        "command": [
+          "git",
+          "-C",
+          "D:\\科研启航\\Sia\\_archive\\legacy_code_20261027\\sia-joint-medium-frozen",
+          "branch",
+          "--show-current"
+        ],
+        "exit_code": 0,
+        "stdout": "exp/b3-medium-nonneutral\n",
+        "stderr": ""
+      },
+      "status": {
+        "command": [
+          "git",
+          "-C",
+          "D:\\科研启航\\Sia\\_archive\\legacy_code_20261027\\sia-joint-medium-frozen",
+          "status",
+          "--short",
+          "--branch",
+          "--untracked-files=all"
+        ],
+        "exit_code": 0,
+        "stdout": "## exp/b3-medium-nonneutral\n M sia-simulator/joint_prototype/joint_integration.py\n M sia-simulator/joint_prototype/joint_scheduler.py\n M sia-simulator/run_cpu_bottleneck_smoke.py\n?? sia-simulator/__pycache__/analyze_b3_multiworkload_medium.cpython-310.pyc\n?? sia-simulator/__pycache__/analyze_b3_multiworkload_medium_censored.cpython-310.pyc\n?? sia-simulator/__pycache__/analyze_medium_w10_late_6000_followup.cpython-310.pyc\n?? sia-simulator/__pycache__/applications.cpython-310.pyc\n?? sia-simulator/__pycache__/cluster.cpython-310.pyc\n?? sia-simulator/__pycache__/combine_medium_cohort_runs.cpython-310.pyc\n?? sia-simulator/__pycache__/finalize_medium_w10_late_6000_followup.cpython-310.pyc\n?? sia-simulator/__pycache__/freeze_medium_response_manifest.cpython-310.pyc\n?? sia-simulator/__pycache__/freeze_medium_w10_late_6000_followup.cpython-310.pyc\n?? sia-simulator/__pycache__/gavel.cpython-310.pyc\n?? sia-simulator/__pycache__/goodput.cpython-310.pyc\n?? sia-simulator/__pycache__/job.cpython-310.pyc\n?? sia-simulator/__pycache__/job_id_pair.cpython-310.pyc\n?? sia-simulator/__pycache__/run_b3_multiworkload_neutral.cpython-310.pyc\n?? sia-simulator/__pycache__/run_cpu_bottleneck_smoke.cpython-310.pyc\n?? sia-simulator/__pycache__/run_cpu_contention_4job.cpython-310.pyc\n?? sia-simulator/__pycache__/run_medium_w10_late_6000_policy.cpython-310.pyc\n?? sia-simulator/__pycache__/sia.cpython-310.pyc\n?? sia-simulator/__pycache__/sia_fix.cpython-310.pyc\n?? sia-simulator/__pycache__/simulator_config.cpython-310.pyc\n?? sia-simulator/__pycache__/speedup.cpython-310.pyc\n?? sia-simulator/__pycache__/utils.cpython-310.pyc\n?? sia-simulator/__pycache__/utils_gavel.cpython-310.pyc\n?? sia-simulator/__pycache__/validate_cpu_contention_20job.cpython-310.pyc\n?? sia-simulator/analyze_b3_w10_late_ablation.py\n?? sia-simulator/freeze_b3_w10_late_ablation.py\n?? sia-simulator/joint_prototype/__pycache__/__init__.cpython-310.pyc\n?? sia-simulator/joint_prototype/__pycache__/joint_integration.cpython-310.pyc\n?? sia-simulator/joint_prototype/__pycache__/joint_profile.cpython-310.pyc\n?? sia-simulator/joint_prototype/__pycache__/joint_scheduler.cpython-310.pyc\n?? sia-simulator/joint_prototype/__pycache__/scenario_io.cpython-310.pyc\n?? sia-simulator/joint_prototype/__pycache__/synergy_adapter.cpython-310.pyc\n?? sia-simulator/joint_prototype/b3_w10_late_ablation_preregistration.json\n?? sia-simulator/policies/__pycache__/__init__.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/allox.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/fifo.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/finish_time_fairness.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/gandiva.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/isolated.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/max_min_fairness.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/max_min_fairness_water_filling.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/max_sum_throughput.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/min_jct.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/min_total_duration.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/policy.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/proportional.cpython-310.pyc\n?? sia-simulator/run_b3_w10_late_ablation_policy.py\n?? sia-simulator/tests/__pycache__/test_b3_failure_handling.cpython-310.pyc\n?? sia-simulator/tests/__pycache__/test_b3_prop_ablation.cpython-310.pyc\n?? sia-simulator/tests/__pycache__/test_joint_integration.cpython-310.pyc\n?? sia-simulator/tests/__pycache__/test_joint_integration_coverage.cpython-310.pyc\n?? sia-simulator/tests/__pycache__/test_joint_prototype.cpython-310.pyc\n?? sia-simulator/tests/__pycache__/test_medium_followup.cpython-310.pyc\n?? sia-simulator/tests/__pycache__/test_medium_response.cpython-310.pyc\n?? sia-simulator/tests/__pycache__/test_synergy_adapter.cpython-310.pyc\n?? sia-simulator/tests/test_b3_prop_ablation.py\n?? sia-simulator/validate_b3_w10_late_ablation.py\n",
+        "stderr": ""
+      }
+    },
+    "sia-joint-multiworkload-frozen": {
+      "head": {
+        "command": [
+          "git",
+          "-C",
+          "D:\\科研启航\\Sia\\_archive\\legacy_code_20261027\\sia-joint-multiworkload-frozen",
+          "rev-parse",
+          "HEAD"
+        ],
+        "exit_code": 0,
+        "stdout": "85431a3b054359443e9b8c5c843111202919f7f0\n",
+        "stderr": ""
+      },
+      "branch": {
+        "command": [
+          "git",
+          "-C",
+          "D:\\科研启航\\Sia\\_archive\\legacy_code_20261027\\sia-joint-multiworkload-frozen",
+          "branch",
+          "--show-current"
+        ],
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "status": {
+        "command": [
+          "git",
+          "-C",
+          "D:\\科研启航\\Sia\\_archive\\legacy_code_20261027\\sia-joint-multiworkload-frozen",
+          "status",
+          "--short",
+          "--branch",
+          "--untracked-files=all"
+        ],
+        "exit_code": 0,
+        "stdout": "## HEAD (no branch)\n?? sia-simulator/__pycache__/applications.cpython-310.pyc\n?? sia-simulator/__pycache__/cluster.cpython-310.pyc\n?? sia-simulator/__pycache__/gavel.cpython-310.pyc\n?? sia-simulator/__pycache__/goodput.cpython-310.pyc\n?? sia-simulator/__pycache__/job.cpython-310.pyc\n?? sia-simulator/__pycache__/job_id_pair.cpython-310.pyc\n?? sia-simulator/__pycache__/run_b3_multiworkload_neutral.cpython-310.pyc\n?? sia-simulator/__pycache__/run_cpu_bottleneck_smoke.cpython-310.pyc\n?? sia-simulator/__pycache__/run_cpu_contention_4job.cpython-310.pyc\n?? sia-simulator/__pycache__/sia.cpython-310.pyc\n?? sia-simulator/__pycache__/sia_fix.cpython-310.pyc\n?? sia-simulator/__pycache__/simulator_config.cpython-310.pyc\n?? sia-simulator/__pycache__/speedup.cpython-310.pyc\n?? sia-simulator/__pycache__/utils.cpython-310.pyc\n?? sia-simulator/__pycache__/utils_gavel.cpython-310.pyc\n?? sia-simulator/joint_prototype/__pycache__/__init__.cpython-310.pyc\n?? sia-simulator/joint_prototype/__pycache__/joint_integration.cpython-310.pyc\n?? sia-simulator/joint_prototype/__pycache__/joint_profile.cpython-310.pyc\n?? sia-simulator/joint_prototype/__pycache__/joint_scheduler.cpython-310.pyc\n?? sia-simulator/joint_prototype/__pycache__/scenario_io.cpython-310.pyc\n?? sia-simulator/joint_prototype/__pycache__/synergy_adapter.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/__init__.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/allox.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/fifo.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/finish_time_fairness.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/gandiva.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/isolated.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/max_min_fairness.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/max_min_fairness_water_filling.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/max_sum_throughput.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/min_jct.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/min_total_duration.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/policy.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/proportional.cpython-310.pyc\n?? sia-simulator/tests/__pycache__/test_b3_failure_handling.cpython-310.pyc\n?? sia-simulator/tests/__pycache__/test_joint_integration.cpython-310.pyc\n?? sia-simulator/tests/__pycache__/test_joint_integration_coverage.cpython-310.pyc\n?? sia-simulator/tests/__pycache__/test_joint_prototype.cpython-310.pyc\n?? sia-simulator/tests/__pycache__/test_synergy_adapter.cpython-310.pyc\n",
+        "stderr": ""
+      }
+    },
+    "sia-joint-multiworkload-frozen-v2": {
+      "head": {
+        "command": [
+          "git",
+          "-C",
+          "D:\\科研启航\\Sia\\_archive\\legacy_code_20261027\\sia-joint-multiworkload-frozen-v2",
+          "rev-parse",
+          "HEAD"
+        ],
+        "exit_code": 0,
+        "stdout": "e0dd17538851dc100be6170b21402bce18294628\n",
+        "stderr": ""
+      },
+      "branch": {
+        "command": [
+          "git",
+          "-C",
+          "D:\\科研启航\\Sia\\_archive\\legacy_code_20261027\\sia-joint-multiworkload-frozen-v2",
+          "branch",
+          "--show-current"
+        ],
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "status": {
+        "command": [
+          "git",
+          "-C",
+          "D:\\科研启航\\Sia\\_archive\\legacy_code_20261027\\sia-joint-multiworkload-frozen-v2",
+          "status",
+          "--short",
+          "--branch",
+          "--untracked-files=all"
+        ],
+        "exit_code": 0,
+        "stdout": "## HEAD (no branch)\n?? sia-simulator/__pycache__/applications.cpython-310.pyc\n?? sia-simulator/__pycache__/cluster.cpython-310.pyc\n?? sia-simulator/__pycache__/gavel.cpython-310.pyc\n?? sia-simulator/__pycache__/goodput.cpython-310.pyc\n?? sia-simulator/__pycache__/job.cpython-310.pyc\n?? sia-simulator/__pycache__/job_id_pair.cpython-310.pyc\n?? sia-simulator/__pycache__/run_cpu_bottleneck_smoke.cpython-310.pyc\n?? sia-simulator/__pycache__/run_cpu_contention_4job.cpython-310.pyc\n?? sia-simulator/__pycache__/sia.cpython-310.pyc\n?? sia-simulator/__pycache__/sia_fix.cpython-310.pyc\n?? sia-simulator/__pycache__/simulator_config.cpython-310.pyc\n?? sia-simulator/__pycache__/speedup.cpython-310.pyc\n?? sia-simulator/__pycache__/utils.cpython-310.pyc\n?? sia-simulator/__pycache__/utils_gavel.cpython-310.pyc\n?? sia-simulator/joint_prototype/__pycache__/__init__.cpython-310.pyc\n?? sia-simulator/joint_prototype/__pycache__/joint_integration.cpython-310.pyc\n?? sia-simulator/joint_prototype/__pycache__/joint_profile.cpython-310.pyc\n?? sia-simulator/joint_prototype/__pycache__/joint_scheduler.cpython-310.pyc\n?? sia-simulator/joint_prototype/__pycache__/scenario_io.cpython-310.pyc\n?? sia-simulator/joint_prototype/__pycache__/synergy_adapter.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/__init__.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/allox.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/fifo.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/finish_time_fairness.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/gandiva.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/isolated.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/max_min_fairness.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/max_min_fairness_water_filling.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/max_sum_throughput.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/min_jct.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/min_total_duration.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/policy.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/proportional.cpython-310.pyc\n?? sia-simulator/tests/__pycache__/test_b3_failure_handling.cpython-310.pyc\n?? sia-simulator/tests/__pycache__/test_joint_integration.cpython-310.pyc\n?? sia-simulator/tests/__pycache__/test_joint_integration_coverage.cpython-310.pyc\n?? sia-simulator/tests/__pycache__/test_joint_prototype.cpython-310.pyc\n?? sia-simulator/tests/__pycache__/test_synergy_adapter.cpython-310.pyc\n",
+        "stderr": ""
+      }
+    },
+    "sia-joint-protected-admission": {
+      "head": {
+        "command": [
+          "git",
+          "-C",
+          "D:\\科研启航\\Sia\\_archive\\legacy_code_20261027\\sia-joint-protected-admission",
+          "rev-parse",
+          "HEAD"
+        ],
+        "exit_code": 0,
+        "stdout": "2d5f9dbfcb7e7bfc2bfd9dc194b1838674a227c2\n",
+        "stderr": ""
+      },
+      "branch": {
+        "command": [
+          "git",
+          "-C",
+          "D:\\科研启航\\Sia\\_archive\\legacy_code_20261027\\sia-joint-protected-admission",
+          "branch",
+          "--show-current"
+        ],
+        "exit_code": 0,
+        "stdout": "exp/joint-protected-admission\n",
+        "stderr": ""
+      },
+      "status": {
+        "command": [
+          "git",
+          "-C",
+          "D:\\科研启航\\Sia\\_archive\\legacy_code_20261027\\sia-joint-protected-admission",
+          "status",
+          "--short",
+          "--branch",
+          "--untracked-files=all"
+        ],
+        "exit_code": 0,
+        "stdout": "## exp/joint-protected-admission\n M sia-simulator/joint_prototype/execution_audit.py\n?? sia-simulator/joint_prototype/adaptive_probe.py\n?? sia-simulator/joint_prototype/adaptive_service.py\n?? sia-simulator/joint_prototype/bundle_adaptation.py\n?? sia-simulator/joint_prototype/exchange_netprogress.py\n?? sia-simulator/joint_prototype/physical_domain.py\n?? sia-simulator/joint_prototype/protected_admission.py\n?? sia-simulator/joint_prototype/scaled_adaptive.py\n?? sia-simulator/joint_prototype/small_mechanism.py\n?? sia-simulator/joint_prototype/version_bridge.py\n?? sia-simulator/run_adaptive_cell.py\n?? sia-simulator/run_bridge_cell.py\n?? sia-simulator/run_bundle_cell.py\n?? sia-simulator/run_scale_cell.py\n?? sia-simulator/run_small_mechanism.py\n?? sia-simulator/tests/test_adaptive_integration.py\n?? sia-simulator/tests/test_adaptive_service.py\n?? sia-simulator/tests/test_bundle_adaptation.py\n?? sia-simulator/tests/test_bundle_integration.py\n?? sia-simulator/tests/test_bundle_solver_numerics.py\n?? sia-simulator/tests/test_checkpoint_rounding_audit.py\n?? sia-simulator/tests/test_exchange_integration.py\n?? sia-simulator/tests/test_exchange_netprogress.py\n?? sia-simulator/tests/test_physical_domain.py\n?? sia-simulator/tests/test_protected_admission.py\n?? sia-simulator/tests/test_protected_integration.py\n?? sia-simulator/tests/test_scaled_adaptive.py\n?? sia-simulator/tests/test_small_mechanism.py\n?? sia-simulator/tests/test_version_bridge.py\n",
+        "stderr": ""
+      }
+    },
+    "sia-joint-scale-check": {
+      "head": {
+        "command": [
+          "git",
+          "-C",
+          "D:\\科研启航\\Sia\\_archive\\legacy_code_20261027\\sia-joint-scale-check",
+          "rev-parse",
+          "HEAD"
+        ],
+        "exit_code": 0,
+        "stdout": "2d5f9dbfcb7e7bfc2bfd9dc194b1838674a227c2\n",
+        "stderr": ""
+      },
+      "branch": {
+        "command": [
+          "git",
+          "-C",
+          "D:\\科研启航\\Sia\\_archive\\legacy_code_20261027\\sia-joint-scale-check",
+          "branch",
+          "--show-current"
+        ],
+        "exit_code": 0,
+        "stdout": "exp/joint-r-scale-check\n",
+        "stderr": ""
+      },
+      "status": {
+        "command": [
+          "git",
+          "-C",
+          "D:\\科研启航\\Sia\\_archive\\legacy_code_20261027\\sia-joint-scale-check",
+          "status",
+          "--short",
+          "--branch",
+          "--untracked-files=all"
+        ],
+        "exit_code": 0,
+        "stdout": "## exp/joint-r-scale-check\n?? sia-simulator/joint_prototype/adaptive_probe.py\n?? sia-simulator/joint_prototype/adaptive_service.py\n?? sia-simulator/joint_prototype/scaled_adaptive.py\n?? sia-simulator/joint_prototype/small_mechanism.py\n?? sia-simulator/run_adaptive_cell.py\n?? sia-simulator/run_scale_cell.py\n?? sia-simulator/run_small_mechanism.py\n?? sia-simulator/tests/test_adaptive_integration.py\n?? sia-simulator/tests/test_adaptive_service.py\n?? sia-simulator/tests/test_scaled_adaptive.py\n?? sia-simulator/tests/test_small_mechanism.py\n",
+        "stderr": ""
+      }
+    },
+    "sia-joint-selective-admission": {
+      "head": {
+        "command": [
+          "git",
+          "-C",
+          "D:\\科研启航\\Sia\\_archive\\legacy_code_20261027\\sia-joint-selective-admission",
+          "rev-parse",
+          "HEAD"
+        ],
+        "exit_code": 0,
+        "stdout": "2d5f9dbfcb7e7bfc2bfd9dc194b1838674a227c2\n",
+        "stderr": ""
+      },
+      "branch": {
+        "command": [
+          "git",
+          "-C",
+          "D:\\科研启航\\Sia\\_archive\\legacy_code_20261027\\sia-joint-selective-admission",
+          "branch",
+          "--show-current"
+        ],
+        "exit_code": 0,
+        "stdout": "exp/joint-selective-admission\n",
+        "stderr": ""
+      },
+      "status": {
+        "command": [
+          "git",
+          "-C",
+          "D:\\科研启航\\Sia\\_archive\\legacy_code_20261027\\sia-joint-selective-admission",
+          "status",
+          "--short",
+          "--branch",
+          "--untracked-files=all"
+        ],
+        "exit_code": 0,
+        "stdout": "## exp/joint-selective-admission\n M sia-simulator/joint_prototype/execution_audit.py\n?? sia-simulator/joint_prototype/adaptive_probe.py\n?? sia-simulator/joint_prototype/adaptive_service.py\n?? sia-simulator/joint_prototype/bundle_adaptation.py\n?? sia-simulator/joint_prototype/scaled_adaptive.py\n?? sia-simulator/joint_prototype/selective_admission.py\n?? sia-simulator/joint_prototype/small_mechanism.py\n?? sia-simulator/run_adaptive_cell.py\n?? sia-simulator/run_bundle_cell.py\n?? sia-simulator/run_scale_cell.py\n?? sia-simulator/run_selective_cell.py\n?? sia-simulator/run_small_mechanism.py\n?? sia-simulator/tests/test_adaptive_integration.py\n?? sia-simulator/tests/test_adaptive_service.py\n?? sia-simulator/tests/test_bundle_adaptation.py\n?? sia-simulator/tests/test_bundle_integration.py\n?? sia-simulator/tests/test_bundle_solver_numerics.py\n?? sia-simulator/tests/test_checkpoint_rounding_audit.py\n?? sia-simulator/tests/test_scaled_adaptive.py\n?? sia-simulator/tests/test_selective_admission.py\n?? sia-simulator/tests/test_selective_integration.py\n?? sia-simulator/tests/test_selective_legacy_regression.py\n?? sia-simulator/tests/test_small_mechanism.py\n",
+        "stderr": ""
+      }
+    },
+    "sia-joint-service-horizon": {
+      "head": {
+        "command": [
+          "git",
+          "-C",
+          "D:\\科研启航\\Sia\\_archive\\legacy_code_20261027\\sia-joint-service-horizon",
+          "rev-parse",
+          "HEAD"
+        ],
+        "exit_code": 0,
+        "stdout": "2d5f9dbfcb7e7bfc2bfd9dc194b1838674a227c2\n",
+        "stderr": ""
+      },
+      "branch": {
+        "command": [
+          "git",
+          "-C",
+          "D:\\科研启航\\Sia\\_archive\\legacy_code_20261027\\sia-joint-service-horizon",
+          "branch",
+          "--show-current"
+        ],
+        "exit_code": 0,
+        "stdout": "exp/joint-service-horizon\n",
+        "stderr": ""
+      },
+      "status": {
+        "command": [
+          "git",
+          "-C",
+          "D:\\科研启航\\Sia\\_archive\\legacy_code_20261027\\sia-joint-service-horizon",
+          "status",
+          "--short",
+          "--branch",
+          "--untracked-files=all"
+        ],
+        "exit_code": 0,
+        "stdout": "## exp/joint-service-horizon\n M sia-simulator/joint_prototype/execution_audit.py\n?? sia-simulator/__pycache__/applications.cpython-310.pyc\n?? sia-simulator/__pycache__/cluster.cpython-310.pyc\n?? sia-simulator/__pycache__/freeze_medium_w10_late_6000_followup.cpython-310.pyc\n?? sia-simulator/__pycache__/gavel.cpython-310.pyc\n?? sia-simulator/__pycache__/goodput.cpython-310.pyc\n?? sia-simulator/__pycache__/job.cpython-310.pyc\n?? sia-simulator/__pycache__/job_id_pair.cpython-310.pyc\n?? sia-simulator/__pycache__/run_cpu_bottleneck_smoke.cpython-310.pyc\n?? sia-simulator/__pycache__/run_full160_cell.cpython-310.pyc\n?? sia-simulator/__pycache__/run_stage2c_cell.cpython-310.pyc\n?? sia-simulator/__pycache__/sia.cpython-310.pyc\n?? sia-simulator/__pycache__/sia_fix.cpython-310.pyc\n?? sia-simulator/__pycache__/simulator_config.cpython-310.pyc\n?? sia-simulator/__pycache__/speedup.cpython-310.pyc\n?? sia-simulator/__pycache__/utils.cpython-310.pyc\n?? sia-simulator/__pycache__/utils_gavel.cpython-310.pyc\n?? sia-simulator/joint_prototype/__pycache__/__init__.cpython-310.pyc\n?? sia-simulator/joint_prototype/__pycache__/adaptive_probe.cpython-310.pyc\n?? sia-simulator/joint_prototype/__pycache__/adaptive_service.cpython-310.pyc\n?? sia-simulator/joint_prototype/__pycache__/bundle_adaptation.cpython-310.pyc\n?? sia-simulator/joint_prototype/__pycache__/exchange_netprogress.cpython-310.pyc\n?? sia-simulator/joint_prototype/__pycache__/execution_audit.cpython-310.pyc\n?? sia-simulator/joint_prototype/__pycache__/full160.cpython-310.pyc\n?? sia-simulator/joint_prototype/__pycache__/joint_integration.cpython-310.pyc\n?? sia-simulator/joint_prototype/__pycache__/joint_profile.cpython-310.pyc\n?? sia-simulator/joint_prototype/__pycache__/joint_scheduler.cpython-310.pyc\n?? sia-simulator/joint_prototype/__pycache__/neutral_liveness.cpython-310.pyc\n?? sia-simulator/joint_prototype/__pycache__/physical_domain.cpython-310.pyc\n?? sia-simulator/joint_prototype/__pycache__/protected_admission.cpython-310.pyc\n?? sia-simulator/joint_prototype/__pycache__/r0_liveness.cpython-310.pyc\n?? sia-simulator/joint_prototype/__pycache__/scaled_adaptive.cpython-310.pyc\n?? sia-simulator/joint_prototype/__pycache__/scenario_io.cpython-310.pyc\n?? sia-simulator/joint_prototype/__pycache__/service_horizon.cpython-310.pyc\n?? sia-simulator/joint_prototype/__pycache__/small_mechanism.cpython-310.pyc\n?? sia-simulator/joint_prototype/__pycache__/synergy_adapter.cpython-310.pyc\n?? sia-simulator/joint_prototype/__pycache__/version_bridge.cpython-310.pyc\n?? sia-simulator/joint_prototype/adaptive_probe.py\n?? sia-simulator/joint_prototype/adaptive_service.py\n?? sia-simulator/joint_prototype/bundle_adaptation.py\n?? sia-simulator/joint_prototype/exchange_netprogress.py\n?? sia-simulator/joint_prototype/physical_domain.py\n?? sia-simulator/joint_prototype/protected_admission.py\n?? sia-simulator/joint_prototype/scaled_adaptive.py\n?? sia-simulator/joint_prototype/service_horizon.py\n?? sia-simulator/joint_prototype/small_mechanism.py\n?? sia-simulator/joint_prototype/version_bridge.py\n?? sia-simulator/policies/__pycache__/__init__.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/allox.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/fifo.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/finish_time_fairness.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/gandiva.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/isolated.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/max_min_fairness.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/max_min_fairness_water_filling.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/max_sum_throughput.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/min_jct.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/min_total_duration.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/policy.cpython-310.pyc\n?? sia-simulator/policies/__pycache__/proportional.cpython-310.pyc\n?? sia-simulator/run_adaptive_cell.py\n?? sia-simulator/run_bridge_cell.py\n?? sia-simulator/run_bundle_cell.py\n?? sia-simulator/run_scale_cell.py\n?? sia-simulator/run_small_mechanism.py\n?? sia-simulator/tests/__pycache__/test_adaptive_integration.cpython-310.pyc\n?? sia-simulator/tests/__pycache__/test_adaptive_service.cpython-310.pyc\n?? sia-simulator/tests/__pycache__/test_b3_failure_handling.cpython-310.pyc\n?? sia-simulator/tests/__pycache__/test_b3_prop_ablation.cpython-310.pyc\n?? sia-simulator/tests/__pycache__/test_bundle_adaptation.cpython-310.pyc\n?? sia-simulator/tests/__pycache__/test_bundle_integration.cpython-310.pyc\n?? sia-simulator/tests/__pycache__/test_bundle_solver_numerics.cpython-310.pyc\n?? sia-simulator/tests/__pycache__/test_checkpoint_rounding_audit.cpython-310.pyc\n?? sia-simulator/tests/__pycache__/test_exchange_integration.cpython-310.pyc\n?? sia-simulator/tests/__pycache__/test_exchange_netprogress.cpython-310.pyc\n?? sia-simulator/tests/__pycache__/test_full160.cpython-310.pyc\n?? sia-simulator/tests/__pycache__/test_joint_integration.cpython-310.pyc\n?? sia-simulator/tests/__pycache__/test_joint_integration_coverage.cpython-310.pyc\n?? sia-simulator/tests/__pycache__/test_joint_prototype.cpython-310.pyc\n?? sia-simulator/tests/__pycache__/test_medium_followup.cpython-310.pyc\n?? sia-simulator/tests/__pycache__/test_medium_response.cpython-310.pyc\n?? sia-simulator/tests/__pycache__/test_physical_domain.cpython-310.pyc\n?? sia-simulator/tests/__pycache__/test_protected_admission.cpython-310.pyc\n?? sia-simulator/tests/__pycache__/test_protected_integration.cpython-310.pyc\n?? sia-simulator/tests/__pycache__/test_scaled_adaptive.cpython-310.pyc\n?? sia-simulator/tests/__pycache__/test_service_horizon.cpython-310.pyc\n?? sia-simulator/tests/__pycache__/test_small_mechanism.cpython-310.pyc\n?? sia-simulator/tests/__pycache__/test_stage1_correctness.cpython-310.pyc\n?? sia-simulator/tests/__pycache__/test_stage1p1_correctness.cpython-310.pyc\n?? sia-simulator/tests/__pycache__/test_stage2b_neutral.cpython-310.pyc\n?? sia-simulator/tests/__pycache__/test_stage2c_r0.cpython-310.pyc\n?? sia-simulator/tests/__pycache__/test_synergy_adapter.cpython-310.pyc\n?? sia-simulator/tests/__pycache__/test_version_bridge.cpython-310.pyc\n?? sia-simulator/tests/test_adaptive_integration.py\n?? sia-simulator/tests/test_adaptive_service.py\n?? sia-simulator/tests/test_bundle_adaptation.py\n?? sia-simulator/tests/test_bundle_integration.py\n?? sia-simulator/tests/test_bundle_solver_numerics.py\n?? sia-simulator/tests/test_checkpoint_rounding_audit.py\n?? sia-simulator/tests/test_exchange_integration.py\n?? sia-simulator/tests/test_exchange_netprogress.py\n?? sia-simulator/tests/test_physical_domain.py\n?? sia-simulator/tests/test_protected_admission.py\n?? sia-simulator/tests/test_protected_integration.py\n?? sia-simulator/tests/test_scaled_adaptive.py\n?? sia-simulator/tests/test_service_horizon.py\n?? sia-simulator/tests/test_small_mechanism.py\n?? sia-simulator/tests/test_version_bridge.py\n",
+        "stderr": ""
+      }
+    },
+    "sia-joint-small-mechanism": {
+      "head": {
+        "command": [
+          "git",
+          "-C",
+          "D:\\科研启航\\Sia\\_archive\\legacy_code_20261027\\sia-joint-small-mechanism",
+          "rev-parse",
+          "HEAD"
+        ],
+        "exit_code": 0,
+        "stdout": "2d5f9dbfcb7e7bfc2bfd9dc194b1838674a227c2\n",
+        "stderr": ""
+      },
+      "branch": {
+        "command": [
+          "git",
+          "-C",
+          "D:\\科研启航\\Sia\\_archive\\legacy_code_20261027\\sia-joint-small-mechanism",
+          "branch",
+          "--show-current"
+        ],
+        "exit_code": 0,
+        "stdout": "exp/sia-aux-small-mechanism\n",
+        "stderr": ""
+      },
+      "status": {
+        "command": [
+          "git",
+          "-C",
+          "D:\\科研启航\\Sia\\_archive\\legacy_code_20261027\\sia-joint-small-mechanism",
+          "status",
+          "--short",
+          "--branch",
+          "--untracked-files=all"
+        ],
+        "exit_code": 0,
+        "stdout": "## exp/sia-aux-small-mechanism\n?? sia-simulator/joint_prototype/small_mechanism.py\n?? sia-simulator/run_small_mechanism.py\n?? sia-simulator/tests/test_small_mechanism.py\n",
+        "stderr": ""
+      }
+    },
+    "sia-joint-stage2b-neutral": {
+      "head": {
+        "command": [
+          "git",
+          "-C",
+          "D:\\科研启航\\Sia\\_archive\\legacy_code_20261027\\sia-joint-stage2b-neutral",
+          "rev-parse",
+          "HEAD"
+        ],
+        "exit_code": 0,
+        "stdout": "bd6105a37c6662336236a135eb7ad610ca6e16de\n",
+        "stderr": ""
+      },
+      "branch": {
+        "command": [
+          "git",
+          "-C",
+          "D:\\科研启航\\Sia\\_archive\\legacy_code_20261027\\sia-joint-stage2b-neutral",
+          "branch",
+          "--show-current"
+        ],
+        "exit_code": 0,
+        "stdout": "exp/b3-stage2b-neutral\n",
+        "stderr": ""
+      },
+      "status": {
+        "command": [
+          "git",
+          "-C",
+          "D:\\科研启航\\Sia\\_archive\\legacy_code_20261027\\sia-joint-stage2b-neutral",
+          "status",
+          "--short",
+          "--branch",
+          "--untracked-files=all"
+        ],
+        "exit_code": 0,
+        "stdout": "## exp/b3-stage2b-neutral\n",
+        "stderr": ""
+      }
+    },
+    "sia-joint-stage2c-r0": {
+      "head": {
+        "command": [
+          "git",
+          "-C",
+          "D:\\科研启航\\Sia\\_archive\\legacy_code_20261027\\sia-joint-stage2c-r0",
+          "rev-parse",
+          "HEAD"
+        ],
+        "exit_code": 0,
+        "stdout": "141138d95fc51755e2f71c15f01964b4c20757da\n",
+        "stderr": ""
+      },
+      "branch": {
+        "command": [
+          "git",
+          "-C",
+          "D:\\科研启航\\Sia\\_archive\\legacy_code_20261027\\sia-joint-stage2c-r0",
+          "branch",
+          "--show-current"
+        ],
+        "exit_code": 0,
+        "stdout": "exp/b3-stage2c-r0-w10late\n",
+        "stderr": ""
+      },
+      "status": {
+        "command": [
+          "git",
+          "-C",
+          "D:\\科研启航\\Sia\\_archive\\legacy_code_20261027\\sia-joint-stage2c-r0",
+          "status",
+          "--short",
+          "--branch",
+          "--untracked-files=all"
+        ],
+        "exit_code": 0,
+        "stdout": "## exp/b3-stage2c-r0-w10late\n M sia-simulator/analyze_b3_multiworkload_medium.py\n M sia-simulator/analyze_b3_multiworkload_medium_censored.py\n M sia-simulator/analyze_b3_w10_late_ablation.py\n M sia-simulator/analyze_medium_w10_late_6000_followup.py\n M sia-simulator/check_stage1_legacy_regression.py\n M sia-simulator/combine_medium_cohort_runs.py\n M sia-simulator/finalize_medium_w10_late_6000_followup.py\n M sia-simulator/freeze_b3_w10_late_ablation.py\n M sia-simulator/freeze_medium_response_manifest.py\n M sia-simulator/freeze_medium_w10_late_6000_followup.py\n M sia-simulator/joint_prototype/b3_w10_late_ablation_preregistration.json\n M sia-simulator/joint_prototype/execution_audit.py\n M sia-simulator/joint_prototype/medium_w10_late_6000_followup_preregistration.json\n M sia-simulator/joint_prototype/multiworkload_medium_preregistration.json\n M sia-simulator/joint_prototype/stage2b_neutral_config.json\n M sia-simulator/preflight_stage1_response.py\n M sia-simulator/run_b3_w10_late_ablation_policy.py\n M sia-simulator/run_medium_w10_late_6000_policy.py\n M sia-simulator/stage2b_preflight.py\n M sia-simulator/tests/test_b3_prop_ablation.py\n M sia-simulator/tests/test_medium_followup.py\n M sia-simulator/tests/test_medium_response.py\n M sia-simulator/tests/test_stage1_correctness.py\n M sia-simulator/tests/test_stage1p1_correctness.py\n M sia-simulator/tests/test_stage2b_neutral.py\n M sia-simulator/validate_b3_w10_late_ablation.py\n",
+        "stderr": ""
+      }
+    },
+    "sia-joint-version-bridge": {
+      "head": {
+        "command": [
+          "git",
+          "-C",
+          "D:\\科研启航\\Sia\\_archive\\legacy_code_20261027\\sia-joint-version-bridge",
+          "rev-parse",
+          "HEAD"
+        ],
+        "exit_code": 0,
+        "stdout": "2d5f9dbfcb7e7bfc2bfd9dc194b1838674a227c2\n",
+        "stderr": ""
+      },
+      "branch": {
+        "command": [
+          "git",
+          "-C",
+          "D:\\科研启航\\Sia\\_archive\\legacy_code_20261027\\sia-joint-version-bridge",
+          "branch",
+          "--show-current"
+        ],
+        "exit_code": 0,
+        "stdout": "exp/b3-version-bridge\n",
+        "stderr": ""
+      },
+      "status": {
+        "command": [
+          "git",
+          "-C",
+          "D:\\科研启航\\Sia\\_archive\\legacy_code_20261027\\sia-joint-version-bridge",
+          "status",
+          "--short",
+          "--branch",
+          "--untracked-files=all"
+        ],
+        "exit_code": 0,
+        "stdout": "## exp/b3-version-bridge\n M sia-simulator/joint_prototype/execution_audit.py\n?? sia-simulator/joint_prototype/adaptive_probe.py\n?? sia-simulator/joint_prototype/adaptive_service.py\n?? sia-simulator/joint_prototype/bundle_adaptation.py\n?? sia-simulator/joint_prototype/scaled_adaptive.py\n?? sia-simulator/joint_prototype/small_mechanism.py\n?? sia-simulator/joint_prototype/version_bridge.py\n?? sia-simulator/run_adaptive_cell.py\n?? sia-simulator/run_bridge_cell.py\n?? sia-simulator/run_bundle_cell.py\n?? sia-simulator/run_scale_cell.py\n?? sia-simulator/run_small_mechanism.py\n?? sia-simulator/tests/test_adaptive_integration.py\n?? sia-simulator/tests/test_adaptive_service.py\n?? sia-simulator/tests/test_bundle_adaptation.py\n?? sia-simulator/tests/test_bundle_integration.py\n?? sia-simulator/tests/test_bundle_solver_numerics.py\n?? sia-simulator/tests/test_checkpoint_rounding_audit.py\n?? sia-simulator/tests/test_scaled_adaptive.py\n?? sia-simulator/tests/test_small_mechanism.py\n?? sia-simulator/tests/test_version_bridge.py\n",
+        "stderr": ""
+      }
+    },
+    "sia-lazer-observe": {
+      "head": {
+        "command": [
+          "git",
+          "-C",
+          "D:\\科研启航\\Sia\\_archive\\legacy_code_20261027\\sia-lazer-observe",
+          "rev-parse",
+          "HEAD"
+        ],
+        "exit_code": 0,
+        "stdout": "aaf7a0de7b6cb5eab06ea020467ede5d2fd18e70\n",
+        "stderr": ""
+      },
+      "branch": {
+        "command": [
+          "git",
+          "-C",
+          "D:\\科研启航\\Sia\\_archive\\legacy_code_20261027\\sia-lazer-observe",
+          "branch",
+          "--show-current"
+        ],
+        "exit_code": 0,
+        "stdout": "exp/sia-lazer-observe\n",
+        "stderr": ""
+      },
+      "status": {
+        "command": [
+          "git",
+          "-C",
+          "D:\\科研启航\\Sia\\_archive\\legacy_code_20261027\\sia-lazer-observe",
+          "status",
+          "--short",
+          "--branch",
+          "--untracked-files=all"
+        ],
+        "exit_code": 0,
+        "stdout": "## exp/sia-lazer-observe\n M sia-simulator/cluster.py\n M sia-simulator/multi_simulator.py\n?? sia-simulator/tests/test_preemption_audit.py\n",
+        "stderr": ""
+      }
+    },
+    "sia-synergy-experiments": {
+      "head": {
+        "command": [
+          "git",
+          "-C",
+          "D:\\科研启航\\Sia\\_archive\\legacy_code_20261027\\sia-synergy-experiments",
+          "rev-parse",
+          "HEAD"
+        ],
+        "exit_code": 0,
+        "stdout": "aaf7a0de7b6cb5eab06ea020467ede5d2fd18e70\n",
+        "stderr": ""
+      },
+      "branch": {
+        "command": [
+          "git",
+          "-C",
+          "D:\\科研启航\\Sia\\_archive\\legacy_code_20261027\\sia-synergy-experiments",
+          "branch",
+          "--show-current"
+        ],
+        "exit_code": 0,
+        "stdout": "exp/sia-synergy\n",
+        "stderr": ""
+      },
+      "status": {
+        "command": [
+          "git",
+          "-C",
+          "D:\\科研启航\\Sia\\_archive\\legacy_code_20261027\\sia-synergy-experiments",
+          "status",
+          "--short",
+          "--branch",
+          "--untracked-files=all"
+        ],
+        "exit_code": 0,
+        "stdout": "## exp/sia-synergy\n M sia-simulator/cluster.py\n M sia-simulator/job.py\n M sia-simulator/multi_simulator.py\n?? sia-simulator/analyze_synergy_synthetic.py\n?? sia-simulator/run_synergy_synthetic_suite.py\n?? sia-simulator/synergy_synthetic.py\n?? sia-simulator/synthetic_resource_model.json\n?? sia-simulator/tests/test_synergy_synthetic.py\n",
+        "stderr": ""
+      }
+    }
+  },
+  "registered_worktrees_joint": {
+    "command": [
+      "git",
+      "-C",
+      "D:\\科研启航\\Sia\\_archive\\legacy_code_20261027\\sia-joint-experiments",
+      "worktree",
+      "list",
+      "--porcelain"
+    ],
+    "exit_code": 0,
+    "stdout": "worktree D:/科研启航/Sia/_archive/legacy_code_20261027/sia-joint-experiments\nHEAD e0dd17538851dc100be6170b21402bce18294628\nbranch refs/heads/exp/b3-multiworkload-neutral\n\nworktree D:/科研启航/Sia/_archive/legacy_code_20261027/sia-joint-adaptive-service\nHEAD 2d5f9dbfcb7e7bfc2bfd9dc194b1838674a227c2\nbranch refs/heads/exp/joint-adaptive-service\n\nworktree D:/科研启航/Sia/_archive/legacy_code_20261027/sia-joint-budgeted-adaptation\nHEAD 2d5f9dbfcb7e7bfc2bfd9dc194b1838674a227c2\nbranch refs/heads/exp/joint-budgeted-adaptation\n\nworktree D:/科研启航/Sia/_archive/legacy_code_20261027/sia-joint-correctness-stage1\nHEAD 0461dcdf061197fdfffe23b2b3d07e46e0d9efb2\nbranch refs/heads/exp/b3-correctness-stage1\n\nworktree D:/科研启航/Sia/_archive/legacy_code_20261027/sia-joint-correctness-stage1p1\nHEAD 216573cb26f3136520ce9d4f609623b4c2c75df1\nbranch refs/heads/exp/b3-correctness-stage1p1\n\nworktree D:/科研启航/Sia/_archive/legacy_code_20261027/sia-joint-exchange-netprogress\nHEAD 2d5f9dbfcb7e7bfc2bfd9dc194b1838674a227c2\nbranch refs/heads/exp/joint-exchange-netprogress\n\nworktree D:/科研启航/Sia/_archive/legacy_code_20261027/sia-joint-full160\nHEAD 2d5f9dbfcb7e7bfc2bfd9dc194b1838674a227c2\nbranch refs/heads/exp/sia-r0-full160-comparison\n\nworktree D:/科研启航/Sia/_archive/legacy_code_20261027/sia-joint-medium-frozen\nHEAD be03f95c7bc641cbef0e2a4452bc4c7a3b5404e4\nbranch refs/heads/exp/b3-medium-nonneutral\n\nworktree D:/科研启航/Sia/_archive/legacy_code_20261027/sia-joint-multiworkload-frozen\nHEAD 85431a3b054359443e9b8c5c843111202919f7f0\ndetached\n\nworktree D:/科研启航/Sia/_archive/legacy_code_20261027/sia-joint-multiworkload-frozen-v2\nHEAD e0dd17538851dc100be6170b21402bce18294628\ndetached\n\nworktree D:/科研启航/Sia/_archive/legacy_code_20261027/sia-joint-protected-admission\nHEAD 2d5f9dbfcb7e7bfc2bfd9dc194b1838674a227c2\nbranch refs/heads/exp/joint-protected-admission\n\nworktree D:/科研启航/Sia/_archive/legacy_code_20261027/sia-joint-scale-check\nHEAD 2d5f9dbfcb7e7bfc2bfd9dc194b1838674a227c2\nbranch refs/heads/exp/joint-r-scale-check\n\nworktree D:/科研启航/Sia/_archive/legacy_code_20261027/sia-joint-selective-admission\nHEAD 2d5f9dbfcb7e7bfc2bfd9dc194b1838674a227c2\nbranch refs/heads/exp/joint-selective-admission\n\nworktree D:/科研启航/Sia/_archive/legacy_code_20261027/sia-joint-service-horizon\nHEAD 2d5f9dbfcb7e7bfc2bfd9dc194b1838674a227c2\nbranch refs/heads/exp/joint-service-horizon\n\nworktree D:/科研启航/Sia/_archive/legacy_code_20261027/sia-joint-small-mechanism\nHEAD 2d5f9dbfcb7e7bfc2bfd9dc194b1838674a227c2\nbranch refs/heads/exp/sia-aux-small-mechanism\n\nworktree D:/科研启航/Sia/_archive/legacy_code_20261027/sia-joint-stage2b-neutral\nHEAD bd6105a37c6662336236a135eb7ad610ca6e16de\nbranch refs/heads/exp/b3-stage2b-neutral\n\nworktree D:/科研启航/Sia/_archive/legacy_code_20261027/sia-joint-stage2c-r0\nHEAD 141138d95fc51755e2f71c15f01964b4c20757da\nbranch refs/heads/exp/b3-stage2c-r0-w10late\n\nworktree D:/科研启航/Sia/_archive/legacy_code_20261027/sia-joint-version-bridge\nHEAD 2d5f9dbfcb7e7bfc2bfd9dc194b1838674a227c2\nbranch refs/heads/exp/b3-version-bridge\n\n",
+    "stderr": ""
+  },
+  "registered_worktrees_official": {
+    "command": [
+      "git",
+      "-C",
+      "D:\\科研启航\\Sia\\official-artifacts",
+      "worktree",
+      "list",
+      "--porcelain"
+    ],
+    "exit_code": 0,
+    "stdout": "worktree D:/科研启航/Sia/official-artifacts\nHEAD aaf7a0de7b6cb5eab06ea020467ede5d2fd18e70\nbranch refs/heads/main\n\nworktree D:/科研启航/Sia/_archive/legacy_code_20261027/sia-afs-experiments\nHEAD aaf7a0de7b6cb5eab06ea020467ede5d2fd18e70\nbranch refs/heads/exp/sia-afs\n\nworktree D:/科研启航/Sia/_archive/legacy_code_20261027/sia-experiments\nHEAD aaf7a0de7b6cb5eab06ea020467ede5d2fd18e70\nbranch refs/heads/exp/sia-las-weighted\n\nworktree D:/科研启航/Sia/_archive/legacy_code_20261027/sia-lazer-observe\nHEAD aaf7a0de7b6cb5eab06ea020467ede5d2fd18e70\nbranch refs/heads/exp/sia-lazer-observe\n\nworktree D:/科研启航/Sia/_archive/legacy_code_20261027/sia-synergy-experiments\nHEAD aaf7a0de7b6cb5eab06ea020467ede5d2fd18e70\nbranch refs/heads/exp/sia-synergy\n\n",
+    "stderr": ""
+  },
+  "official_and_synergy_working_files_unchanged": true,
+  "canonical_files_unchanged": 272,
+  "historical_artifact_files_checked": 541,
+  "latest_historical_evidence_archive_unchanged": true,
+  "empty_leftover_containers_only_removed": true,
+  "no_user_data_permanently_deleted": true
+}

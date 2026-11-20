@@ -1,0 +1,197 @@
+--- a/sia-simulator/joint_prototype/release_evaluation.py
++++ b/sia-simulator/joint_prototype/release_evaluation.py
+@@ -1,8 +1,9 @@
+ """Opt-in completion-event evaluation of a bounded set of whole bundles.
+ 
+ No future arrivals, throughput lookup, Job.step, new quota points or service
+-preemption. The continuation freezes survivors until completion and admits
+-already-arrived FIFO waiters on the next scheduling boundary. This is a
++preemption. V2 predicts legal survivor upgrades after completion releases,
++with paid startup and lifetime budgets. The V1 evaluator remains available
++for its original tests. This is a
+ receding-horizon heuristic, NOT a global optimum or a JCT guarantee.
+ """
+ import math
+@@ -10,6 +11,80 @@
+ import numpy as np
+ from scipy.optimize import LinearConstraint
+ from .neutral_liveness import geometry
++
++def evaluate_reconfig_plan(scheduler,columns,scores,initial,queue,interval,context):
++    import copy
++    validation=evaluate_plan(scheduler,columns,scores,initial,queue,interval)
++    if validation['status']!='OK':return validation
++    context=copy.deepcopy(context)
++    if set(context)!=set(scheduler.job_map):raise ValueError('MISSING_ROLLOUT_BUDGET_CONTEXT')
++    for ctx in context.values():
++        if (not all(math.isfinite(ctx[k]) for k in ('spent','limit')) or
++                ctx['spent']<0 or ctx['limit']<ctx['spent']-1e-9 or
++                any(not math.isfinite(v) or v<=0 for v in ctx['costs'].values())):
++            raise ValueError('INVALID_ROLLOUT_BUDGET_CONTEXT')
++    by_job={j:[c for c in columns if c.job_id==j and scores.get(c.column_id,{}).get('raw_rate') is not None] for j in scheduler.job_map}
++    def rate(c):return scores[c.column_id]['raw_rate']*c.query.rho
++    def fits(cs):
++        return all(all(sum(c.usage_for(n.node_id)[k] for c in cs)<=cap+1e-7
++            for k,cap in enumerate((n.gpus,n.cpu_cores,n.ram_gb))) for n in scheduler.nodes)
++    def record(c,delay):
++        return dict(column=c,work=scores[c.column_id]['remaining_work'],delay=delay,productive=0.)
++    running={c.job_id:record(c,scores[c.column_id]['delay']) for c in initial}
++    queue=[j for j in queue if j not in running];events=[];done={};t=0.;previous=0.
++    for _ in range(4*len(scheduler.jobs)+4):
++        released=False
++        for j,z in list(running.items()):
++            dt=t-previous;startup=min(dt,z['delay']);z['delay']-=startup
++            productive=max(0.,dt-startup);needed=z['work']/rate(z['column'])
++            if needed<=productive+1e-8 and z['delay']<=1e-8:
++                finish=previous+startup+needed;done[j]=finish;released=True
++                events.append(dict(event='COMPLETE_RELEASE',job=j,time=finish,boundary=t));del running[j]
++            else:
++                used=min(productive,needed);z['work']=max(0.,z['work']-used*rate(z['column']));z['productive']+=used
++        while queue and t>0:
++            j=queue[0];ctx=context[j];resident=[z['column'] for z in running.values()]
++            options=[c for c in by_job[j] if ctx['spent']+ctx['costs'][c.config.gpu_type]<=ctx['limit']+1e-9 and fits(resident+[c])]
++            if not options:break
++            c=min(options,key=lambda c:(ctx['costs'][c.config.gpu_type]+scores[c.column_id]['remaining_work']/rate(c),str(geometry(c))))
++            delay=ctx['costs'][c.config.gpu_type];ctx['spent']+=delay
++            running[j]=record(c,delay);queue.pop(0)
++            events.append(dict(event='FIFO_START',job=j,time=t,column=c.column_id,startup=delay,spent_after=ctx['spent']))
++        # Only a real predicted completion permits survivor geometry changes.
++        # Peers remain allocated; no invented permit or additional resource.
++        if released:
++            moved=set()
++            for attempt in range(len(running)):
++                options=[]
++                for j,z in running.items():
++                    if j in moved or z['delay']>1e-9 or z['productive']<=1e-9:continue
++                    old=z['column'];ctx=context[j];baseline=z['work']/rate(old)
++                    for c in by_job[j]:
++                        different=(old.config.config_id,old.placement.node_gpus)!=(c.config.config_id,c.placement.node_gpus)
++                        if different and (ctx['frozen'] or c.config.config_id not in ctx['known']):continue
++                        cost=ctx['costs'][c.config.gpu_type] if different else 0.
++                        if ctx['spent']+cost>ctx['limit']+1e-9:continue
++                        if not fits([v['column'] for k,v in running.items() if k!=j]+[c]):continue
++                        saving=baseline-cost-z['work']/rate(c)
++                        if saving>1e-7:options.append((saving,str(geometry(c)),j,c,cost))
++                if not options:break
++                saving,_,j,c,cost=min(options,key=lambda v:(-v[0],v[1]));z=running[j];old=z['column']
++                context[j]['spent']+=cost;z['column']=c;z['delay']=cost
++                if cost:z['productive']=0.
++                moved.add(j)
++                events.append(dict(event='SURVIVOR_RECONFIGURE',job=j,time=t,old_column=old.column_id,
++                    column=c.column_id,startup=cost,spent_after=context[j]['spent'],budget=context[j]['limit'],predicted_own_seconds_saved=saving,
++                    peer_allocations_unchanged=True))
++        if not running:
++            if queue:return dict(status='NO_CONTINUATION',blocked=queue[0],events=events)
++            break
++        next_time=interval*math.ceil((min(z['delay']+z['work']/rate(z['column']) for z in running.values())+t-1e-9)/interval)
++        if t==0 and queue:next_time=min(next_time,interval)
++        previous,t=t,max(t,next_time)
++    else:raise RuntimeError('RECONFIG_ROLLOUT_EVENT_BOUND')
++    return dict(status='OK',sum_completion=sum(done.values()),completion_times=done,events=events,
++        continuation='COMPLETION_EVENT_LEGAL_SURVIVOR_UPGRADE_AND_FIFO',global_optimum=False,
++        model_scope='CURRENT_KNOWN_ELIGIBLE_CANDIDATES_ONLY',final_spent={j:v['spent'] for j,v in context.items()})
+ 
+ 
+ def evaluate_plan(scheduler, columns, scores, initial, queue, interval=60.):
+@@ -105,8 +180,24 @@
+         scores=s.current_completion_scores
+         served={c.job_id for c in legacy}
+         queue=[j for j in self.ready if j not in served]
+-        evaluated=evaluate_plan(s,columns,scores,legacy,queue,self.interval)
+-        evidence=dict(version='RELEASE_EVALUATION_V1',status=evaluated['status'],
++        def evaluate(bundle):
++            context={}
++            for j,spec in s.job_map.items():
++                h=self.services.get(j,getattr(self,'_lifetime_history',{}).get(j,{}))
++                c=next((c for c in bundle if c.job_id==j),None)
++                spent=float(h.get('delay_charged',0.));limit=self.delay_bound+h.get('tail_extra_budget',0.)
++                frozen=bool(h.get('tail_recovery_used',False))
++                if c is not None and (spec.current_config_id!=c.config.config_id or spec.current_placement!=c.placement.node_gpus):
++                    spent+=self._delay(j,c)
++                    offer=getattr(self,'_pending_tail',{}).get(j,{})
++                    if offer.get('column_id')==c.column_id:
++                        limit=self.delay_bound+max(h.get('tail_extra_budget',0.),offer.get('extra_budget',0.));frozen=True
++                if spent>limit+1e-9:raise RuntimeError('ROLLOUT_INITIAL_BUDGET')
++                context[j]=dict(spent=spent,limit=limit,frozen=frozen,
++                    costs=self.delay_costs[j],known=[k for k,v in self.profile_sources.get(j,{}).items() if v in ('direct_profile','projected_profile')])
++            return evaluate_reconfig_plan(s,columns,scores,bundle,queue,self.interval,context)
++        evaluated=evaluate(legacy)
++        evidence=dict(version='RELEASE_RECONFIG_EVALUATION_V2',status=evaluated['status'],
+             fixed_service_set=sorted(served),future_arrivals_read=False,
+             historical_reciprocal_is_proposal_only=True,baseline=evaluated,
+             plans=[],selected_plan='LEGACY',guard_seconds_tolerance=1e-7)
+@@ -139,7 +230,7 @@
+             plans.append(('CURRENT_ELIGIBLE_BUNDLE',prior))
+         best=legacy;best_score=evaluated['sum_completion'];best_eval=evaluated
+         for name,bundle in plans:
+-            ev=evaluated if name=='LEGACY' else evaluate_plan(s,columns,scores,bundle,queue,self.interval)
++            ev=evaluated if name=='LEGACY' else evaluate(bundle)
+             evidence['plans'].append(dict(name=name,evaluation=ev,
+                 columns={c.job_id:c.column_id for c in bundle},
+                 static_sum_eta=sum(scores[c.column_id]['estimated_completion'] for c in bundle)))
+@@ -149,7 +240,7 @@
+         if fixed is not None and {c.job_id:c.config.config_id for c in best}!=fixed:
+             raise RuntimeError('RELEASE_SERIAL_GPU_CHANGED')
+         # Independent repeat, not a result.x/fun-only acceptance.
+-        checked=evaluate_plan(s,columns,scores,best,queue,self.interval)
++        checked=evaluate(best)
+         if (checked['status']!='OK' or checked['sum_completion']>evaluated['sum_completion']+1e-7
+                 or not s.audit(best)['valid']):
+             raise RuntimeError('RELEASE_PLAN_ACCEPTANCE_FAILED')
+@@ -173,7 +264,7 @@
+         def optimize(self,*args):
+             answer=super().optimize(*args)
+             self.last_decision['shared_contract'].update(
+-                policy_version='COMPLETION_EVENT_RELEASE_V1',
++                policy_version='COMPLETION_EVENT_RELEASE_RECONFIG_V2',
+                 objective='MIN_PREDICTED_SUM_COMPLETION_OVER_THREE_BUNDLES',
+                 proposal_objectives=['HISTORICAL_RECIPROCAL','STATIC_SUM_ETA','CURRENT_VALID_BUNDLE'],
+                 admission_and_service_unchanged=True,global_optimum=False)
+--- a/sia-simulator/tests/test_release_integration.py
++++ b/sia-simulator/tests/test_release_integration.py
+@@ -28,9 +28,9 @@
+         self.assertEqual(r.selected['donor'].query.cpu_per_gpu,3.)
+         self.assertTrue(r.audit['valid'])
+         ev=r.audit['release_completion']
+-        self.assertAlmostEqual(ev['baseline']['sum_completion'],540.)
++        self.assertAlmostEqual(ev['baseline']['sum_completion'],276.)
+         self.assertAlmostEqual(ev['selected']['sum_completion'],250.)
+-        self.assertAlmostEqual(ev['receiver_gain']-ev['donor_loss'],290.)
++        self.assertAlmostEqual(ev['receiver_gain']-ev['donor_loss'],26.)
+ 
+     def test_fixed_fo_cannot_escape_its_frozen_gpu_intent(self):
+         jobs=[spec('a',configs=[cfg('aws'),cfg('dgx-ext')])]
+--- a/sia-simulator/tests/test_release_reconfig.py
++++ b/sia-simulator/tests/test_release_reconfig.py
+@@ -0,0 +1,31 @@
++import unittest
++from dataclasses import replace
++from test_adaptive_service import spec,cfg,scheduler,columns
++from joint_prototype.release_evaluation import evaluate_reconfig_plan
++from joint_prototype.joint_profile import NodeSpec
++
++class ReconfigRolloutTests(unittest.TestCase):
++ def case(self,spent=0,locked=False):
++  s=scheduler([spec('a'),spec('b',configs=[cfg('aws'),cfg('aws',2)],index=1)], [NodeSpec('aws:0','aws',2,6.,125.)]);s.enforce_floor=False
++  cs=[c for c in columns(s) if c.query.cpu_per_gpu==3. and c.query.ram_gb_per_gpu==62.5]
++  initial=[next(c for c in cs if c.job_id==j and c.config.gpus==1) for j in ('a','b')]
++  scores={c.column_id:dict(raw_rate=10. if c.config.gpus==2 else 1.,rho=1.,remaining_work=60. if c.job_id=='a' else 6000.,delay=120. if locked and c.job_id=='b' else 0.) for c in cs}
++  ctx={j:dict(spent=spent if j=='b' else 0.,limit=250.,frozen=False,productive=0.,costs={'aws':120.},known=['aws:1:1','aws:1:2']) for j in ('a','b')}
++  return s,cs,scores,initial,ctx
++ def test_release_pays_real_delay_and_uses_only_remaining_work(self):
++  s,cs,v,initial,ctx=self.case();r=evaluate_reconfig_plan(s,cs,v,initial,[],60.,ctx)
++  self.assertAlmostEqual(r['completion_times']['b'],774.)
++  change=next(e for e in r['events'] if e['event']=='SURVIVOR_RECONFIGURE')
++  self.assertEqual(change['startup'],120.);self.assertEqual(change['spent_after'],120.)
++ def test_lifetime_budget_blocks_illegal_upgrade(self):
++  s,cs,v,initial,ctx=self.case(spent=200.);r=evaluate_reconfig_plan(s,cs,v,initial,[],60.,ctx)
++  self.assertEqual(r['completion_times']['b'],6000.)
++  self.assertFalse(any(e['event']=='SURVIVOR_RECONFIGURE' for e in r['events']))
++ def test_checkpoint_delay_cannot_be_skipped(self):
++  s,cs,v,initial,ctx=self.case(locked=True);r=evaluate_reconfig_plan(s,cs,v,initial,[],60.,ctx)
++  self.assertEqual(r['completion_times']['b'],6120.)
++  self.assertFalse(any(e['event']=='SURVIVOR_RECONFIGURE' for e in r['events']))
++ def test_used_recovery_freezes_gpu_geometry(self):
++  s,cs,v,initial,ctx=self.case();ctx['b']['frozen']=True;r=evaluate_reconfig_plan(s,cs,v,initial,[],60.,ctx)
++  self.assertEqual(r['completion_times']['b'],6000.)
++if __name__=='__main__':unittest.main()

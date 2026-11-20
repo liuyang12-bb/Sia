@@ -1,0 +1,1022 @@
+--- /dev/null
++++ b/bounded80.py
+@@ -0,0 +1,26 @@
++"""Pre-formal bounded interface tests; full declarations, no JCT claims."""
++import contextlib,copy,io,json,tempfile,time
++from pathlib import Path
++import pandas as pd
++from core80 import ROOT,build
++from run_core80 import Metrics,compact_decision,save
++
++def main(out):
++ out=Path(out);data=pd.read_csv(ROOT/'inputs/core80_workload.csv').iloc[[0,3,4]].copy();data.time=0
++ evidence=[]
++ with tempfile.TemporaryDirectory() as d:
++  path=Path(d)/'three.csv';data.to_csv(path,index=False)
++  for method in ('SIA_P','SIA_AUX','PROP','CPU','MEM','FULL','FO','A00','A01','A10','A11'):
++   with contextlib.redirect_stdout(io.StringIO()):
++    c=build(method,'neutral' if method.startswith('A') else 'medium',workload_path=path,topology={'aws':2,'dgx-ext':2})
++    m=Metrics(c);start=time.perf_counter()
++    for _ in range(8):
++     c.step(60);r=c.joint_round_logs[-1];compact_decision(r['decision_for_next_interval']);m.consume(c,r)
++     c.joint_round_logs.clear();c.logs.clear()
++    s=m.summary(c);evidence.append(dict(method=method,audits=s['execution_audits'],rounds=8,completed=s['completed'],positive_progress=sum(j.progress>0 for j in c.jobs),
++        capacity_violations=s['violations'],locks=s['checkpoint_lock_checks'],wall=time.perf_counter()-start))
++   print('BOUNDED_OK',evidence[-1],flush=True)
++ save(out/'bounded_interfaces.json',dict(status='PASS',cases=evidence,meaning='8 real optimize_policy/Job.step boundaries each, original work retained; not a full JCT experiment.'))
++
++if __name__=='__main__':
++ import sys;main(sys.argv[1])
+--- /dev/null
++++ b/core80.py
+@@ -0,0 +1,172 @@
++"""Opt-in80-job scale and diagnostics adapter; historical files unchanged."""
++import collections,copy,hashlib,json,math,sys,time
++from contextlib import ExitStack
++from dataclasses import asdict
++from pathlib import Path
++from unittest.mock import patch
++ROOT=Path(__file__).resolve().parent;sys.path[:0]=[str(ROOT/'sia-simulator')]
++from joint_prototype.clean_ablation import CleanAdmission,CleanPolicy,install as install_clean
++from joint_prototype.small_mechanism import EvidenceMixin,ProbeSia
++from joint_prototype.completion_time import install_aux
++from joint_prototype.completion_continuity import install as install_completion
++from joint_prototype.tail_recovery import install as install_tail
++from joint_prototype.physical_domain import restrict_single_node_domain
++from joint_prototype.full160 import make_cluster
++from breakpoint_study import install as install_breakpoints
++from exact_optional_proof import ExactOptionalProofMixin
++
++METHODS=('SIA_P','FULL','SIA_AUX','PROP','CPU','MEM','FO','A00','A01','A10','A11')
++GPUS={'aws':4,'dgx-ext':8,'rtx':8}
++
++def compact_column(c):
++    """Logging-only serialization, no optimizer reads these dictionaries."""
++    return dict(column_id=c.column_id,job_id=c.job_id,config=asdict(c.config),
++        placement=c.placement.node_gpus,cpu_per_gpu=c.query.cpu_per_gpu,
++        ram_gb_per_gpu=c.query.ram_gb_per_gpu,rho=c.query.rho,
++        scheduling_utility=c.scheduling_utility,query_round=c.query_round,
++        candidate_kind=c.candidate_kind,node_usage=c.node_usage)
++
++def ledger_view(live):
++    if live is None:return None
++    return dict(ready=list(live.ready),services={j:{k:(compact_column(v) if k=='column' else v)
++        for k,v in h.items()} for j,h in live.services.items()})
++
++def efficient_evidence(self,jobs,nodes,base):
++    # Exact parent decision, skip three UNUSED diagnostic enumerations from
++    # EvidenceMixin.optimize. The actual exchange/aux candidate list is still
++    # recorded by its original wrapper after this call returns.
++    previous=copy.deepcopy(self.current_resources);live=getattr(self,'liveness',None)
++    before=ledger_view(live)
++    result=super(EvidenceMixin,self).optimize(jobs,nodes,base)
++    self.last_decision['probe']=dict(specs=[asdict(j) for j in self.probe_specs],
++        provenance=copy.deepcopy(self.probe_provenance),
++        job_state={j:dict(age=v.age,num_restarts=v.num_restarts,used_gpu_seconds=v.used_gpu_seconds,wasted_gpu_seconds=v.wasted_gpu_seconds) for j,v in jobs.items()},
++        previous_resources=previous,l2_before=before,l2_after=ledger_view(getattr(self,'liveness',None)),
++        joint_columns=[],proportional_columns=[],floor_rejected=[],
++        restart_factors={j.job_id:{c.config_id:self._restart_factor(j.job_id,jobs[j.job_id],c.config_id,j.current_config_id) for c in j.configs} for j in self.probe_specs},
++        contract=dict(p=self.p_fairness,lambda_n=self.lambda_n,allocation_bonus=0,progress_floor=False,response=self.oracle.response_exponent),
++        diagnostic_enumeration='UNUSED_HISTORICAL_REBUILD_SKIPPED; actual candidate set untouched')
++    return result
++
++class EfficientTraceMixin:
++    def optimize_policy(self):
++        from joint_prototype import exchange_netprogress,completion_time
++        from scale_storage import storage_context
++        from joint_prototype.joint_scheduler import JointScheduler,_proportional_point
++        original_columns=JointScheduler.build_joint_columns
++        policy=self.policy
++        def existing_cold_filter_early(s,*args,**kwargs):
++            # Completion scoring ALREADY discards non-proportional unknown-ETA
++            # columns. Move only this existing dead-path filter before object
++            # construction. Restore the complete trusted grid before auditing.
++            from joint_prototype.completion_time import predict_job
++            live=getattr(policy,'completion_jobs',{})
++            if not live:return original_columns(s,*args,**kwargs)
++            cold={(j.job_id,c.config_id) for j in s.jobs for c in j.configs
++                if predict_job(live[j.job_id],c)['raw_rate'] is None}
++            if not cold:return original_columns(s,*args,**kwargs)
++            provider=getattr(s,'resource_point_provider',None)
++            def points(current,j,c,p):
++                if (j.job_id,c.config_id) in cold and not current.lock_active(j):
++                    cpu,ram=current.allocation_floor(_proportional_point(p,current.node_map))
++                    return (cpu,),(ram,)
++                return provider(current,j,c,p) if provider else (current.aux_cpu_points,current.aux_ram_points)
++            s.resource_point_provider=points
++            try:return original_columns(s,*args,**kwargs)
++            finally:
++                if provider is None:del s.resource_point_provider
++                else:s.resource_point_provider=provider
++        with ExitStack() as stack:
++            stack.enter_context(storage_context(self.policy.oracle))
++            stack.enter_context(patch.object(JointScheduler,'build_joint_columns',existing_cold_filter_early))
++            stack.enter_context(patch.object(EvidenceMixin,'optimize',efficient_evidence))
++            stack.enter_context(patch.object(exchange_netprogress,'asdict',compact_column))
++            stack.enter_context(patch.object(completion_time,'asdict',compact_column))
++            return super().optimize_policy()
++
++class Core80Admission(ExactOptionalProofMixin,CleanAdmission):
++    MAX_ACTIVE_JOBS=80
++    def _decide(self,s,columns,now,productive):
++        mode=getattr(self,'resource_factor','FULL')
++        # Post-score restriction: allfour resource factors share the complete
++        # universe normalization. Genuine checkpoint geometry/quotas stay exact.
++        if mode in ('CPU','MEM'):
++            columns=[c for c in columns if s.lock_active(s.job_map[c.job_id]) or
++                (abs(c.query.ram_gb_per_gpu-c.proportional_ram_per_gpu)<1e-8 if mode=='CPU' else
++                 abs(c.query.cpu_per_gpu-c.proportional_cpu_per_gpu)<1e-8)]
++        result=super()._decide(s,columns,now,productive)
++        result.audit.update(scale80_active_jobs=len(s.jobs),scale80_candidate_columns=len(columns),resource_factor=mode)
++        return result
++
++class Core80Policy(CleanPolicy):
++    def optimize(self,*args):
++        result=super().optimize(*args)
++        self.last_decision['shared_contract']['max_active_jobs']=80
++        self.last_decision['clean_contract']['resource_factor']=self.liveness.resource_factor
++        return result
++
++def install80(c,method):
++    if method.startswith('A'):
++        install_clean(c,'A',int(method[1]),int(method[2]),'joint','prop')
++    else:install_clean(c,'B',1,1,'fixed' if method=='FO' else 'joint','prop' if method=='PROP' else 'opt')
++    c.policy.__class__=Core80Policy;c.policy.liveness.__class__=Core80Admission
++    c.policy.liveness.resource_factor=method
++    return c
++
++def scaled_installer80(c):
++    """Same original installation, explicit tested80 limit instead of20.
++
++    No jobs are hidden from the installer; its normal single-node, empty-ledger
++    checks still execute. Core80Admission is attached before the first decision.
++    """
++    from joint_prototype.adaptive_probe import install as adaptive_install
++    from joint_prototype.scaled_adaptive import ScaledJoint,ScaledAdmission
++    if not 1<=len(c.jobs)<=80:raise ValueError('CORE80_INSTALLER_SCOPE')
++    adaptive_install(c)
++    c.policy.__class__=ScaledJoint;c.policy.liveness.__class__=ScaledAdmission
++    return c
++
++def saturation_per_gpu():
++    from joint_prototype.joint_profile import load_synergy_template,CPU_COORDS,RAM_COORDS
++    import numpy as np
++    rows=json.loads((ROOT/'inputs/registry.json').read_text());out={t:dict(cpu=3.,ram=62.5) for t in GPUS};evidence=[]
++    for r in rows:
++        if r['application'] not in ('cifar10','deepspeech2','bert'):continue
++        typ,nn,g=r['config_id'].split(':')
++        if int(nn)!=1 or int(g)>GPUS[typ]:continue
++        a=load_synergy_template(ROOT/'inputs/models'/r['template']).matrix;peak=float(a.max())
++        cpu=float(CPU_COORDS[np.flatnonzero(a[:,-1]>=peak-1e-12)[0]])*r['phi_c']
++        ram=float(RAM_COORDS[np.flatnonzero(a[-1,:]>=peak-1e-12)[0]])*r['phi_m']
++        out[typ]['cpu']=max(out[typ]['cpu'],cpu);out[typ]['ram']=max(out[typ]['ram'],ram)
++        evidence.append(dict(key=r['key'],template=r['template'],peak=peak,cpu_saturation=cpu,ram_saturation=ram,phi_c=r['phi_c'],phi_m=r['phi_m']))
++    return out,evidence
++
++def build(method,response='medium',scenario='dual',workload_path=None,config_path=None,seed=True,efficient=True,topology=None):
++    import pandas as pd
++    if method not in METHODS or scenario not in ('dual','cpu_only','ram_only'):raise ValueError('UNREGISTERED_CORE80_CELL')
++    cfg=json.loads(Path(config_path or ROOT/'inputs/core80_config.json').read_text());cfg=copy.deepcopy(cfg)
++    if topology is not None:
++        cfg['cluster'].update(nnodes={t:1 for t in topology},ngpus_per_node=dict(topology),max_physical_nodes={t:1 for t in topology})
++    sizes=cfg['cluster']['ngpus_per_node'];caps={t:dict(cpu_cores=3*g,ram_gb=62.5*g) for t,g in sizes.items()}
++    if scenario!='dual':
++        sat,_=saturation_per_gpu()
++        for t,g in sizes.items():
++            if scenario=='cpu_only':caps[t]['ram_gb']=sat[t]['ram']*g
++            else:caps[t]['cpu_cores']=sat[t]['cpu']*g
++    cfg['cluster']['capacity_scenarios']={'main':caps}
++    c=make_cluster(cfg,pd.read_csv(workload_path or ROOT/'inputs/core80_workload.csv'),ROOT/'inputs/registry.json',ROOT/'inputs/models',
++        'sia_p' if method.startswith('SIA') else 'joint_o',response,'main',seed)
++    c.policy.node_capacities=caps;restrict_single_node_domain(c.policy)
++    c.policy.aux_cpu_points=tuple(sorted(set(c.policy.aux_cpu_points)|{8.}))
++    if method=='SIA_P':c.policy.__class__=ProbeSia
++    elif method=='SIA_AUX':
++        install_aux(c);install_breakpoints(c,'CC_FULL')
++    else:
++        from joint_prototype import bundle_adaptation
++        with patch.object(bundle_adaptation,'install_scaled',scaled_installer80):
++            install_completion(c,proportional=method.startswith('A'))
++        install_tail(c)
++        if not method.startswith('A'):install_breakpoints(c,'CC_FULL')
++        install80(c,method)
++    if efficient:c.__class__=type('Core80'+c.__class__.__name__,(EfficientTraceMixin,c.__class__),{})
++    return c
+--- /dev/null
++++ b/exact_optional_proof.py
+@@ -0,0 +1,76 @@
++"""Exact certificate for redundant lexicographic presence queries.
++
++TRUSTED CONTEXT: CleanCore's fixed primary optimum, then minimum actual-startup
++secondary optimum; required set nonempty. For a nonrequired job with every
++candidate utility exactly0 and strictly positive added startup, selecting it
++cannot occur at that secondary optimum: remove its one binary column. Every
++required/lock and other job choice stays; resource upper bounds only relax,
++primary is identical, and startup strictly decreases, contradicting optimality.
++Previously fixed other-job lexicographic masks do not invalidate removal.
++Thus its maximum-presence query is exactly0. Reuse the preceding independently
++validated feasible point; all later job/rank ties are still executed unchanged.
++
++This does NOT remove any column, change scores, choose a new job or impose new
++admission. Unknown jobs still get exactly the historical required FIFO service.
++Disable the opt-in to compare literal solver calls on identical input states.
++"""
++import numpy as np
++from scipy.optimize import OptimizeResult
++
++class ExactOptionalProofMixin:
++    enable_exact_optional_proof=True
++    def _decide(self,*args):
++        self._proof_context=None;self._proof_last_x=None;self._proof_last_columns=None
++        self._exact_optional_records=[]
++        try:
++            result=super()._decide(*args)
++            result.audit['exact_zero_optional_certificates']=list(self._exact_optional_records)
++            result.audit['exact_zero_optional_saved_solver_calls']=len(self._exact_optional_records)
++            return result
++        finally:
++            # Ephemeral solver vectors must never enter persistent service
++            # history, a later state, a fallback, or a trial controller copy.
++            for k in ('_proof_context','_proof_last_x','_proof_last_columns','_exact_optional_records'):
++                self.__dict__.pop(k,None)
++
++    def _secondary_tie(self,s,columns,required,constraints,call,chosen):
++        selected=super()._secondary_tie(s,columns,required,constraints,call,chosen)
++        if (getattr(self,'enable_exact_optional_proof',False) and required and
++                getattr(self,'factors',(0,))[0]==1 and len(constraints)>=3):
++            startup=np.asarray(constraints[-1].A).reshape(-1)
++            weights=np.asarray(constraints[1].A).reshape(-1)
++            if (len(startup)==len(columns) and len(weights)==len(columns) and
++                    np.array_equal(weights,np.asarray([c.scheduling_utility for c in columns]))):
++                self._proof_context=(columns,constraints,set(required),startup)
++        return selected
++
++    def _milp(self,cost,columns,constraints):
++        from joint_prototype.completion_continuity import canonical_integral_solution
++        ctx=getattr(self,'_proof_context',None);values=np.asarray(cost);x=getattr(self,'_proof_last_x',None)
++        if (ctx is not None and ctx[0] is columns and ctx[1] is constraints and
++                getattr(self,'_proof_last_columns',None) is columns and x is not None):
++            indices=np.flatnonzero(values)
++            if len(indices) and np.all(values[indices]==-1.):
++                names={columns[i].job_id for i in indices}
++                if len(names)==1:
++                    name=next(iter(names));own=[i for i,c in enumerate(columns) if c.job_id==name]
++                    if (name not in ctx[2] and own==indices.tolist() and
++                            all(columns[i].scheduling_utility==0. for i in own) and
++                            np.all(ctx[3][own]>1e-7) and np.all(x[own]==0.)):
++                        # This is an actual feasible allocation at the CURRENT
++                        # primary/secondary/earlier-rank rows, not stale geometry.
++                        valid=canonical_integral_solution(x,constraints)
++                        record=dict(job=name,scope='CURRENT_MODEL_PRIMARY_AND_SECONDARY_OPTIMA',
++                            maximum_presence=0.,minimum_added_startup=float(min(ctx[3][own])),
++                            required_jobs=sorted(ctx[2]),columns_unchanged=len(columns),
++                            certificate='REMOVE_ZERO_UTILITY_POSITIVE_STARTUP_OPTIONAL_COLUMN',
++                            all_current_rows_revalidated=True)
++                        self._exact_optional_records.append(record)
++                        self._proof_last_x=valid.copy()
++                        return OptimizeResult(x=valid,status=0,success=True,fun=0.,
++                            message='CERTIFIED_ZERO_OPTIONAL: same primary/secondary optimum, current feasible vector revalidated')
++        result=super()._milp(cost,columns,constraints)
++        if result.status==0 and result.success and result.x is not None:
++            self._proof_last_x=np.asarray(result.x).copy();self._proof_last_columns=columns
++        else:self._proof_last_x=None;self._proof_last_columns=None
++        return result
+--- /dev/null
++++ b/preflight80.py
+@@ -0,0 +1,73 @@
++"""Offline full-domain response/competition audit. Never calls Cluster.step."""
++import collections,csv,dataclasses,gzip,hashlib,itertools,json,sys
++from pathlib import Path
++import numpy as np
++from core80 import ROOT,GPUS,build,saturation_per_gpu
++from scale_storage import storage_context
++from joint_prototype.joint_profile import JobSpec,GpuConfig,NodeSpec
++from joint_prototype.joint_scheduler import Placement
++from joint_prototype.r0_liveness import R0Oracle,APPLICATION_TEMPLATES
++from joint_prototype.neutral_liveness import FactorScheduler
++from breakpoint_study import resource_points
++
++def save(p,v):p.write_text(json.dumps(v,indent=2,ensure_ascii=False),encoding='utf8')
++def supported(q):return not(q.source_coordinate_clipped or q.baseline_coordinate_clipped)
++def main(out):
++ out=Path(out);out.mkdir(exist_ok=True);apps=['cifar10','deepspeech2','bert']
++ registry=json.loads((ROOT/'inputs/registry.json').read_text());groups={};coverage=[];counts=collections.Counter();neutral=True;props=True
++ oracle=R0Oracle(ROOT/'inputs/registry.json',ROOT/'inputs/models',{a:a for a in apps},'medium')
++ nodes=[NodeSpec(t+':0',t,g,3.*g,62.5*g) for t,g in GPUS.items()]
++ with storage_context(oracle),gzip.open(out/'full_domain_points.csv.gz','wt',newline='',encoding='utf8') as f:
++  fields=['application','config','cpu','ram','rho','supported','numerator_cpu_clip','numerator_ram_clip','denominator_cpu_clip','denominator_ram_clip'];w=csv.DictWriter(f,fieldnames=fields);w.writeheader()
++  for r in registry:
++   if r['application'] not in apps:continue
++   app=r['application'];typ,nn,g=r['config_id'].split(':');g=int(g)
++   if int(nn)!=1 or g>GPUS[typ]:continue
++   config=GpuConfig(r['config_id'],typ,g,1,1.,r['phi_c'],r['phi_m']);job=JobSpec(app,r['template'],(config,))
++   s=FactorScheduler(nodes,[job],oracle,[1.,2.,3.,4.,6.,8.,9.,12.,24.],[20.83,62.5,125.,187.5,250.],verify_exact=False,
++      minimum_cpu_per_gpu=1.,minimum_ram_gb_per_gpu=20.83,candidate_policy='b3');s.resource_point_provider=resource_points
++   pl=Placement(((typ+':0',g),));cp,mp=resource_points(s,job,config,pl)
++   points=[];counter=collections.Counter()
++   for cpu,ram in itertools.product(sorted(set(cp+(3.,))),sorted(set(mp+(62.5,)))):
++    if cpu*g>3*GPUS[typ]+1e-9 or ram*g>62.5*GPUS[typ]+1e-9:continue
++    q=oracle.query(job,config,cpu,ram,(3.,62.5));row=dict(application=app,config=config.config_id,cpu=cpu,ram=ram,rho=q.rho,supported=supported(q),
++       numerator_cpu_clip=not 1<=q.requested_source_cpu_coordinate<=24,numerator_ram_clip=not 20.83<=q.requested_source_ram_coordinate<=250,
++       denominator_cpu_clip=not 1<=q.requested_baseline_source_cpu_coordinate<=24,denominator_ram_clip=not 20.83<=q.requested_baseline_source_ram_coordinate<=250)
++    w.writerow(row);points.append(row);counter['points']+=1
++    for k in fields[6:]:counter[k]+=row[k]
++    counter['fully_supported']+=row['supported']
++   groups[app,config.config_id]=points;counts.update(counter)
++   p=oracle.query(job,config,3.,62.5,(3.,62.5));neutral &= p.rho==1.;props &= g*3<=3*GPUS[typ] and g*62.5<=62.5*GPUS[typ]
++   coverage.append(dict(application=app,config=config.config_id,registry_key=r['key'],template=r['template'],phi_c=r['phi_c'],phi_m=r['phi_m'],proportional_rho=p.rho,
++       proportional_supported=supported(p),counts=dict(counter),max_rho=max(x['rho'] for x in points),max_cpu_only_rho=max(x['rho'] for x in points if x['ram']==62.5),
++       max_ram_only_rho=max(x['rho'] for x in points if x['cpu']==3.)))
++ witnesses=[]
++ for typ in GPUS:
++  cid=f'{typ}:1:1'
++  for a,b in [('cifar10','bert'),('cifar10','deepspeech2')]:
++   left=[r for r in groups[a,cid] if r['supported'] and r['cpu']<=5 and r['ram']<=104.17]
++   right=[r for r in groups[b,cid] if r['supported'] and r['cpu']<=5 and r['ram']<=104.17]
++   best=None
++   for x in left:
++    for y in right:
++     if x['cpu']+y['cpu']>6+1e-9 or x['ram']+y['ram']>125+1e-9:continue
++     gain=x['rho']+y['rho']-2
++     if best is None or gain>best['sum_relative_rate_gain']:
++      best=dict(gpu_type=typ,jobs=[a,b],receiver=x,peer=y,sum_relative_rate_gain=gain,
++       both_no_slowdown=min(x['rho'],y['rho'])>=1-1e-9,cpu_sum=x['cpu']+y['cpu'],ram_sum=x['ram']+y['ram'],
++       baseline=[3.,62.5,1.],interpretation='Sum of per-job relative speeds, not an absolute cross-application Goodput sum or JCT claim.')
++   if best:witnesses.append(best)
++ sat,evidence=saturation_per_gpu();save(out/'optional_source_saturation.json',dict(capacities_per_gpu=sat,evidence=evidence))
++ save(out/'coverage.json',dict(configurations=coverage,all_points_counts=dict(counts),complete_registry_domain=len(coverage)==33,proportional_all_rho1=neutral,proportional_all_fits=props,
++     warning='Raw matrices official; mapping, R0, interpolation/E-legacy and node specifications synthetic. Full domain preserved, clipping disclosed, no extrapolation change.'))
++ save(out/'pair_opportunities.json',dict(witnesses=witnesses,proof='Two1GPU jobs use <=6CPU125GB. Repeating two AWS, four DGX and four RTX pairs fills20GPU within60CPU1250GB if supported pair witnesses exist for every type.',
++      full20gpu_supported_pareto_possible=all(any(x['gpu_type']==t and x['both_no_slowdown'] and x['sum_relative_rate_gain']>1e-8 for x in witnesses) for t in GPUS)))
++ import pandas as pd
++ df=pd.read_csv(ROOT/'inputs/core80_workload.csv');first=df[df.time==0]
++ save(out/'competition.json',dict(total_jobs=len(df),applications=dict(df.application.value_counts().items()),arrival_counts={str(k):int(v) for k,v in df.time.value_counts().items()},
++      first_arrival_jobs=len(first),gpus=20,minimum_gang_gpu_sum_at_start=len(first),minimum_waiters_if_all_jobs_at_least_one_gpu=max(0,len(first)-20),
++      demand_sum_first_arrival=int(first.num_replicas.sum()),source_fields_kept=True,training_work_shortened=False,workload_sha256=hashlib.sha256((ROOT/'inputs/core80_workload.csv').read_bytes()).hexdigest(),
++      conclusion='Initial40 jobs guarantee contention at20GPU, but sustained waiting and realized co-residency require round logs; static opportunities alone do not establish JCT gain.'))
++ print('OFFLINE_PREFLIGHT_COMPLETE',len(coverage),dict(counts),flush=True)
++
++if __name__=='__main__':main(sys.argv[1])
+--- /dev/null
++++ b/run_core80.py
+@@ -0,0 +1,119 @@
++"""One preregistered full-work cell. Independent process, streamed raw evidence."""
++import argparse,collections,dataclasses,gzip,hashlib,importlib.metadata,json,math,os,platform,sys,time,traceback
++from pathlib import Path
++import numpy as np
++import psutil
++from core80 import ROOT,build,GPUS
++from run_stage2c_cell import Accumulator,independent_rho
++from joint_prototype.execution_audit import audit_execution
++
++def encode(v):
++ if dataclasses.is_dataclass(v):return dataclasses.asdict(v)
++ if isinstance(v,set):return sorted(v)
++ if hasattr(v,'tolist'):return v.tolist()
++ if hasattr(v,'item'):return v.item()
++ raise TypeError(type(v).__name__)
++def save(p,v):
++ with Path(p).open('x',encoding='utf8') as f:json.dump(v,f,ensure_ascii=False,indent=2,default=encode)
++def sha(p):return hashlib.sha256(Path(p).read_bytes()).hexdigest().upper()
++def gate(path):
++ d=Path(path)
++ while not d.exists():d=d.parent
++ r=dict(memory_gib=psutil.virtual_memory().available/2**30,disk_gib=psutil.disk_usage(str(d)).free/2**30)
++ if r['memory_gib']<2 or r['disk_gib']<5:raise RuntimeError('SAFETY_GATE '+str(r))
++ return r
++
++class Metrics(Accumulator):
++ def __init__(self,c):
++  super().__init__(c);self.clip=collections.Counter();self.selected_count=0;self.fallback=collections.Counter();self.lock_checks=0
++  self.waiting_rounds=0;self.max_queue=0;self.co_resident_opportunities=0
++ def consume(self,c,r):
++  d=r['decision_for_next_interval'];res=d['result'];fresh=d['round']!=getattr(self,'last_decision_round',None)
++  if fresh:
++   self.last_decision_round=d['round'];assert res['audit']['valid'];self.status[res['status']]+=1;self.solve.append(res['solve_seconds'])
++   self.events.update(e['event'] for e in d.get('liveness_events',[]));self.max_queue=max(self.max_queue,len(res['unallocated_jobs']))
++   self.waiting_rounds+=bool(res['unallocated_jobs'])
++   if res['status'].startswith('FALLBACK'):self.fallback[res['status']]+=1
++   specs={s['job_id']:s for s in d['probe']['specs']};totals={t+':0':[0.,0.,0.] for t in c.ngpus_per_node}
++   for j,col in res['selected'].items():
++    cfg=col['config'];rho=independent_rho(c.policy.oracle,j,cfg['config_id'],col['cpu_per_gpu'],col['ram_gb_per_gpu'])
++    assert math.isclose(rho,col['rho'],rel_tol=1e-12);self.selected_count+=1
++    if c.policy.oracle.response_exponent==0:assert rho==1.
++    ref=c.policy.oracle.reference(j,cfg['config_id'])
++    assert (cfg['cpu_demand_scale'],cfg['memory_demand_scale'])==(ref['phi_c'],ref['phi_m'])
++    for label,x,lo,hi in [('num_cpu',col['source_coordinates']['requested']['cpu'],1,24),('num_ram',col['source_coordinates']['requested']['ram_gb'],20.83,250),('den_cpu',col['baseline_source_coordinates']['requested']['cpu'],1,24),('den_ram',col['baseline_source_coordinates']['requested']['ram_gb'],20.83,250)]:self.clip[label]+=not lo<=x<=hi
++    s=specs[j]
++    if s['checkpoint_locked'] and s['current_config_id']:
++     assert cfg['config_id']==s['current_config_id'] and col['placement']==dict(s['current_placement'])
++     assert (col['cpu_per_gpu'],col['ram_gb_per_gpu'])==(s['current_cpu_per_gpu'],s['current_ram_gb_per_gpu']);self.lock_checks+=1
++    for n,g in col['placement'].items():
++     for i,x in enumerate((g,g*col['cpu_per_gpu'],g*col['ram_gb_per_gpu'])):totals[n][i]+=x
++   for n,used in totals.items():
++    typ=n.rsplit(':',1)[0];caps=c.policy.node_capacities[typ]
++    assert all(x<=y+1e-7 for x,y in zip(used,(c.ngpus_per_node[typ],caps['cpu_cores'],caps['ram_gb'])))
++    self.idle_saturated+=used[1]>=caps['cpu_cores']-1e-7 and used[0]<c.ngpus_per_node[typ]
++    for k,x in zip(('gpu','cpu','ram'),used):self.node_peaks[n][k]=max(self.node_peaks[n][k],x)
++   if d.get('strict_full_intent'):
++    assert c.policy.canonical(c.allocations,c.allocations)==c.policy.canonical(d['original_sia_allocations'],c.allocations)
++  for e in r['execution']:assert audit_execution(e)['valid']
++  super().consume(c,r)
++ def summary(self,c):
++  r=super().summary(c,dict(rmst_tau_seconds=360000))
++  for j in r['jobs'].values():
++   j['first_wait']=(j['first_allocation']-j['arrival'] if j['first_allocation'] is not None else j['censor_time'])
++   j['later_wait']=j['wait']-j['first_wait'];assert j['later_wait']>=-1e-7
++  r.update(clipping_counts=dict(self.clip),selected_columns=self.selected_count,checkpoint_lock_checks=self.lock_checks,
++      fallback_status=dict(self.fallback),fallback_count=sum(self.fallback.values()),waiting_decision_rounds=self.waiting_rounds,max_waiting_jobs=self.max_queue)
++  return r
++
++def compact_decision(d):
++ # Keep raw selected queries/execution, state/specs, constraints and service
++ # ledgers. Candidate scores are a reproducible catalog digest/count, not1M
++ # duplicate dictionaries per round. No decision consumes this log reduction.
++ remove=('continuity_scores','completion_scores','net_progress_scores','factor_candidate_keys')
++ for k in remove:
++  if k in d:
++   seq=d.pop(k);d[k+'_count']=len(seq)
++   h=hashlib.sha256()
++   for value in seq:h.update(json.dumps(value,default=encode,sort_keys=True,separators=(',',':')).encode())
++   d[k+'_sha256']=h.hexdigest().upper()
++ if 'probe' in d:
++  for k in ('joint_columns','proportional_columns','floor_rejected'):
++   seq=d['probe'].pop(k,None)
++   if seq is not None:d['probe'][k+'_count']=len(seq)
++ return d
++
++def main():
++ ap=argparse.ArgumentParser();ap.add_argument('--manifest',required=True);ap.add_argument('--cell',required=True);a=ap.parse_args()
++ p=json.loads(Path(a.manifest).read_text(encoding='utf8'));cell=next(x for x in p['cells'] if x['id']==a.cell)
++ for package,version in p['environment']['packages'].items():
++  if importlib.metadata.version(package)!=version:raise RuntimeError('DEPENDENCY_CHANGED '+package)
++ for path,h in p['source_hashes'].items():
++  if sha(ROOT/path)!=h:raise RuntimeError('SOURCE_HASH '+path)
++ for path,h in p['input_hashes'].items():
++  if sha(path)!=h:raise RuntimeError('INPUT_HASH '+path)
++ out=Path(p['output'])/'cells'/a.cell;resources=gate(out);out.mkdir(exist_ok=False)
++ start=time.time();save(out/'start.json',dict(cell=cell,command=sys.argv,source_manifest_sha256=sha(a.manifest),resources=resources,start_unix=start,pid=os.getpid(),python=sys.version))
++ c=None;m=None
++ try:
++  c=build(cell['method'],cell['response'],cell['scenario']);m=Metrics(c)
++  with gzip.open(out/'rounds.jsonl.gz','xt',encoding='utf8',compresslevel=3) as f:
++   for i in range(6000):
++    if c.all_complete():break
++    t=time.perf_counter();c.step(60);r=c.joint_round_logs[-1];r['round_wall_seconds']=time.perf_counter()-t
++    r['job_end_state']={j.name:dict(restarts=j.num_restarts or 0,migrations=j.num_migrations or 0,wasted_gpu_seconds=j.wasted_gpu_seconds,completion=j.completion_time,progress=float(j.progress),epoch=int(j.epoch)) for j in c.jobs}
++    compact_decision(r['decision_for_next_interval'])
++    f.write(json.dumps(r,default=encode,separators=(',',':'))+'\n');f.flush();m.consume(c,r)
++    if (i+1)%10==0 or i<3:
++     save(out/f'progress_{i+1:04}.json',dict(round=i+1,simulated_seconds=c.current_time,completed=sum(j.completion_time is not None for j in c.jobs),round_wall_seconds=r['round_wall_seconds'],elapsed_wall_seconds=time.time()-start))
++     print('PROGRESS',a.cell,i+1,sum(j.completion_time is not None for j in c.jobs),time.time()-start,flush=True)
++    c.joint_round_logs.clear();c.logs.clear();c.rescale_events.clear();c.migrate_events.clear()
++    for name in ('exchange_columns','exchange_scores','continuity_scores','completion_scores','actual_completion_columns'):
++     if hasattr(c.policy,name):setattr(c.policy,name,[])
++  s=m.summary(c);s.update(cell=cell,termination='ALL_COMPLETE' if c.all_complete() else 'ROUND_LIMIT',total_wall_seconds=time.time()-start)
++  save(out/'summary.json',s);save(out/'output_hashes.json',{x.name:sha(x) for x in out.iterdir() if x.is_file()});print('RESULT',a.cell,s['termination'],s['completed'],s['mean_jct'],flush=True)
++ except Exception as e:
++  save(out/'failure.json',dict(error=repr(e),traceback=traceback.format_exc(),rounds=m.rounds if m else 0,time=c.current_time if c else None,last_decision=compact_decision(c.policy.last_decision) if c else None))
++  raise
++
++if __name__=='__main__':main()
+--- /dev/null
++++ b/scale_storage.py
+@@ -0,0 +1,102 @@
++"""Opt-in exact storage adapters; no candidate, objective or solver-option edits."""
++import contextlib,dataclasses,hashlib,inspect,math,textwrap
++import numpy as np
++from scipy import sparse
++from scipy.optimize import LinearConstraint
++from unittest.mock import patch
++
++def matrix_bytes(value):
++    if sparse.issparse(value):
++        a=value.tocsc(copy=True);a.sort_indices()
++        return b'CSC'+np.asarray(a.shape,dtype=np.int64).tobytes()+a.indptr.tobytes()+a.indices.tobytes()+a.data.tobytes()
++    return np.asarray(value,dtype=float).tobytes()
++
++def matrix_payload(value):
++    if not sparse.issparse(value):return np.asarray(value,dtype=float).tolist()
++    a=value.tocoo()
++    return dict(storage='COO',shape=a.shape,row=a.row.tolist(),col=a.col.tolist(),data=a.data.tolist())
++
++def sparse_constraints(self,columns,dimensions):
++    # Exactly the historical job-row and node/dimension order, now O(nonzeros).
++    key=(id(columns),len(columns),tuple(dimensions))
++    cache=getattr(self,'_storage_constraint_cache',None)
++    if cache and cache[0]==key and cache[1] is columns:return cache[2],cache[3].copy()
++    indices={j.job_id:i for i,j in enumerate(self.jobs)}
++    upper=[1.]*len(self.jobs);node_rows={}
++    for n in self.nodes:
++        for dim,cap in [('gpu',n.gpus),('cpu',n.cpu_cores),('ram',n.ram_gb)]:
++            if dim in dimensions:node_rows[n.node_id,dim]=len(upper);upper.append(float(cap))
++    rows=[];cols=[];data=[]
++    for i,c in enumerate(columns):
++        rows.append(indices[c.job_id]);cols.append(i);data.append(1.)
++        for node,gpu,cpu,ram in c.node_usage:
++            for dim,val in [('gpu',gpu),('cpu',cpu),('ram',ram)]:
++                if dim in dimensions and val:
++                    rows.append(node_rows[node,dim]);cols.append(i);data.append(val)
++    matrix=sparse.csc_matrix((data,(rows,cols)),shape=(len(upper),len(columns)),dtype=float)
++    upper=np.asarray(upper,dtype=float)
++    self._storage_constraint_cache=(key,columns,matrix,upper.copy())
++    return matrix,upper.copy()
++
++def sparse_condition(constraints):
++    result=[];exponents=[]
++    for c in constraints:
++        if not sparse.issparse(c.A):
++            from joint_prototype.completion_continuity import _core80_original_condition
++            a,p=_core80_original_condition([c]);result.extend(a);exponents.extend(p);continue
++        matrix=c.A.tocsr();lo=np.broadcast_to(c.lb,(matrix.shape[0],)).copy();hi=np.broadcast_to(c.ub,(matrix.shape[0],)).copy()
++        powers=np.zeros(matrix.shape[0],dtype=int)
++        for row in range(matrix.shape[0]):
++            width=hi[row]-lo[row]
++            if np.isfinite(lo[row]) and np.isfinite(hi[row]) and 0<width<1e-6:powers[row]=math.ceil(-math.log2(width))
++        a=matrix.copy();a.data=np.ldexp(a.data,np.repeat(powers,np.diff(a.indptr)))
++        lower,upper=np.ldexp(lo,powers),np.ldexp(hi,powers)
++        if not np.array_equal(np.ldexp(a.data,-np.repeat(powers,np.diff(a.indptr))),matrix.data):raise RuntimeError('NONREVERSIBLE_SPARSE_ROWS')
++        if not np.array_equal(np.ldexp(lower,-powers),lo) or not np.array_equal(np.ldexp(upper,-powers),hi):raise RuntimeError('NONREVERSIBLE_SPARSE_BOUNDS')
++        result.append(LinearConstraint(a.tocsc(),lower,upper));exponents.append(powers.tolist())
++    return result,exponents
++
++def slots_copy(cls):
++    fields=[]
++    for f in dataclasses.fields(cls):
++        opts={}
++        if f.default is not dataclasses.MISSING:opts['default']=f.default
++        if f.default_factory is not dataclasses.MISSING:opts['default_factory']=f.default_factory
++        fields.append((f.name,f.type,dataclasses.field(**opts)))
++    namespace={k:v for k,v in cls.__dict__.items() if callable(v) and not k.startswith('__')}
++    namespace['__module__']=__name__
++    return dataclasses.make_dataclass('Compact'+cls.__name__,fields,namespace=namespace,frozen=True,slots=True)
++
++@contextlib.contextmanager
++def storage_context(oracle):
++    from joint_prototype import joint_profile as jp,joint_scheduler as js,completion_continuity as ct,bundle_adaptation as ba
++    from joint_prototype import adaptive_service
++    # The Bundle numerical guard is byte-for-byte its existing source except
++    # sparse serialization and an explicit super class (closure-free binding).
++    src=textwrap.dedent(inspect.getsource(ba.BundleAdmission._milp))
++    src=src.replace('super()._milp','super(BundleAdmission,self)._milp')
++    src=src.replace('np.asarray(v.A,dtype=float).tolist()','matrix_payload(v.A)')
++    src=src.replace('np.asarray(a,dtype=float).tobytes()','matrix_bytes(a)')
++    env=dict(vars(ba));env.update(matrix_payload=matrix_payload,matrix_bytes=matrix_bytes)
++    exec(compile(src,'<core80-equivalent-bundle-storage>','exec'),env)
++    original_query=jp.JointProfileOracle.query
++    compact_query=slots_copy(jp.ProfileQuery);compact_col=slots_copy(js.JointColumn)
++    def cached(self,job,config,cpu,ram,prop):
++        # Validate current ownership/legal state even on a response cache hit.
++        if config not in job.configs or not config.legal or cpu<=0 or ram<=0 or config.gpus<=0 or config.num_nodes<=0 or config.sia_goodput<=0:
++            return original_query(self,job,config,cpu,ram,prop)
++        key=(job.template_file,config.config_id,config.cpu_demand_scale,config.memory_demand_scale,float(cpu),float(ram),tuple(prop),self.normalization_mode,self.fixed_reference,self.response_exponent)
++        cache=getattr(self,'_core80_response_cache',None)
++        if cache is None:cache={};self._core80_response_cache=cache
++        q=cache.get(key)
++        if q is None:q=original_query(self,job,config,cpu,ram,prop);cache[key]=q
++        if q.job_id==job.job_id and q.raw_sia_goodput==config.sia_goodput:return q
++        return dataclasses.replace(q,job_id=job.job_id,raw_sia_goodput=config.sia_goodput,effective_goodput=config.sia_goodput*q.rho)
++    with contextlib.ExitStack() as s:
++        s.enter_context(patch.object(jp,'ProfileQuery',compact_query));s.enter_context(patch.object(js,'JointColumn',compact_col))
++        s.enter_context(patch.object(jp.JointProfileOracle,'query',cached))
++        s.enter_context(patch.object(js.JointScheduler,'_constraint_matrix',sparse_constraints))
++        s.enter_context(patch.object(ba.BundleAdmission,'_milp',env['_milp']))
++        s.enter_context(patch.object(ct,'_core80_original_condition',ct.condition_constraint_bands,create=True))
++        s.enter_context(patch.object(ct,'condition_constraint_bands',sparse_condition))
++        yield
+--- /dev/null
++++ b/supervise80.py
+@@ -0,0 +1,57 @@
++"""Serial deadline watchdog; partial/failed directories are never reused."""
++import argparse,hashlib,json,os,subprocess,sys,time,traceback
++from pathlib import Path
++import psutil
++ROOT=Path(__file__).resolve().parent
++def sha(p):return hashlib.sha256(Path(p).read_bytes()).hexdigest().upper()
++def append(p,v):
++ with p.open('a',encoding='utf8') as f:f.write(json.dumps(v,ensure_ascii=False)+'\n');f.flush();os.fsync(f.fileno())
++def stop_tree(proc):
++ try:
++  tree=psutil.Process(proc.pid);children=tree.children(recursive=True)
++  for x in reversed(children):
++   try:x.terminate()
++   except psutil.NoSuchProcess:pass
++  try:tree.terminate()
++  except psutil.NoSuchProcess:pass
++  psutil.wait_procs(children+[tree],timeout=10)
++ except psutil.NoSuchProcess:pass
++def main(path):
++ p=json.loads(Path(path).read_text(encoding='utf8'));out=Path(p['output']);manifest=out/'execution_manifest.jsonl'
++ if manifest.exists():raise RuntimeError('REFUSE_SECOND_SUPERVISOR_OR_EXISTING_MANIFEST')
++ append(manifest,dict(event='BATCH_START',unix=time.time(),pid=os.getpid(),prereg_sha256=sha(path)))
++ completed=[];start=time.time();stop_reason=None
++ for i,cell in enumerate(p['cells']):
++  now=time.time()
++  if cell['optional']:
++   # Optional cells are admitted only as entire fixed pairs. No JCT used.
++   if i%2==1:
++    if len(completed)<11 or any(x['state']!='ALL_COMPLETE' for x in completed[:11]):stop_reason='OPTIONAL_GATE_CORE_NOT_ALL_COMPLETE';break
++    if p['formal_stop_unix']-now<2*p['cell_wall_limit_seconds']+60:stop_reason='OPTIONAL_PAIR_BUDGET_NOT_AVAILABLE';break
++  if now>=p['formal_stop_unix']:stop_reason='FORMAL_WALL_DEADLINE';break
++  resources=dict(memory_gib=psutil.virtual_memory().available/2**30,disk_gib=psutil.disk_usage(str(out)).free/2**30)
++  if resources['memory_gib']<2 or resources['disk_gib']<5:
++   stop_reason='SAFETY_GATE';append(manifest,dict(event='SAFE_STOP',cell=cell['id'],unix=now,resources=resources));break
++  if (out/'cells'/cell['id']).exists():raise RuntimeError('REFUSE_EXISTING_CELL '+cell['id'])
++  cmd=[sys.executable,'-X','utf8','-B',str(ROOT/'run_core80.py'),'--manifest',str(Path(path).resolve()),'--cell',cell['id']]
++  append(manifest,dict(event='CELL_START',cell=cell['id'],unix=now,command=cmd,resources=resources))
++  with (out/f"{cell['id']}.console.log").open('x',encoding='utf8') as log:
++   proc=subprocess.Popen(cmd,cwd=ROOT,stdout=log,stderr=subprocess.STDOUT,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
++   append(manifest,dict(event='CELL_PROCESS',cell=cell['id'],pid=proc.pid,unix=time.time()))
++   limit=min(now+p['cell_wall_limit_seconds'],p['formal_stop_unix']);timed=False
++   while proc.poll() is None:
++    if time.time()>=limit:stop_tree(proc);timed=True;break
++    time.sleep(5)
++   proc.wait()
++  summary=out/'cells'/cell['id']/'summary.json';failure=out/'cells'/cell['id']/'failure.json'
++  state='COMPUTE_TIMEOUT' if timed else (json.loads(summary.read_text(encoding='utf8'))['termination'] if summary.exists() else 'FAILED')
++  event=dict(event='CELL_END',cell=cell['id'],unix=time.time(),state=state,exit_code=proc.returncode,wall_seconds=time.time()-now,
++     output_hashes={str(x.relative_to(out)):sha(x) for x in (out/'cells'/cell['id']).glob('*') if x.is_file()})
++  append(manifest,event);completed.append(event)
++  print('CELL_END',cell['id'],state,'wall',round(event['wall_seconds'],1),flush=True)
++  if timed:
++   # Do not edit or close/reconstruct a truncated worker log after a hard kill.
++   (out/'cells'/cell['id']/'COMPUTE_TIMEOUT.json').write_text(json.dumps(dict(status=state,wall_limit=p['cell_wall_limit_seconds'],unix=time.time(),reason='Hard watchdog; no JCT imputation, raw partial logs retained.'),indent=2),encoding='utf8')
++ append(manifest,dict(event='BATCH_END',unix=time.time(),elapsed=time.time()-start,attempted=len(completed),stop_reason=stop_reason or 'REGISTERED_MATRIX_FINISHED'))
++
++if __name__=='__main__':main(sys.argv[1])
+--- /dev/null
++++ b/inputs/core80_config.json
+@@ -0,0 +1,101 @@
++{
++  "cluster": {
++    "nnodes": {
++      "aws": 1,
++      "dgx-ext": 1,
++      "rtx": 1
++    },
++    "ngpus_per_node": {
++      "aws": 4,
++      "dgx-ext": 8,
++      "rtx": 8
++    },
++    "max_physical_nodes": {
++      "aws": 1,
++      "dgx-ext": 1,
++      "rtx": 1
++    },
++    "capacity_scenarios": {
++      "main": {
++        "aws": {
++          "cpu_cores": 12,
++          "ram_gb": 250.0
++        },
++        "dgx-ext": {
++          "cpu_cores": 24,
++          "ram_gb": 500.0
++        },
++        "rtx": {
++          "cpu_cores": 24,
++          "ram_gb": 500.0
++        }
++      }
++    }
++  },
++  "response": {
++    "mapping_mode": "pre_registered_application_to_template_map",
++    "application_template_rule": {
++      "cifar10": "alexnet_1.py",
++      "deepspeech2": "deepspeech_1.py",
++      "imagenet": "res50_1.py",
++      "bert": "bert_1.py",
++      "yolov3": "mobilenet_1.py"
++    },
++    "mapping_warning": "Every application-to-template association is a deterministic synthetic cross-hardware transfer. Matrix cells are official Synergy data, but no mapping is a Saturn CPU/RAM measurement.",
++    "normalization_mode": "fixed_reference",
++    "fixed_reference": {
++      "cpu_per_gpu": 3.0,
++      "ram_gb_per_gpu": 62.5
++    },
++    "minimum_legal_profile_point": {
++      "cpu_per_gpu": 1.0,
++      "ram_gb_per_gpu": 20.83
++    },
++    "aux_cpu_points": [
++      1.0,
++      2.0,
++      3.0,
++      4.0,
++      6.0,
++      9.0,
++      12.0,
++      24.0
++    ],
++    "aux_ram_points": [
++      20.83,
++      62.5,
++      125.0,
++      187.5,
++      250.0
++    ],
++    "response_settings": {
++      "neutral": {
++        "exponent": 0.0
++      },
++      "medium": {
++        "exponent": 0.5
++      }
++    },
++    "transfer_warning": "Matrix cells are official Synergy data; mapping, normalization, phi scaling, interpolation, and multiplication with Sia Goodput are synthetic."
++  },
++  "simulation": {
++    "interval_seconds": 60,
++    "max_rounds": 6000,
++    "seed_profiles_num_nodes": 1,
++    "seed_profiles_num_replicas": 8,
++    "p_fairness": -0.5,
++    "lambda_a": 0.01,
++    "lambda_n": 1.1,
++    "project_throughputs": false,
++    "share_max_replicas": false,
++    "disable_batch_size_tuning": false,
++    "minimum_available_memory_gib": 2.0
++  },
++  "resource_model_type": "synthetic_cross_hardware_transfer",
++  "warning": "SYNTHETIC CROSS-HARDWARE TRANSFER — NOT REAL SATURN PERFORMANCE",
++  "seed_profiles": [
++    1,
++    8
++  ],
++  "reference_config_hash": "667D7717CF8FF09EEE6A82C9979180615B58B92670BF91A5D4E5728F4218DE03"
++}--- /dev/null
++++ b/inputs/core80_workload.csv
+@@ -0,0 +1,81 @@
++name,time,application,num_replicas,batch_size,original_name,original_arrival,source_trace,original_source_row_index,source_row_index
++cifar10-10000,0,cifar10,12,4096,cifar10-0,401.0,workload-1.csv,0,0
++cifar10-10001,0,cifar10,12,4096,cifar10-1,528.0,workload-1.csv,1,1
++cifar10-10002,0,cifar10,8,2048,cifar10-2,723.0,workload-1.csv,2,2
++deepspeech2-10003,0,deepspeech2,6,320,deepspeech2-8,1468.0,workload-1.csv,8,3
++bert-10004,0,bert,12,384,bert-28,4931.0,workload-1.csv,28,4
++cifar10-10005,0,cifar10,6,2048,cifar10-3,1077.0,workload-1.csv,3,5
++cifar10-10006,0,cifar10,12,4096,cifar10-4,1174.0,workload-1.csv,4,6
++cifar10-10007,0,cifar10,4,2048,cifar10-5,1225.0,workload-1.csv,5,7
++deepspeech2-10008,0,deepspeech2,8,320,deepspeech2-9,1747.0,workload-1.csv,9,8
++bert-10009,0,bert,16,384,bert-37,7263.0,workload-1.csv,37,9
++cifar10-10010,0,cifar10,8,4096,cifar10-6,1413.0,workload-1.csv,6,10
++cifar10-10011,0,cifar10,4,2048,cifar10-10,1894.0,workload-1.csv,10,11
++cifar10-10012,0,cifar10,10,4096,cifar10-11,2126.0,workload-1.csv,11,12
++deepspeech2-10013,0,deepspeech2,8,320,deepspeech2-12,2154.0,workload-1.csv,12,13
++bert-10014,0,bert,12,384,bert-54,9581.0,workload-1.csv,54,14
++cifar10-10015,0,cifar10,10,4096,cifar10-13,2257.0,workload-1.csv,13,15
++cifar10-10016,0,cifar10,16,4096,cifar10-14,2793.0,workload-1.csv,14,16
++cifar10-10017,0,cifar10,16,4096,cifar10-15,2892.0,workload-1.csv,15,17
++deepspeech2-10018,0,deepspeech2,6,320,deepspeech2-16,2939.0,workload-1.csv,16,18
++bert-10019,0,bert,12,384,bert-99,13591.0,workload-1.csv,99,19
++cifar10-10020,0,cifar10,12,4096,cifar10-17,3102.0,workload-1.csv,17,20
++cifar10-10021,0,cifar10,16,4096,cifar10-18,3125.0,workload-1.csv,18,21
++cifar10-10022,0,cifar10,10,4096,cifar10-19,3362.0,workload-1.csv,19,22
++deepspeech2-10023,0,deepspeech2,8,320,deepspeech2-21,3598.0,workload-1.csv,21,23
++bert-10024,0,bert,6,384,bert-107,14468.0,workload-1.csv,107,24
++cifar10-10025,0,cifar10,10,4096,cifar10-20,3535.0,workload-1.csv,20,25
++cifar10-10026,0,cifar10,12,4096,cifar10-22,3685.0,workload-1.csv,22,26
++cifar10-10027,0,cifar10,4,2048,cifar10-24,4465.0,workload-1.csv,24,27
++deepspeech2-10028,0,deepspeech2,12,640,deepspeech2-30,5017.0,workload-1.csv,30,28
++bert-10029,0,bert,8,384,bert-159,28098.0,workload-1.csv,159,29
++cifar10-10030,0,cifar10,8,2048,cifar10-25,4783.0,workload-1.csv,25,30
++cifar10-10031,0,cifar10,10,4096,cifar10-26,4788.0,workload-1.csv,26,31
++cifar10-10032,0,cifar10,12,4096,cifar10-27,4862.0,workload-1.csv,27,32
++deepspeech2-10033,0,deepspeech2,6,320,deepspeech2-31,5291.0,workload-1.csv,31,33
++bert-10034,0,bert,12,384,bert-0,90.0,workload-2.csv,0,34
++cifar10-10035,0,cifar10,6,2048,cifar10-29,4935.0,workload-1.csv,29,35
++cifar10-10036,0,cifar10,6,2048,cifar10-32,5379.0,workload-1.csv,32,36
++cifar10-10037,0,cifar10,4,2048,cifar10-34,5896.0,workload-1.csv,34,37
++deepspeech2-10038,0,deepspeech2,8,320,deepspeech2-41,7491.0,workload-1.csv,41,38
++bert-10039,0,bert,8,384,bert-15,2939.0,workload-2.csv,15,39
++cifar10-10040,600,cifar10,10,4096,cifar10-35,7191.0,workload-1.csv,35,40
++cifar10-10041,600,cifar10,8,2048,cifar10-36,7233.0,workload-1.csv,36,41
++cifar10-10042,600,cifar10,10,4096,cifar10-38,7289.0,workload-1.csv,38,42
++deepspeech2-10043,600,deepspeech2,6,320,deepspeech2-102,14121.0,workload-1.csv,102,43
++bert-10044,600,bert,8,384,bert-99,13591.0,workload-2.csv,99,44
++cifar10-10045,600,cifar10,12,4096,cifar10-39,7465.0,workload-1.csv,39,45
++cifar10-10046,600,cifar10,4,2048,cifar10-40,7468.0,workload-1.csv,40,46
++cifar10-10047,600,cifar10,12,4096,cifar10-42,7753.0,workload-1.csv,42,47
++deepspeech2-10048,600,deepspeech2,12,640,deepspeech2-127,17984.0,workload-1.csv,127,48
++bert-10049,600,bert,12,384,bert-103,14121.0,workload-2.csv,103,49
++cifar10-10050,600,cifar10,12,4096,cifar10-43,7929.0,workload-1.csv,43,50
++cifar10-10051,600,cifar10,8,2048,cifar10-44,8145.0,workload-1.csv,44,51
++cifar10-10052,600,cifar10,12,4096,cifar10-45,8147.0,workload-1.csv,45,52
++deepspeech2-10053,600,deepspeech2,6,320,deepspeech2-19,3598.0,workload-2.csv,19,53
++bert-10054,600,bert,16,384,bert-129,17984.0,workload-2.csv,129,54
++cifar10-10055,600,cifar10,16,4096,cifar10-46,8210.0,workload-1.csv,46,55
++cifar10-10056,600,cifar10,12,4096,cifar10-49,9318.0,workload-1.csv,49,56
++cifar10-10057,600,cifar10,10,4096,cifar10-50,9402.0,workload-1.csv,50,57
++deepspeech2-10058,600,deepspeech2,8,320,deepspeech2-26,5291.0,workload-2.csv,26,58
++bert-10059,600,bert,6,384,bert-135,18991.0,workload-2.csv,135,59
++cifar10-10060,1200,cifar10,8,4096,cifar10-51,9440.0,workload-1.csv,51,60
++cifar10-10061,1200,cifar10,6,2048,cifar10-52,9509.0,workload-1.csv,52,61
++cifar10-10062,1200,cifar10,12,4096,cifar10-53,9579.0,workload-1.csv,53,62
++deepspeech2-10063,1200,deepspeech2,8,320,deepspeech2-34,7263.0,workload-2.csv,34,63
++bert-10064,1200,bert,6,384,bert-5,1091.0,workload-3.csv,5,64
++cifar10-10065,1200,cifar10,4,2048,cifar10-56,9783.0,workload-1.csv,56,65
++cifar10-10066,1200,cifar10,12,4096,cifar10-57,9994.0,workload-1.csv,57,66
++cifar10-10067,1200,cifar10,16,4096,cifar10-58,10060.0,workload-1.csv,58,67
++deepspeech2-10068,1200,deepspeech2,8,320,deepspeech2-40,8250.0,workload-2.csv,40,68
++bert-10069,1200,bert,16,384,bert-14,2152.0,workload-3.csv,14,69
++cifar10-10070,1200,cifar10,8,4096,cifar10-59,10168.0,workload-1.csv,59,70
++cifar10-10071,1200,cifar10,4,2048,cifar10-60,10271.0,workload-1.csv,60,71
++cifar10-10072,1200,cifar10,4,2048,cifar10-61,10654.0,workload-1.csv,61,72
++deepspeech2-10073,1200,deepspeech2,12,640,deepspeech2-44,8855.0,workload-2.csv,44,73
++bert-10074,1200,bert,16,384,bert-40,8149.0,workload-3.csv,40,74
++cifar10-10075,1200,cifar10,8,2048,cifar10-63,10728.0,workload-1.csv,63,75
++cifar10-10076,1200,cifar10,4,2048,cifar10-64,10732.0,workload-1.csv,64,76
++cifar10-10077,1200,cifar10,12,4096,cifar10-65,10748.0,workload-1.csv,65,77
++deepspeech2-10078,1200,deepspeech2,8,320,deepspeech2-46,9041.0,workload-2.csv,46,78
++bert-10079,1200,bert,12,384,bert-42,8855.0,workload-3.csv,42,79
+--- /dev/null
++++ b/sia-simulator/tests/test_core80.py
+@@ -0,0 +1,134 @@
++"""Scale/representation contracts, retaining all80 queue entries and candidates."""
++import contextlib,copy,dataclasses,io,json,sys,tempfile,unittest
++from pathlib import Path
++import numpy as np
++ROOT=Path(__file__).resolve().parents[2];sys.path.insert(0,str(ROOT))
++from core80 import Core80Admission,build
++from scale_storage import storage_context,sparse_constraints
++from test_adaptive_service import spec,cfg,current,admission,scheduler
++from test_clean_ablation import state,cs,controller
++from joint_prototype.joint_profile import NodeSpec
++
++class Core80Tests(unittest.TestCase):
++ def test_real80_installer_all_methods_preserves_entire_input(self):
++  from core80 import METHODS
++  for method in METHODS:
++   with contextlib.redirect_stdout(io.StringIO()):c=build(method,seed=False)
++   self.assertEqual(len(c.jobs),80);self.assertEqual(len({j.name for j in c.jobs}),80)
++   self.assertTrue(all(j.progress==0. for j in c.jobs))
++   if not method.startswith('SIA'):self.assertEqual(c.policy.liveness.MAX_ACTIVE_JOBS,80)
++ def test_real80_optimize_policy_checkpoint_training_no_seed(self):
++  import pandas as pd
++  data=pd.read_csv(ROOT/'inputs/core80_workload.csv');data.time=0
++  with tempfile.TemporaryDirectory() as d:
++   path=Path(d)/'all80.csv';data.to_csv(path,index=False)
++   with contextlib.redirect_stdout(io.StringIO()):
++    c=build('A11','neutral',workload_path=path,seed=False)
++    for _ in range(4):
++     c.step(60);self.assertTrue(c.policy.last_decision['result']['audit']['valid'])
++     self.assertEqual(len(c.policy.liveness.seen),80)
++     self.assertEqual(set(c.policy.liveness.ready)|set(c.policy.liveness.services),{j.name for j in c.jobs if j.completion_time is None})
++    self.assertGreater(sum(j.progress for j in c.jobs),0.)
++    self.assertTrue(any(j.rescale_time>0 or j.execution_time>0 for j in c.jobs))
++ def make(self,js):
++  x=controller(js);x.__class__=Core80Admission;x.resource_factor='PROP';return x
++ def test_80_fifo_queue_no_truncation(self):
++  js=[spec(f'job-{i:03}',index=i) for i in range(80)]
++  s=state(js,[NodeSpec('aws:0','aws',4,12.,250.)]);x=self.make(js)
++  r=x.decide(s,cs(s,{}),0.,{})
++  self.assertEqual(set(r.selected),{j.job_id for j in js[:4]})
++  self.assertEqual(x.ready,[j.job_id for j in js[4:]])
++  self.assertEqual(len(x.seen),80);self.assertTrue(r.audit['valid'])
++ def test_81_rejects_without_partial_queue(self):
++  js=[spec(str(i),index=i) for i in range(81)];s=state(js);x=self.make(js);before=copy.deepcopy(x.__dict__)
++  with self.assertRaises(RuntimeError):x.decide(s,cs(s,{}),0.,{})
++  self.assertEqual(before,x.__dict__)
++ def test_80_completion_next_head_and_full_lock(self):
++  js=[spec(f'job-{i:03}',index=i) for i in range(80)]
++  s=state(js,[NodeSpec('aws:0','aws',2,6.,125.)]);x=self.make(js)
++  first=x.decide(s,cs(s,{}),0.,{})
++  remaining=[current(js[1],first.selected,locked=True)]+js[2:]
++  s=state(remaining,s.nodes);out=x.decide(s,cs(s,{}),60.,{})
++  self.assertEqual(set(out.selected),{'job-001','job-002'})
++  self.assertEqual(out.selected['job-001'].placement,first.selected['job-001'].placement)
++  self.assertEqual(out.selected['job-001'].query.cpu_per_gpu,first.selected['job-001'].query.cpu_per_gpu)
++  self.assertEqual(len(x.ready),77)
++ def test_sparse_dense_matrix_exact_and_upper_not_mutated(self):
++  js=[spec('a',configs=[cfg('aws'),cfg('aws',2)]),spec('b')]
++  s=state(js,[NodeSpec('aws:0','aws',4,12.,250.)]);columns=s.build_joint_columns()
++  dense,u=s._constraint_matrix(columns,('gpu','cpu','ram'));sp,v=sparse_constraints(s,columns,('gpu','cpu','ram'))
++  np.testing.assert_array_equal(dense,sp.toarray());np.testing.assert_array_equal(u,v)
++  v[0]=0.;_,fresh=sparse_constraints(s,columns,('gpu','cpu','ram'));self.assertEqual(fresh[0],1.)
++ def test_response_storage_cache_current_raw_and_job_identity(self):
++  js=[spec('a'),spec('b')];s=scheduler(js,medium=True);config=js[0].configs[0]
++  expected=s.oracle.query(js[0],config,3.,62.5,(3.,62.5))
++  with storage_context(s.oracle):
++   actual=s.oracle.query(js[0],config,3.,62.5,(3.,62.5))
++   self.assertEqual(dataclasses.asdict(expected),dataclasses.asdict(actual))
++   changed=dataclasses.replace(config,sia_goodput=7.);other=dataclasses.replace(js[1],configs=(changed,))
++   q=s.oracle.query(other,changed,3.,62.5,(3.,62.5));self.assertEqual(q.job_id,'b');self.assertEqual(q.raw_sia_goodput,7.)
++   self.assertEqual(q.effective_goodput,7.*q.rho);self.assertFalse(hasattr(q,'__dict__'))
++   columns=s.build_joint_columns();self.assertEqual(dataclasses.asdict(columns[0]),dataclasses.asdict(copy.deepcopy(columns[0])))
++ def test_sparse_dense_full_lexicographic_same_selection(self):
++  js=[spec('a'),spec('b',index=1)];s=state(js,[NodeSpec('aws:0','aws',2,6.,125.)]);columns=cs(s,{'a':.25,'b':.3})
++  plain=self.make(js).decide(s,columns,0.,{})
++  with storage_context(s.oracle):
++   stored=cs(s,{'a':.25,'b':.3});fast=self.make(js).decide(s,stored,0.,{})
++  self.assertEqual({j:c.column_id for j,c in plain.selected.items()},{j:c.column_id for j,c in fast.selected.items()})
++  self.assertEqual(plain.scheduling_objective,fast.scheduling_objective)
++ def test_cpu_mem_postscore_quota_contract(self):
++  js=[spec('a')];s=state(js,[NodeSpec('aws:0','aws',2,6.,125.)]);s.enforce_floor=False;columns=s.build_joint_columns()
++  for factor in ('CPU','MEM'):
++   x=self.make(js);x.resource_factor=factor;x.clean_aux='opt';r=x.decide(s,columns,0.,{})
++   for c in r.selected.values():
++    if factor=='CPU':self.assertEqual(c.query.ram_gb_per_gpu,c.proportional_ram_per_gpu)
++    else:self.assertEqual(c.query.cpu_per_gpu,c.proportional_cpu_per_gpu)
++ def test_efficient_real_optimize_policy_matches_original_storage(self):
++  # Real unseeded BERT: initial allocation, checkpoint, training, next schedule.
++  from test_exchange_integration import ExchangeIntegration
++  from joint_prototype.completion_continuity import install as cc
++  from joint_prototype.tail_recovery import install as tail
++  from joint_prototype.clean_ablation import install
++  from core80 import EfficientTraceMixin
++  tracks=[]
++  for efficient in (False,True):
++   with contextlib.redirect_stdout(io.StringIO()):
++    c=cc(ExchangeIntegration().build());tail(c);install(c,'B',1,1,'joint','opt')
++    if efficient:c.__class__=type('TestEfficient',(EfficientTraceMixin,c.__class__),{})
++    trace=[]
++    for _ in range(12):
++     c.step(60);trace.append((copy.deepcopy(c.allocations),[(j.progress,j.epoch,j.rescale_time,j.num_restarts,j.completion_time) for j in c.jobs],copy.deepcopy(c.policy.current_resources),[dataclasses.asdict(x) for x in c.policy.exchange_columns]))
++    self.assertGreater(c.jobs[0].progress,0.);tracks.append(trace)
++  self.assertEqual(tracks[0],tracks[1])
++ def test_cold_filter_pushdown_exact_complete_scored_domain(self):
++  import pandas as pd
++  data=pd.read_csv(ROOT/'inputs/core80_workload.csv').iloc[[0,3,4]].copy();data.time=0
++  with tempfile.TemporaryDirectory() as d:
++   path=Path(d)/'three.csv';data.to_csv(path,index=False)
++   for method in ('FULL','FO','SIA_AUX'):
++    for seed in (False,True):
++     tracks=[]
++     for efficient in (False,True):
++      with contextlib.redirect_stdout(io.StringIO()):
++       c=build(method,workload_path=path,topology={'aws':2,'dgx-ext':2},seed=seed,efficient=efficient);trace=[]
++       for _ in range(4):
++        c.step(60);columns=getattr(c.policy,'exchange_columns',getattr(c.policy,'actual_completion_columns',[]))
++        trace.append((copy.deepcopy(c.allocations),[(j.progress,j.num_restarts) for j in c.jobs],[dataclasses.asdict(x) for x in columns]))
++       tracks.append(trace)
++     self.assertEqual(tracks[0],tracks[1],(method,seed))
++ def test_sia_neutral_medium_real_bounded_exact_regression(self):
++  import pandas as pd
++  data=pd.read_csv(ROOT/'inputs/core80_workload.csv').iloc[[0,4]].copy();data['time']=0
++  with tempfile.TemporaryDirectory() as d:
++   p=Path(d)/'two.csv';data.to_csv(p,index=False);tracks=[]
++   for response in ('neutral','medium'):
++    with contextlib.redirect_stdout(io.StringIO()):
++     c=build('SIA_P',response,workload_path=p,topology={'aws':2,'dgx-ext':2});trace=[]
++     for _ in range(12):
++      c.step(60);trace.append((copy.deepcopy(c.allocations),[(j.progress,j.epoch,j.num_restarts,j.completion_time) for j in c.jobs]))
++      self.assertTrue(c.policy.last_decision['strict_full_intent'])
++      self.assertTrue(all(x['rho']==1. for x in c.policy.current_resources.values()))
++     tracks.append(trace)
++   self.assertEqual(tracks[0],tracks[1])
++
++if __name__=='__main__':unittest.main(verbosity=2)
+--- /dev/null
++++ b/sia-simulator/tests/test_exact_optional_proof.py
+@@ -0,0 +1,49 @@
++"""Same candidates/objectives; literal MILP versus exact redundant-call proof."""
++import copy,sys,unittest
++from pathlib import Path
++from types import SimpleNamespace
++from unittest.mock import patch
++sys.path.insert(0,str(Path(__file__).resolve().parents[2]))
++from core80 import Core80Admission
++from test_adaptive_service import spec,current
++from test_clean_ablation import controller,state,cs
++from joint_prototype.joint_profile import NodeSpec
++
++def solve(js,s,columns,enabled=True):
++ a=controller(js);a.__class__=Core80Admission;a.resource_factor='PROP';a.factors=(1,1,1);a.enable_exact_optional_proof=enabled
++ return a,a.decide(s,columns,0.,{})
++def chosen(r):return {j:(c.column_id,c.scheduling_utility) for j,c in r.selected.items()}
++
++class ExactOptionalTests(unittest.TestCase):
++ def test_80_zero_optional_old_and_certified_same_exact_output(self):
++  js=[spec(f'j{i:03}',index=i) for i in range(80)];s=state(js,[NodeSpec('aws:0','aws',4,12.,250.)]);cols=cs(s,{j.job_id:0. for j in js})
++  _,old=solve(js,s,cols,False);a,new=solve(js,s,cols,True)
++  self.assertEqual(chosen(old),chosen(new));self.assertEqual(set(new.selected),{'j000'})
++  self.assertEqual(new.audit['exact_zero_optional_saved_solver_calls'],79)
++  self.assertTrue(all(x['all_current_rows_revalidated'] for x in new.audit['exact_zero_optional_certificates']))
++  self.assertFalse(any(k.startswith('_proof_') for k in a.__dict__))
++ def test_positive_utility_optional_still_selected(self):
++  js=[spec('a'),spec('b',index=1),spec('c',index=2)];s=state(js,[NodeSpec('aws:0','aws',2,6.,125.)]);cols=cs(s,{'a':.1,'b':.3,'c':0.})
++  _,old=solve(js,s,cols,False);_,new=solve(js,s,cols,True)
++  self.assertEqual(chosen(old),chosen(new));self.assertEqual(set(new.selected),{'a','b'})
++  self.assertFalse(any(x['job']=='b' for x in new.audit['exact_zero_optional_certificates']))
++ def test_zero_startup_optional_not_certified_and_can_be_selected(self):
++  js=[spec('a'),spec('b',index=1)];s=state(js,[NodeSpec('aws:0','aws',2,6.,125.)]);prior=s.build_proportional_columns()[1]
++  js[1]=current(js[1],{'b':prior});s=state(js,s.nodes);cols=cs(s,{'a':1.,'b':0.})
++  _,old=solve(js,s,cols,False);_,new=solve(js,s,cols,True)
++  self.assertEqual(chosen(old),chosen(new));self.assertIn('b',new.selected)
++  self.assertEqual(new.audit['exact_zero_optional_saved_solver_calls'],0)
++ def test_nonzero_negative_optional_never_misclassified(self):
++  js=[spec('a'),spec('b',index=1)];s=state(js,[NodeSpec('aws:0','aws',2,6.,125.)]);cols=cs(s,{'a':1.,'b':-1.})
++  _,old=solve(js,s,cols,False);_,new=solve(js,s,cols,True)
++  self.assertEqual(chosen(old),chosen(new));self.assertEqual(new.audit['exact_zero_optional_saved_solver_calls'],0)
++ def test_solver_failure_not_replaced_by_certificate_and_atomic(self):
++  js=[spec('a'),spec('b',index=1)];s=state(js);cols=cs(s,{'a':0.,'b':0.});a=controller(js);a.__class__=Core80Admission;a.resource_factor='PROP';a.factors=(1,1,1);before=copy.deepcopy(a.__dict__)
++  with patch('joint_prototype.adaptive_service.milp',return_value=SimpleNamespace(status=1,x=None,success=False,message='injected')):
++   with self.assertRaisesRegex(RuntimeError,'SOLVER_UNDECIDED'):a.decide(s,cols,0.,{})
++  self.assertEqual(before,a.__dict__)
++ def test_service_group_A_keeps_literal_solver_semantics(self):
++  js=[spec('a'),spec('b',index=1)];s=state(js);cols=cs(s,{'a':0.,'b':0.});a=controller(js);a.__class__=Core80Admission;a.resource_factor='PROP'
++  r=a.decide(s,cols,0.,{});self.assertEqual(r.audit['exact_zero_optional_saved_solver_calls'],0)
++
++if __name__=='__main__':unittest.main(verbosity=2)

@@ -1,0 +1,1 @@
+run1在60秒PREFIX_STATE断言停止，尚未达到干预。内部dataclass tuple与磁盘JSON list不能直接比较；run2对运行期状态按同一JSON编码规范化后再逐字段精确比较，不删除字段、不放宽数值精度。旧失败与脚本hash保留。

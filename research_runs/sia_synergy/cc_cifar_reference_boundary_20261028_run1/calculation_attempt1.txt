@@ -1,0 +1,1 @@
+Initial diagnostic assertion treated registry normalization as the median across configurations; assertion failed before producing results. Stage2B finalize_audit.py lines38-41 confirms MIN across configuration domain, with median only aggregating repeated source step times. Corrected analysis follows that frozen rule. No model changed.
