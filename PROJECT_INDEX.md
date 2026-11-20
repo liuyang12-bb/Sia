@@ -1,11 +1,12 @@
 # CC-Joint 项目导航与保留依据
 
-整理日期：2026-11-01。当前活动是论文准备，正式实验保持暂停。
+更新日期为 2026-11-20。最新开发入口为 cc-joint-search-v1，已完成 12 作业规模验证及 20 作业 CPU 互补对照。历史正式实验保持暂停。
 
 ## 1. 论文与可复查结果
 
 |用途|入口|注意事项|
 |---|---|---|
+|搜索优化与最新两项验证|[完整报告](research_runs/sia_synergy/cc_search_validation_20261120/TWO_STUDIES_REPORT.md)|12 作业等效提速，20 作业均值优势伴随长任务退化，LOCAL 接受改选为 0|
 |论文、13篇文献、11篇公开PDF、6张原创图|[论文目录说明](research_notes/paper/cc_joint_draft_20261101_v1/README.md)|初稿；附42格历史记录复算，不是一轮新实验|
 |主80作业七方法完整实验|[run5报告](research_runs/sia_synergy/cc_core80_full_lex_repair_20261031_run5/REPORT.md)|对应v8；FULL对Sia均值改善29.62%，同时披露尾部退化|
 |有序/持续服务及干净资源消融|[干净消融产物](research_runs/sia_synergy/cc_clean_ab_20261030_run3/)|A组公平评分、B组完成评分；不可混算贡献|
@@ -17,6 +18,7 @@
 
 |目录|定位|核心文件|
 |---|---|---|
+|[cc-joint-search-v1](cc-joint-search-v1/)|最新搜索优化开发版|core80.py、lazy_search.py、recovery_precheck.py、local_search.py、clean_ablation.py|
 |[cc-joint-core80-full-lex-repair-v8](cc-joint-core80-full-lex-repair-v8/)|论文主系统与80作业完成版|completion_time.py、completion_continuity.py、clean_ablation.py、joint_scheduler.py、tail_recovery.py|
 |[cc-joint-recovery-equivalent-v1](cc-joint-recovery-equivalent-v1/)|最新恢复等效修正版|对FO/FULL恢复资格进行几何闭包，不能继承旧版80作业数字|
 |[cc-joint-clean-ab-r3](cc-joint-clean-ab-r3/)|两条贡献的干净消融|共同候选/目标/准入契约及开关|

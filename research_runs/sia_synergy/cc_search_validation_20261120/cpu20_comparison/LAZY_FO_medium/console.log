@@ -1,0 +1,220 @@
+Solver params: p=-0.5, lambda_a=0.01, lambda_n=1.1
+Unique configs:
+Configs: {0: ('aws', 1, 1), 1: ('aws', 1, 2), 2: ('aws', 1, 4), 3: ('aws', 1, 8), 4: ('dgx-ext', 1, 1), 5: ('dgx-ext', 1, 2), 6: ('dgx-ext', 1, 4), 7: ('dgx-ext', 1, 8)}
+Cluster total gpus: {'aws': 2, 'dgx-ext': 2}
+Simulated cluster config: 
+nnodes: {'aws': 1, 'dgx-ext': 1}, ngpus_per_node:{'aws': 2, 'dgx-ext': 2}
+Initialized job state for 20 jobs
+Scaling only GPU count (scale-gpu): []
+Scaling bsz, GPU count (adaptive): []
+Fixed bsz, GPU count (rigid): []
+Seeding profiles for job: cifar10-0
+Seeding profiles for job: deepspeech2-8
+Seeding profiles for job: cifar10-1
+Seeding profiles for job: deepspeech2-9
+Seeding profiles for job: cifar10-2
+Seeding profiles for job: cifar10-3
+Seeding profiles for job: cifar10-4
+Seeding profiles for job: cifar10-5
+Seeding profiles for job: cifar10-6
+Seeding profiles for job: cifar10-10
+Seeding profiles for job: cifar10-11
+Seeding profiles for job: cifar10-13
+Seeding profiles for job: cifar10-14
+Seeding profiles for job: cifar10-15
+Seeding profiles for job: cifar10-17
+Seeding profiles for job: cifar10-18
+Seeding profiles for job: cifar10-19
+Seeding profiles for job: cifar10-20
+Seeding profiles for job: cifar10-22
+Seeding profiles for job: cifar10-24
+Policy optimization took 70.23ms, reallocating+migrating jobs took 1.48ms
+Policy optimization took 211.01ms, reallocating+migrating jobs took 2.01ms
+Policy optimization took 257.05ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 323.77ms, reallocating+migrating jobs took 3.51ms
+Policy optimization took 399.00ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 380.53ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 407.17ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 382.48ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 448.31ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 440.10ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 422.08ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 320.05ms, reallocating+migrating jobs took 1.31ms
+Policy optimization took 483.29ms, reallocating+migrating jobs took 3.03ms
+Policy optimization took 386.44ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 488.91ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 424.13ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 433.89ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 313.74ms, reallocating+migrating jobs took 3.06ms
+Policy optimization took 427.71ms, reallocating+migrating jobs took 2.21ms
+Policy optimization took 423.42ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 437.14ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 400.64ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 411.62ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 407.42ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 322.97ms, reallocating+migrating jobs took 3.39ms
+Policy optimization took 492.73ms, reallocating+migrating jobs took 1.91ms
+Policy optimization took 396.34ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 391.43ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 386.94ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 440.30ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 422.21ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 330.42ms, reallocating+migrating jobs took 3.31ms
+Policy optimization took 500.60ms, reallocating+migrating jobs took 3.15ms
+Policy optimization took 446.79ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 434.26ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 452.12ms, reallocating+migrating jobs took 1.20ms
+Policy optimization took 442.76ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 459.38ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 332.73ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 443.13ms, reallocating+migrating jobs took 3.02ms
+Policy optimization took 397.28ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 401.92ms, reallocating+migrating jobs took 1.51ms
+Policy optimization took 421.68ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 478.65ms, reallocating+migrating jobs took 0.78ms
+Policy optimization took 445.27ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 344.09ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 456.48ms, reallocating+migrating jobs took 5.25ms
+Policy optimization took 418.42ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 415.54ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 425.62ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 442.33ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 485.84ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 343.82ms, reallocating+migrating jobs took 2.44ms
+Policy optimization took 495.76ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 491.79ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 496.60ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 501.29ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 524.97ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 555.08ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 332.75ms, reallocating+migrating jobs took 1.32ms
+Policy optimization took 490.47ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 418.32ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 490.11ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 472.38ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 472.90ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 503.94ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 542.77ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 308.69ms, reallocating+migrating jobs took 2.00ms
+Policy optimization took 468.53ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 436.25ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 418.95ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 453.38ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 446.48ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 566.18ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 575.16ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 308.06ms, reallocating+migrating jobs took 4.66ms
+Policy optimization took 445.37ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 436.77ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 430.01ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 426.93ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 469.11ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 447.99ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 503.94ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 306.25ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 453.74ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 480.56ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 490.48ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 430.64ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 505.34ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 443.09ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 497.34ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 314.03ms, reallocating+migrating jobs took 3.51ms
+Policy optimization took 427.83ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 423.50ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 426.29ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 431.01ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 450.35ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 455.57ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 522.65ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 374.57ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 445.28ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 430.48ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 421.93ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 441.40ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 424.85ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 454.55ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 492.20ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 364.93ms, reallocating+migrating jobs took 2.99ms
+Policy optimization took 436.78ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 413.97ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 427.02ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 447.31ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 442.59ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 458.03ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 494.64ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 313.57ms, reallocating+migrating jobs took 2.01ms
+Policy optimization took 478.43ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 426.07ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 479.33ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 481.00ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 472.60ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 498.03ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 502.28ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 286.59ms, reallocating+migrating jobs took 14.92ms
+Policy optimization took 414.19ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 436.63ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 402.59ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 425.78ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 414.95ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 432.63ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 487.11ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 424.93ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 211.36ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 210.48ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 200.00ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 210.22ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 204.21ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 211.23ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 208.54ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 226.23ms, reallocating+migrating jobs took 0.51ms
+Policy optimization took 72.66ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 64.79ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 69.90ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 73.41ms, reallocating+migrating jobs took 2.00ms
+Policy optimization took 72.60ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 64.88ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 67.87ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 59.73ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 65.61ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 69.91ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 64.90ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 66.61ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 64.99ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 66.51ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 68.53ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 70.48ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 68.15ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 64.24ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 78.70ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 67.50ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 68.23ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 73.37ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 74.97ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 81.15ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 66.74ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 63.69ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 243.33ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 45.30ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 45.18ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 48.75ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 46.26ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 34.51ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 43.80ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 42.86ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 48.68ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 44.03ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 45.72ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 45.07ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 44.89ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 37.54ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 35.59ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 48.08ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 45.46ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 43.22ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 57.70ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 43.21ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 36.62ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 37.59ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 47.28ms, reallocating+migrating jobs took 0.00ms
+Policy optimization took 45.29ms, reallocating+migrating jobs took 0.00ms

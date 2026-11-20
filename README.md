@@ -19,6 +19,7 @@
 - `_archive/`：早期归档及本轮中间源码压缩包。不是废纸篓，不应直接删除。
 - `maintenance/project_organization_20261101_v1/`：本轮归档清单、逐文件hash、恢复脚本和验证记录。
 
-本轮整理不选择新的最终算法版本，不修改算法或输入，不启动实验。根目录不是Git仓库，源码版本以冻结快照与逐文件SHA-256为依据。
+2026-11-20 已建立 GitHub 私有备份。最新搜索优化源码和本次验证通过独立提交保存，历史实验继续对应各自的冻结版本与逐文件 SHA-256。
 
 SYNTHETIC CROSS-HARDWARE TRANSFER — NOT REAL SATURN PERFORMANCE。
+- **最新搜索优化版**：[cc-joint-search-v1](cc-joint-search-v1/)，策略入口为 core80.py，包含 LAZY_FO 恢复预判和可选 LOCAL。12 作业规模验证与 20 作业对照见[完整报告](research_runs/sia_synergy/cc_search_validation_20261120/TWO_STUDIES_REPORT.md)。

@@ -1,5 +1,6 @@
 {
   "folders": [
+    {"name": "00 最新搜索优化版", "path": "cc-joint-search-v1"},
     {"name": "01 论文与文献", "path": "research_notes/paper/cc_joint_draft_20261101_v1"},
     {"name": "02 论文主实现 v8（80作业）", "path": "cc-joint-core80-full-lex-repair-v8"},
     {"name": "03 恢复等效修正版（12作业）", "path": "cc-joint-recovery-equivalent-v1"},

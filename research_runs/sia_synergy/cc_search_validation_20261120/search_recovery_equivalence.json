@@ -1,0 +1,448 @@
+{
+  "valid": true,
+  "scope": "bounded regression; LOCAL and FULL (if requested) run independently of the exact comparison",
+  "materialized_columns_definition": "FO uses the factor certificate; search uses initial plus expanded auxiliary columns",
+  "workload": "C:\\Users\\88534\\Documents\\Codex\\2026-10-25\\referenced-chatgpt-conversation-this-is-an\\work\\cc-search\\inputs\\core80_workload.csv",
+  "workload_slice_sha256": "6ec7d2b1a16d369800423cd727032f469ee9b7bb3ca43e1513bd93dd8a355823",
+  "job_ids": [
+    "cifar10-10000",
+    "cifar10-10001",
+    "cifar10-10002",
+    "deepspeech2-10003",
+    "bert-10004",
+    "cifar10-10005"
+  ],
+  "scenario": "dual",
+  "response": "medium",
+  "topology": {
+    "aws": 2,
+    "dgx-ext": 2
+  },
+  "search_budget_seconds": 5.0,
+  "round_limit": 150,
+  "require_completion": true,
+  "seeded": true,
+  "exact_methods": [
+    "FO",
+    "LAZY_FO",
+    "LAZY_FO_LEGACY"
+  ],
+  "fo_lazy_fo_matched_rounds": 132,
+  "fo_lazy_fo_matched_decisions": 131,
+  "failure": null,
+  "methods": {
+    "FO": {
+      "last_decision_round": 130,
+      "drain_rounds": 20,
+      "lock_job_rounds": 3,
+      "non_proportional_job_rounds": 151,
+      "status_counts": {
+        "OPTIMAL_CLEAN_AB": 111,
+        "DRAIN_FOR_HEAD": 20
+      },
+      "generation_counts": {},
+      "budget_exhausted_rounds": 0,
+      "local_status_counts": {},
+      "trajectory": "08c41c137a2161cb33292ffae1af3c43a10001e5307fb17ded04cdc0d86b3ea8",
+      "recovery_guard_rounds": 0,
+      "recovery_eager_rounds": 0,
+      "recovery_certificate_skip_rounds": 0,
+      "recovery_offered_rounds": 1,
+      "recovery_committed_rounds": 1,
+      "recovery_offer_count": 1,
+      "recovery_commit_count": 1,
+      "recovery_guard_by_scope": {},
+      "recovery_eager_by_scope": {},
+      "recovery_certified_by_scope": {},
+      "recovery_status_counts": {},
+      "recovery_offers_by_scope": {
+        "MULTI_JOB_SPARE_RESOURCE": 1
+      },
+      "recovery_commits_by_scope": {
+        "MULTI_JOB_SPARE_RESOURCE": 1
+      },
+      "step_seconds": {
+        "samples": 132,
+        "total": 71.33163099998637,
+        "median": 0.14389095000115049,
+        "p95": 2.293045929998698,
+        "p99": 3.1212633390012705,
+        "max": 3.5236139000007825
+      },
+      "select_seconds": {
+        "samples": 131,
+        "total": 14.435904199988727,
+        "median": 0.031007099998532794,
+        "p95": 0.3983778500005428,
+        "p99": 0.5126717799998004,
+        "max": 0.5484090999998443
+      },
+      "input_columns": {
+        "samples": 131,
+        "total": 110457,
+        "median": 478,
+        "p95": 1805.0,
+        "p99": 1805.0,
+        "max": 1805
+      },
+      "materialized_columns": {
+        "samples": 131,
+        "total": 110457,
+        "median": 478,
+        "p95": 1805.0,
+        "p99": 1805.0,
+        "max": 1805
+      },
+      "initial_columns": null,
+      "solve_calls": {
+        "samples": 131,
+        "total": 1227,
+        "median": 7,
+        "p95": 15.0,
+        "p99": 16.0,
+        "max": 17
+      },
+      "phase1_columns": null,
+      "aux_columns": null,
+      "initial_generation_seconds": null,
+      "aux_generation_seconds": null,
+      "decision_seconds": {
+        "samples": 131,
+        "total": 31.075025599973742,
+        "median": 0.10543129999859957,
+        "p95": 0.6914279500015255,
+        "p99": 0.8749021599996921,
+        "max": 0.9505620000018098
+      },
+      "recovery_precheck_seconds": null,
+      "completed": 6,
+      "total_jobs": 6,
+      "simulated_seconds": 7920,
+      "mean_jct_if_all_completed": 3028.3333333333335,
+      "p95_jct_if_all_completed": 6687.0,
+      "p99_jct_if_all_completed": 7627.000000000001,
+      "completed_jct_seconds": {
+        "cifar10-10000": 1021,
+        "cifar10-10001": 1503,
+        "cifar10-10002": 1930,
+        "deepspeech2-10003": 7862,
+        "bert-10004": 2692,
+        "cifar10-10005": 3162
+      }
+    },
+    "LAZY_FO": {
+      "last_decision_round": 130,
+      "drain_rounds": 20,
+      "lock_job_rounds": 3,
+      "non_proportional_job_rounds": 151,
+      "status_counts": {
+        "OPTIMAL_CLEAN_AB": 111,
+        "DRAIN_FOR_HEAD": 20
+      },
+      "generation_counts": {
+        "LAZY": 128,
+        "RECOVERY_EAGER": 3
+      },
+      "budget_exhausted_rounds": 0,
+      "local_status_counts": {
+        "not_requested": 131
+      },
+      "trajectory": "08c41c137a2161cb33292ffae1af3c43a10001e5307fb17ded04cdc0d86b3ea8",
+      "recovery_guard_rounds": 105,
+      "recovery_eager_rounds": 3,
+      "recovery_certificate_skip_rounds": 102,
+      "recovery_offered_rounds": 1,
+      "recovery_committed_rounds": 1,
+      "recovery_offer_count": 1,
+      "recovery_commit_count": 1,
+      "recovery_guard_by_scope": {
+        "multi": 26,
+        "solo": 79
+      },
+      "recovery_eager_by_scope": {
+        "multi": 2,
+        "solo": 1
+      },
+      "recovery_certified_by_scope": {
+        "multi": 24,
+        "solo": 78
+      },
+      "recovery_status_counts": {
+        "not_applicable": 26,
+        "proved_no_offer": 102,
+        "uncertain": 3
+      },
+      "recovery_offers_by_scope": {
+        "MULTI_JOB_SPARE_RESOURCE": 1
+      },
+      "recovery_commits_by_scope": {
+        "MULTI_JOB_SPARE_RESOURCE": 1
+      },
+      "step_seconds": {
+        "samples": 132,
+        "total": 60.342589000010776,
+        "median": 0.09331559999918682,
+        "p95": 2.145032605000051,
+        "p99": 2.781171657997401,
+        "max": 3.1647049999992305
+      },
+      "select_seconds": {
+        "samples": 131,
+        "total": 15.074619100025302,
+        "median": 0.026083700002345722,
+        "p95": 0.4566141499999503,
+        "p99": 0.5074527099986879,
+        "max": 0.589514400002372
+      },
+      "input_columns": {
+        "samples": 131,
+        "total": 3889,
+        "median": 4,
+        "p95": 24.0,
+        "p99": 786.699999999995,
+        "max": 1291
+      },
+      "materialized_columns": {
+        "samples": 131,
+        "total": 34125,
+        "median": 19,
+        "p95": 886.0,
+        "p99": 909.0999999999997,
+        "max": 1291
+      },
+      "initial_columns": {
+        "samples": 131,
+        "total": 4153,
+        "median": 4,
+        "p95": 32.0,
+        "p99": 786.699999999995,
+        "max": 1291
+      },
+      "solve_calls": {
+        "samples": 131,
+        "total": 1227,
+        "median": 7,
+        "p95": 15.0,
+        "p99": 16.0,
+        "max": 17
+      },
+      "phase1_columns": {
+        "samples": 131,
+        "total": 440,
+        "median": 1,
+        "p95": 13.5,
+        "p99": 18.0,
+        "max": 20
+      },
+      "aux_columns": {
+        "samples": 131,
+        "total": 29972,
+        "median": 15,
+        "p95": 854.0,
+        "p99": 854.0,
+        "max": 854
+      },
+      "initial_generation_seconds": {
+        "samples": 131,
+        "total": 0.3362068999813346,
+        "median": 0.0006257000022742432,
+        "p95": 0.004230749998896499,
+        "p99": 0.04176508000127767,
+        "max": 0.08947269999771379
+      },
+      "aux_generation_seconds": {
+        "samples": 131,
+        "total": 1.6464455000095768,
+        "median": 0.0010058000007120427,
+        "p95": 0.05513104999954521,
+        "p99": 0.059972240000570304,
+        "max": 0.0795670000006794
+      },
+      "decision_seconds": {
+        "samples": 131,
+        "total": 21.080148500001087,
+        "median": 0.0563828000013018,
+        "p95": 0.5400864499988529,
+        "p99": 0.5991677400012122,
+        "max": 0.7007126999997126
+      },
+      "recovery_precheck_seconds": {
+        "samples": 131,
+        "total": 0.003739799991308246,
+        "median": 2.4099997972371057e-05,
+        "p95": 7.854999967094045e-05,
+        "p99": 0.00011277000012341871,
+        "max": 0.00011950000043725595
+      },
+      "completed": 6,
+      "total_jobs": 6,
+      "simulated_seconds": 7920,
+      "mean_jct_if_all_completed": 3028.3333333333335,
+      "p95_jct_if_all_completed": 6687.0,
+      "p99_jct_if_all_completed": 7627.000000000001,
+      "completed_jct_seconds": {
+        "cifar10-10000": 1021,
+        "cifar10-10001": 1503,
+        "cifar10-10002": 1930,
+        "deepspeech2-10003": 7862,
+        "bert-10004": 2692,
+        "cifar10-10005": 3162
+      }
+    },
+    "LAZY_FO_LEGACY": {
+      "last_decision_round": 130,
+      "drain_rounds": 20,
+      "lock_job_rounds": 3,
+      "non_proportional_job_rounds": 151,
+      "status_counts": {
+        "OPTIMAL_CLEAN_AB": 111,
+        "DRAIN_FOR_HEAD": 20
+      },
+      "generation_counts": {
+        "LAZY": 26,
+        "RECOVERY_EAGER": 105
+      },
+      "budget_exhausted_rounds": 0,
+      "local_status_counts": {
+        "not_requested": 131
+      },
+      "trajectory": "08c41c137a2161cb33292ffae1af3c43a10001e5307fb17ded04cdc0d86b3ea8",
+      "recovery_guard_rounds": 105,
+      "recovery_eager_rounds": 105,
+      "recovery_certificate_skip_rounds": 0,
+      "recovery_offered_rounds": 1,
+      "recovery_committed_rounds": 1,
+      "recovery_offer_count": 1,
+      "recovery_commit_count": 1,
+      "recovery_guard_by_scope": {
+        "multi": 26,
+        "solo": 79
+      },
+      "recovery_eager_by_scope": {
+        "multi": 26,
+        "solo": 79
+      },
+      "recovery_certified_by_scope": {},
+      "recovery_status_counts": {
+        "not_applicable": 26,
+        "disabled": 105
+      },
+      "recovery_offers_by_scope": {
+        "MULTI_JOB_SPARE_RESOURCE": 1
+      },
+      "recovery_commits_by_scope": {
+        "MULTI_JOB_SPARE_RESOURCE": 1
+      },
+      "step_seconds": {
+        "samples": 132,
+        "total": 65.70425320000868,
+        "median": 0.1614189499996428,
+        "p95": 2.120452679999286,
+        "p99": 3.0330863120000124,
+        "max": 3.386984600001597
+      },
+      "select_seconds": {
+        "samples": 131,
+        "total": 15.060929299997952,
+        "median": 0.03096689999802038,
+        "p95": 0.45100749999983236,
+        "p99": 0.5151875900013692,
+        "max": 0.5494872000017494
+      },
+      "input_columns": {
+        "samples": 131,
+        "total": 70808,
+        "median": 478,
+        "p95": 1291.0,
+        "p99": 1732.0,
+        "max": 1732
+      },
+      "materialized_columns": {
+        "samples": 131,
+        "total": 89700,
+        "median": 478,
+        "p95": 1291.0,
+        "p99": 1732.0,
+        "max": 1732
+      },
+      "initial_columns": {
+        "samples": 131,
+        "total": 70968,
+        "median": 478,
+        "p95": 1291.0,
+        "p99": 1732.0,
+        "max": 1732
+      },
+      "solve_calls": {
+        "samples": 131,
+        "total": 1227,
+        "median": 7,
+        "p95": 15.0,
+        "p99": 16.0,
+        "max": 17
+      },
+      "phase1_columns": {
+        "samples": 131,
+        "total": 440,
+        "median": 1,
+        "p95": 13.5,
+        "p99": 18.0,
+        "max": 20
+      },
+      "aux_columns": {
+        "samples": 131,
+        "total": 18732,
+        "median": 0,
+        "p95": 854.0,
+        "p99": 854.0,
+        "max": 854
+      },
+      "initial_generation_seconds": {
+        "samples": 131,
+        "total": 4.109897600003023,
+        "median": 0.02334830000108923,
+        "p95": 0.08339789999990899,
+        "p99": 0.13487940000122758,
+        "max": 0.17161480000140727
+      },
+      "aux_generation_seconds": {
+        "samples": 131,
+        "total": 0.8795064999976603,
+        "median": 0.0,
+        "p95": 0.040551700001742574,
+        "p99": 0.050108779999936785,
+        "max": 0.053142699998716125
+      },
+      "decision_seconds": {
+        "samples": 131,
+        "total": 26.6467845000152,
+        "median": 0.10189859999809414,
+        "p95": 0.5301069500001176,
+        "p99": 0.8157399499978054,
+        "max": 0.8242786999981035
+      },
+      "recovery_precheck_seconds": {
+        "samples": 131,
+        "total": 0.0,
+        "median": 0.0,
+        "p95": 0.0,
+        "p99": 0.0,
+        "max": 0.0
+      },
+      "completed": 6,
+      "total_jobs": 6,
+      "simulated_seconds": 7920,
+      "mean_jct_if_all_completed": 3028.3333333333335,
+      "p95_jct_if_all_completed": 6687.0,
+      "p99_jct_if_all_completed": 7627.000000000001,
+      "completed_jct_seconds": {
+        "cifar10-10000": 1021,
+        "cifar10-10001": 1503,
+        "cifar10-10002": 1930,
+        "deepspeech2-10003": 7862,
+        "bert-10004": 2692,
+        "cifar10-10005": 3162
+      }
+    }
+  }
+}

@@ -1,0 +1,4 @@
+name,time,application,num_replicas,batch_size,source_row_index
+cifar10-0,0,cifar10,12,4096,0
+deepspeech2-8,0,deepspeech2,6,320,1
+cifar10-1,0,cifar10,12,4096,2

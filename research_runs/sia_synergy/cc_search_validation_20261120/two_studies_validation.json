@@ -1,0 +1,132 @@
+{
+  "valid": true,
+  "scale12_all_complete_and_equivalent": true,
+  "cpu20_all_complete": true,
+  "cpu20_raw_reconciliation": {
+    "LAZY_FO_medium": {
+      "rounds": 191,
+      "physical_trajectory_sha256": "717b793d8c19b834798834092525642ffae72cb7f125e8ffeed7a3c9c63ab72d"
+    },
+    "LOCAL_medium": {
+      "rounds": 191,
+      "physical_trajectory_sha256": "717b793d8c19b834798834092525642ffae72cb7f125e8ffeed7a3c9c63ab72d"
+    },
+    "SIA_P_medium": {
+      "rounds": 199,
+      "physical_trajectory_sha256": "eb2d1b257848085add09baff45b25dba28ed40a9bc9d8c2dd6c9788d00f55af9"
+    },
+    "SIA_P_neutral": {
+      "rounds": 300,
+      "physical_trajectory_sha256": "9b260f21715be182b39fe2027b5235c9bd05ce26f2ca2dab75d38e8d5ebb86ea"
+    }
+  },
+  "cpu20_per_job": {
+    "cifar10-0": {
+      "sia_jct": 786.0,
+      "lazy_jct": 692.0,
+      "change_seconds": -94.0
+    },
+    "deepspeech2-8": {
+      "sia_jct": 6963.0,
+      "lazy_jct": 10014.0,
+      "change_seconds": 3051.0
+    },
+    "cifar10-1": {
+      "sia_jct": 786.0,
+      "lazy_jct": 1027.0,
+      "change_seconds": 241.0
+    },
+    "deepspeech2-9": {
+      "sia_jct": 6443.0,
+      "lazy_jct": 11415.0,
+      "change_seconds": 4972.0
+    },
+    "cifar10-2": {
+      "sia_jct": 6963.0,
+      "lazy_jct": 1175.0,
+      "change_seconds": -5788.0
+    },
+    "cifar10-3": {
+      "sia_jct": 8540.0,
+      "lazy_jct": 1566.0,
+      "change_seconds": -6974.0
+    },
+    "cifar10-4": {
+      "sia_jct": 7623.0,
+      "lazy_jct": 1686.0,
+      "change_seconds": -5937.0
+    },
+    "cifar10-5": {
+      "sia_jct": 8629.0,
+      "lazy_jct": 2106.0,
+      "change_seconds": -6523.0
+    },
+    "cifar10-6": {
+      "sia_jct": 8545.0,
+      "lazy_jct": 2226.0,
+      "change_seconds": -6319.0
+    },
+    "cifar10-10": {
+      "sia_jct": 8929.0,
+      "lazy_jct": 2646.0,
+      "change_seconds": -6283.0
+    },
+    "cifar10-11": {
+      "sia_jct": 6733.0,
+      "lazy_jct": 2854.0,
+      "change_seconds": -3879.0
+    },
+    "cifar10-13": {
+      "sia_jct": 7265.0,
+      "lazy_jct": 3327.0,
+      "change_seconds": -3938.0
+    },
+    "cifar10-14": {
+      "sia_jct": 8593.0,
+      "lazy_jct": 3509.0,
+      "change_seconds": -5084.0
+    },
+    "cifar10-15": {
+      "sia_jct": 8929.0,
+      "lazy_jct": 3987.0,
+      "change_seconds": -4942.0
+    },
+    "cifar10-17": {
+      "sia_jct": 8929.0,
+      "lazy_jct": 4167.0,
+      "change_seconds": -4762.0
+    },
+    "cifar10-18": {
+      "sia_jct": 9289.0,
+      "lazy_jct": 4647.0,
+      "change_seconds": -4642.0
+    },
+    "cifar10-19": {
+      "sia_jct": 9245.0,
+      "lazy_jct": 4827.0,
+      "change_seconds": -4418.0
+    },
+    "cifar10-20": {
+      "sia_jct": 9589.0,
+      "lazy_jct": 5309.0,
+      "change_seconds": -4280.0
+    },
+    "cifar10-22": {
+      "sia_jct": 9507.0,
+      "lazy_jct": 5491.0,
+      "change_seconds": -4016.0
+    },
+    "cifar10-24": {
+      "sia_jct": 4863.0,
+      "lazy_jct": 5972.0,
+      "change_seconds": 1109.0
+    }
+  },
+  "faster_jobs": 16,
+  "slower_jobs": 4,
+  "same_jobs": 0,
+  "mean_jct_reduction_vs_sia": 0.4655553214768704,
+  "p95_jct_change_vs_sia": 0.06024014046745396,
+  "local_accepted": 0,
+  "scope": "single frozen synthetic cross-hardware workload, simulator decision wall excluded from JCT"
+}
